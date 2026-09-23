@@ -1,0 +1,76 @@
+<style>
+.bd-lab{position:absolute;font-weight:500;font-size:17px;color:rgba(242,239,233,.82);white-space:nowrap;transform:translateX(-50%)}
+.bd-track{position:absolute;left:110px}
+.bd-tl{position:absolute;left:-56px;font-size:14px;color:var(--dim)}
+.bd-blk{position:absolute;top:0;height:92px;overflow:hidden;border-right:2px solid var(--bg);background:#1a1d24}
+.bd-blk img{height:100%;width:100%;object-fit:cover;display:block}
+.bd-blk b{position:absolute;left:5px;top:4px;font-family:PlexMono,monospace;font-weight:400;font-size:11px;color:#fff;text-shadow:0 0 4px #000}
+.bd-ablk{position:absolute;top:0;height:40px;border-right:2px solid var(--bg);background:rgba(53,224,196,.2);overflow:hidden}
+.bd-ablk i{position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(53,224,196,.7)}
+.bd-pipe span{font-size:17px;letter-spacing:.06em;color:rgba(242,239,233,.3);margin-right:8px}
+.bd-pipe span.on{color:var(--te)}
+.bd-ph{position:absolute;top:-24px;width:2px;height:190px;background:var(--or)}
+.bd-ph:before{content:"";position:absolute;left:-7px;top:0;border:8px solid transparent;border-top-color:var(--or)}
+</style>
+<div class="sect bd-sect" style="bottom:90px;right:96px;text-align:right"><div class="no">03 — BUILD</div><div class="en" style="font-size:150px">BUILD</div><div class="jp" style="font-size:50px">組む</div></div>
+<div class="abs mono dim" style="left:110px;top:120px;font-size:15px;letter-spacing:.14em">EMOTION CURVE · creative_brief.yaml</div>
+<svg class="abs" style="left:110px;top:190px" width="1700" height="200" viewBox="0 0 1700 200"><path class="bd-curve" d="M0,170 C120,160 170,120 243,110 S420,70 486,95 S640,60 729,40 S900,120 971,128 S1120,70 1214,62 S1380,105 1457,95 S1620,150 1700,165" fill="none" stroke="#ff5a1f" stroke-width="3"/></svg>
+<div class="bd-labs"></div>
+<div class="abs mono bd-pipe" style="left:110px;top:470px"><span>normalize</span><span>→</span><span>score</span><span>→</span><span>assemble</span><span>→</span><span>trim</span><span>→</span><span>resolve</span><span>→</span><span>export</span></div>
+<div class="bd-track bd-v" style="top:540px;width:1704px;height:92px"><div class="bd-tl mono" style="top:36px">V1</div></div>
+<div class="bd-track bd-a" style="top:648px;width:1704px;height:40px"><div class="bd-tl mono" style="top:12px">A1</div></div>
+<div class="abs" style="left:110px;top:540px;width:1704px;height:10px"><div class="bd-ph"></div></div>
+<div class="abs mono bd-hash" style="left:110px;top:730px;font-size:20px"></div>
+<div class="abs mono dim bd-info" style="left:110px;top:766px;font-size:16px;letter-spacing:.1em;opacity:0"></div>
+<script>
+vos.graphic(({ tl, q, qa, root, props, onFrame }) => {
+  const cut = props.cut, THUMBS = ["vos://asset/mawa_v15@0.5","vos://asset/mawa_v15@4.0","vos://asset/mawa_v15@9.0","vos://asset/mawa_v15@12.5","vos://asset/mawa_v15@17.0","vos://asset/mawa_v15@21.0","vos://asset/mawa_v15@24.5","vos://asset/mawa_v15@27.5","vos://asset/mawa_v15@31.5","vos://asset/mawa_v15@35.0","vos://asset/mawa_v15@39.0","vos://asset/mawa_v15@43.0","vos://asset/mawa_v15@49.0","vos://asset/mawa_v15@55.0","vos://asset/mawa_v15@61.0","vos://asset/mawa_v15@65.5"];
+  const scale = 1704 / cut.total_frames;
+  const lx = [0, 243, 486, 729, 971, 1214, 1457, 1700], ly = [170, 110, 95, 40, 128, 62, 95, 165];
+  const labs = cut.emotion_curve.map((s, i) => {
+    const el = document.createElement("div");
+    el.className = "bd-lab";
+    el.textContent = s.split("（")[0];
+    // two fixed rows (above / below the curve) with a hairline to the curve point
+    const above = i % 2 === 0, x = 110 + lx[i], y = above ? 150 : 400;
+    el.style.left = Math.min(1700, Math.max(200, x)) + "px";
+    el.style.top = y + "px";
+    q(".bd-labs").appendChild(el);
+    const ln = document.createElement("div");
+    const y0 = above ? y + 26 : 190 + ly[i], y1 = above ? 190 + ly[i] : y - 4;
+    Object.assign(ln.style, { position: "absolute", left: x + "px", top: y0 + "px", height: Math.max(0, y1 - y0) + "px", width: "1px", background: "rgba(242,239,233,.25)" });
+    q(".bd-labs").appendChild(ln);
+    el._ln = ln;
+    return el;
+  });
+  const blocks = cut.clips.map((c, i) => {
+    const b = document.createElement("div");
+    b.className = "bd-blk";
+    Object.assign(b.style, { left: c.frame * scale + "px", width: c.frames * scale + "px" });
+    b.innerHTML = '<img src="' + THUMBS[i] + '"><b>' + c.beat + "</b>";
+    q(".bd-v").appendChild(b);
+    const a = document.createElement("div");
+    a.className = "bd-ablk";
+    Object.assign(a.style, { left: c.frame * scale + "px", width: c.frames * scale + "px" });
+    a.innerHTML = "<i></i>";
+    q(".bd-a").appendChild(a);
+    return [b, a];
+  });
+  q(".bd-info").textContent = "SAME INPUT → SAME CUT · DETERMINISTIC COMPILER · " + cut.clips.length + " CLIPS · " + (cut.total_frames / cut.fps).toFixed(1) + "s";
+  const path = q(".bd-curve"), L = path.getTotalLength();
+  gsap.set(path, { strokeDasharray: L, strokeDashoffset: L });
+  tl.to(path, { strokeDashoffset: 0, duration: 1.8, ease: "power2.inOut" }, 0.1);
+  labs.forEach((el, i) => { gsap.set([el, el._ln], { opacity: 0 }); tl.to([el, el._ln], { opacity: 1, duration: 0.25 }, 0.2 + i * 0.22); });
+  tl.from(q(".bd-sect"), { opacity: 0, y: 30, duration: 0.5, ease: "power3.out" }, 0.3);
+  qa(".bd-pipe span").forEach((s, i) => tl.set(s, { className: "on" }, 1.0 + i * 0.17));
+  blocks.forEach(([b, a], i) => {
+    tl.fromTo(b, { y: -60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "back.out(1.6)" }, 1.0 + i * 0.125);
+    tl.fromTo(a, { scaleX: 0, transformOrigin: "0 50%" }, { scaleX: 1, duration: 0.25, ease: "power3.out" }, 1.1 + i * 0.125);
+  });
+  tl.fromTo(q(".bd-ph"), { x: 0 }, { x: 1704, duration: 3.0, ease: "none" }, 3.2)
+    .to(q(".bd-info"), { opacity: 1, duration: 0.3 }, 6.2)
+    .to(root.children, { opacity: 0, duration: 0.25 }, 7.8);
+  const hash = "timeline.json  sha256:" + cut.sha256.slice(0, 16) + "…" + cut.sha256.slice(-8);
+  onFrame((t) => { q(".bd-hash").textContent = t < 5 ? "" : hash.slice(0, Math.floor((t - 5) * 60)); });
+});
+</script>

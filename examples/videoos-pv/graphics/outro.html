@@ -1,0 +1,40 @@
+<style>
+.ot-jp{font-weight:900;font-size:104px;letter-spacing:-.01em;line-height:1.2}
+.ot-logo{position:absolute;left:0;right:0;top:330px;text-align:center;opacity:0}
+.ot-word{font-family:BC;font-weight:700;font-size:250px;letter-spacing:.06em;line-height:.9}
+.ot-mark{display:inline-block;width:64px;height:64px;background:var(--or);margin-right:34px;vertical-align:40px}
+.ot-sub{font-weight:500;font-size:32px;margin-top:26px;letter-spacing:.04em}
+.ot-url{font-size:26px;margin-top:38px;color:var(--or);letter-spacing:.04em}
+.ot-cred{margin-top:70px;font-size:14px;letter-spacing:.12em;color:rgba(242,239,233,.45)}
+</style>
+<div class="abs ot-lines" style="left:150px;top:330px">
+  <div class="ot-jp mask" style="height:130px"><span class="o1">粗編集は、エージェントに。</span></div>
+  <div class="ot-jp mask" style="height:130px"><span class="o2">最後の一手は、<span class="or">あなたに。</span></span></div>
+  <div class="mono dim o3" style="font-size:22px;letter-spacing:.14em;margin-top:34px">ROUGH CUT BY THE AGENT. FINAL CUT BY YOU.</div>
+</div>
+<div class="ot-logo">
+  <div class="ot-word"><span class="ot-mark"></span><span class="ot-w" style="display:inline-block">VIDEO OS</span></div>
+  <div class="ot-sub">RoughCut Agent — 素材フォルダから、粗編集へ。</div>
+  <div class="ot-chips" style="margin-top:34px"><span class="chip">OPEN SOURCE</span><span class="chip">LOCAL-FIRST</span><span class="chip">MARLIN-2B × CLAUDE / CODEX</span><span class="chip">HYPERFRAMES</span><span class="chip">PREMIERE ROUND-TRIP</span></div>
+  <div class="mono ot-url"></div>
+  <div class="mono ot-cred"></div>
+</div>
+<script>
+vos.graphic(({ tl, q, qa, props }) => {
+  q(".ot-url").textContent = props.url;
+  q(".ot-cred").textContent = props.credit;
+  gsap.set([q(".o1"), q(".o2")], { yPercent: 110 });
+  gsap.set(q(".o3"), { opacity: 0 });
+  tl.to(q(".o1"), { yPercent: 0, duration: 0.7, ease: "expo.out" }, 0.1)
+    .to(q(".o2"), { yPercent: 0, duration: 0.7, ease: "expo.out" }, 2.0)
+    .to(q(".o3"), { opacity: 1, duration: 0.4 }, 2.5)
+    .to(q(".ot-lines"), { opacity: 0, y: -30, duration: 0.3, ease: "power2.in" }, 3.65)
+    .to(q(".ot-logo"), { opacity: 1, duration: 0.01 }, 4.0)
+    .fromTo(q(".ot-w"), { scale: 1.25, opacity: 0, filter: "blur(12px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 1.0, ease: "expo.out", immediateRender: false }, 4.0)
+    .fromTo(q(".ot-mark"), { scale: 0, rotation: -90 }, { scale: 1, rotation: 0, duration: 0.6, ease: "back.out(2)", immediateRender: false }, 4.05)
+    .from(q(".ot-sub"), { opacity: 0, y: 16, duration: 0.5, ease: "power3.out" }, 4.5)
+    .from(qa(".ot-chips .chip"), { opacity: 0, y: 10, duration: 0.3, stagger: 0.07 }, 4.8)
+    .from(q(".ot-url"), { opacity: 0, duration: 0.4 }, 5.4)
+    .from(q(".ot-cred"), { opacity: 0, duration: 0.5 }, 5.8);
+});
+</script>

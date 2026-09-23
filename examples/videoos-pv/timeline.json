@@ -1,0 +1,751 @@
+{
+  "format": "vos.timeline/1",
+  "name": "videoos-pv",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "background": "#07090d"
+  },
+  "duration": "124b",
+  "grid": {
+    "bpm": 120,
+    "offset": 0
+  },
+  "tracks": [
+    {
+      "id": "V1",
+      "kind": "video",
+      "clips": [
+        {
+          "id": "clock-bg",
+          "asset": "シーン3_5_街頭時計",
+          "at": 0,
+          "in": 0.3,
+          "dur": 4.05,
+          "fx": {
+            "filter": "blur(5px) grayscale(.6)"
+          },
+          "fade": {
+            "in": 1.2
+          },
+          "label": "cold open: the clock keeps turning"
+        },
+        {
+          "id": "p01",
+          "asset": "mawa_v15",
+          "at": "80b",
+          "dur": "2b",
+          "in": 54.8,
+          "label": "b14 stairs"
+        },
+        {
+          "id": "p02",
+          "asset": "mawa_v15",
+          "at": "82b",
+          "dur": "2b",
+          "in": 27.2,
+          "label": "b08 drum"
+        },
+        {
+          "id": "p03",
+          "asset": "mawa_v15",
+          "at": "84b",
+          "dur": "2b",
+          "in": 31.2,
+          "label": "b09 wheel"
+        },
+        {
+          "id": "p04",
+          "asset": "mawa_v15",
+          "at": "86b",
+          "dur": "2b",
+          "in": 38.7,
+          "label": "b11 mirror"
+        },
+        {
+          "id": "p05",
+          "asset": "mawa_v15",
+          "at": "88b",
+          "dur": "1b",
+          "in": 43.0,
+          "label": "b12 clock"
+        },
+        {
+          "id": "p06",
+          "asset": "mawa_v15",
+          "at": "89b",
+          "dur": "1b",
+          "in": 34.7,
+          "label": "b10 fan"
+        },
+        {
+          "id": "p07",
+          "asset": "mawa_v15",
+          "at": "90b",
+          "dur": "2b",
+          "in": 8.6,
+          "label": "b03 envelope"
+        },
+        {
+          "id": "p08",
+          "asset": "mawa_v15",
+          "at": "92b",
+          "dur": "2b",
+          "in": 3.9,
+          "label": "b02 rooftop"
+        },
+        {
+          "id": "p09",
+          "asset": "mawa_v15",
+          "at": "94b",
+          "dur": "2b",
+          "in": 48.9,
+          "label": "b13 dusk photos"
+        },
+        {
+          "id": "p10",
+          "asset": "mawa_v15",
+          "at": "96b",
+          "dur": "4.1b",
+          "in": 60.4,
+          "label": "b15 sunset face"
+        }
+      ]
+    },
+    {
+      "id": "G1",
+      "kind": "graphics",
+      "clips": [
+        {
+          "id": "cold",
+          "src": "graphics/cold-open.html",
+          "at": 0,
+          "dur": 4.05,
+          "props": {
+            "command": "$ vos ingest ~/動画素材/回っているよ/*.mp4",
+            "meta": "18 CLIPS  ·  2m 22s OF FOOTAGE  ·  0 CUTS"
+          }
+        },
+        {
+          "id": "ingest",
+          "src": "graphics/ingest.html",
+          "at": "8b",
+          "dur": 4.1,
+          "props": {
+            "files": {
+              "$assets": true
+            },
+            "focus": 7
+          }
+        },
+        {
+          "id": "see",
+          "src": "graphics/see.html",
+          "at": "16b",
+          "dur": 8.1,
+          "props": {
+            "describe": {
+              "$describe": "シーン3_写真手元展開"
+            },
+            "sourceFile": "シーン3-写真手元展開.mp4",
+            "masterToSource": 15.5,
+            "peakQuery": "the strongest action moment"
+          }
+        },
+        {
+          "id": "find",
+          "src": "graphics/find.html",
+          "at": "32b",
+          "dur": 8.1,
+          "props": {
+            "describe": {
+              "$describe": "シーン4_b"
+            },
+            "asset": {
+              "$asset": "シーン4_b"
+            },
+            "queries": [
+              {
+                "query": "the strongest emotional reaction",
+                "typeAt": 0.25,
+                "hitAt": 1.5
+              },
+              {
+                "query": "a person enters or exits",
+                "typeAt": 4.0,
+                "hitAt": 5.0
+              }
+            ]
+          }
+        },
+        {
+          "id": "build",
+          "src": "graphics/build.html",
+          "at": "48b",
+          "dur": 8.1,
+          "props": {
+            "cut": {
+              "$data": "data/mawatteiru-cut.json"
+            }
+          }
+        },
+        {
+          "id": "refine",
+          "src": "graphics/refine.html",
+          "at": "64b",
+          "dur": 8.05,
+          "props": {
+            "review": {
+              "$data": "data/mawatteiru-review.json"
+            }
+          }
+        },
+        {
+          "id": "payoff",
+          "src": "graphics/payoff.html",
+          "at": "80b",
+          "dur": 10.05,
+          "props": {
+            "cut": {
+              "$data": "data/mawatteiru-cut.json"
+            },
+            "titleAt": 8.2,
+            "shots": [
+              [
+                0,
+                "b14"
+              ],
+              [
+                1,
+                "b08"
+              ],
+              [
+                2,
+                "b09"
+              ],
+              [
+                3,
+                "b11"
+              ],
+              [
+                4,
+                "b12"
+              ],
+              [
+                4.5,
+                "b10"
+              ],
+              [
+                5,
+                "b03"
+              ],
+              [
+                6,
+                "b02"
+              ],
+              [
+                7,
+                "b13"
+              ],
+              [
+                8,
+                "b15"
+              ]
+            ]
+          }
+        },
+        {
+          "id": "formats",
+          "src": "graphics/formats.html",
+          "at": "100b",
+          "dur": "8b"
+        },
+        {
+          "id": "outro",
+          "src": "graphics/outro.html",
+          "at": "108b",
+          "dur": "16b",
+          "props": {
+            "url": "github.com/mocchalera/video-os-v2",
+            "credit": "FILMS 回っているよ / 借りた火 / 変な一個 — EDITED WITH VIDEO OS · MUSIC ORIGINAL · THIS PV: vos timeline.json → HYPERFRAMES"
+          }
+        }
+      ]
+    },
+    {
+      "id": "S1",
+      "kind": "video",
+      "clips": [
+        {
+          "id": "raw01",
+          "asset": "シーン1_b_封筒手元",
+          "slot": "ingest/c1",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw02",
+          "asset": "シーン1",
+          "slot": "ingest/c2",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw03",
+          "asset": "シーン2",
+          "slot": "ingest/c3",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw04",
+          "asset": "シーン3_2_コインランドリー",
+          "slot": "ingest/c4",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw05",
+          "asset": "シーン3_3_自転車",
+          "slot": "ingest/c5",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw06",
+          "asset": "シーン3_4_カーブミラー_v2",
+          "slot": "ingest/c6",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw07",
+          "asset": "シーン3_5_街頭時計",
+          "slot": "ingest/c7",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw08",
+          "asset": "シーン3_写真手元展開",
+          "slot": "ingest/c8",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw09",
+          "asset": "シーン3",
+          "slot": "ingest/c9",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw10",
+          "asset": "シーン4_a",
+          "slot": "ingest/c10",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw11",
+          "asset": "シーン4_b",
+          "slot": "ingest/c11",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw12",
+          "asset": "シーン4_c_ランドリー前_minimax",
+          "slot": "ingest/c12",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw13",
+          "asset": "シーン4_c_ランドリー前",
+          "slot": "ingest/c13",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw14",
+          "asset": "シーン4_d_階段見下ろし_v2",
+          "slot": "ingest/c14",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw15",
+          "asset": "シーン5",
+          "slot": "ingest/c15",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw16",
+          "asset": "シーン6",
+          "slot": "ingest/c16",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw17",
+          "asset": "シーン8",
+          "slot": "ingest/c17",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "raw18",
+          "asset": "grok_video_03729a07_ad06_45f6_add9_6c939a7ed5e9",
+          "slot": "ingest/c18",
+          "at": "8b",
+          "dur": 4.1,
+          "in": 0.3
+        },
+        {
+          "id": "see-photo",
+          "asset": "mawa_v15",
+          "slot": "see/photo",
+          "at": "16b",
+          "dur": 4.1,
+          "in": 16.5,
+          "label": "b05 photos spread (source: シーン3-写真手元展開)"
+        },
+        {
+          "id": "find-a",
+          "asset": "シーン4_b",
+          "slot": "find/viewer",
+          "at": "32b",
+          "dur": "3b",
+          "in": 3.2
+        },
+        {
+          "id": "find-b",
+          "asset": "シーン4_b",
+          "slot": "find/viewer",
+          "at": "35b",
+          "dur": "7b",
+          "in": 0
+        },
+        {
+          "id": "find-c",
+          "asset": "シーン4_b",
+          "slot": "find/viewer",
+          "at": "42b",
+          "dur": 3.1,
+          "in": 6.9
+        },
+        {
+          "id": "ph1-a",
+          "asset": "karita_final",
+          "slot": "formats/p1",
+          "at": "100b",
+          "dur": "4b",
+          "in": 100
+        },
+        {
+          "id": "ph1-b",
+          "asset": "karita_final",
+          "slot": "formats/p1",
+          "at": "104b",
+          "dur": "4b",
+          "in": 170
+        },
+        {
+          "id": "ph2",
+          "asset": "mawa_v15",
+          "slot": "formats/p2",
+          "at": "100b",
+          "dur": "8b",
+          "in": 60.4
+        },
+        {
+          "id": "ph3-a",
+          "asset": "henna_final",
+          "slot": "formats/p3",
+          "at": "100b",
+          "dur": "4b",
+          "in": 45
+        },
+        {
+          "id": "ph3-b",
+          "asset": "henna_final",
+          "slot": "formats/p3",
+          "at": "104b",
+          "dur": "4b",
+          "in": 162
+        }
+      ]
+    },
+    {
+      "id": "G2",
+      "kind": "graphics",
+      "clips": [
+        {
+          "id": "hud",
+          "src": "graphics/hud.html",
+          "at": "8b",
+          "dur": "100b",
+          "props": {
+            "offset": 4,
+            "corner": "LOCAL · ON-DEVICE · 18 CLIPS",
+            "sections": [
+              [
+                4,
+                "00 — INGEST"
+              ],
+              [
+                8,
+                "01 — SEE"
+              ],
+              [
+                16,
+                "02 — FIND"
+              ],
+              [
+                24,
+                "03 — BUILD"
+              ],
+              [
+                32,
+                "04 — REFINE"
+              ],
+              [
+                40,
+                "05 — CUT"
+              ],
+              [
+                50,
+                "06 — DELIVER"
+              ]
+            ]
+          }
+        }
+      ],
+      "role": "overlay"
+    },
+    {
+      "id": "G3",
+      "kind": "graphics",
+      "clips": [
+        {
+          "id": "wipe-02",
+          "src": "graphics/wipe.html",
+          "at": "32b-0.3s",
+          "dur": 0.82,
+          "props": {
+            "no": "02",
+            "en": "FIND",
+            "jp": "探す"
+          }
+        },
+        {
+          "id": "wipe-03",
+          "src": "graphics/wipe.html",
+          "at": "48b-0.3s",
+          "dur": 0.82,
+          "props": {
+            "no": "03",
+            "en": "BUILD",
+            "jp": "組む"
+          }
+        },
+        {
+          "id": "wipe-04",
+          "src": "graphics/wipe.html",
+          "at": "64b-0.3s",
+          "dur": 0.82,
+          "props": {
+            "no": "04",
+            "en": "REFINE",
+            "jp": "磨く"
+          }
+        }
+      ],
+      "role": "overlay"
+    },
+    {
+      "id": "G4",
+      "kind": "graphics",
+      "clips": [
+        {
+          "id": "fx",
+          "src": "graphics/fx.html",
+          "at": 0,
+          "dur": "124b",
+          "props": {
+            "flashes": [
+              [
+                3.9,
+                1,
+                0.35
+              ],
+              [
+                40,
+                0.9,
+                0.4
+              ],
+              [
+                44,
+                0.6,
+                0.25
+              ],
+              [
+                58,
+                0.75,
+                0.4
+              ]
+            ],
+            "blacks": [
+              [
+                39.75,
+                0.25,
+                0.1
+              ],
+              [
+                61.4,
+                0,
+                0.5
+              ]
+            ]
+          }
+        }
+      ],
+      "role": "overlay"
+    },
+    {
+      "id": "A1",
+      "kind": "audio",
+      "clips": [
+        {
+          "id": "score",
+          "asset": "bgm",
+          "at": 0,
+          "in": 0,
+          "dur": "124b",
+          "gain_db": -1
+        }
+      ]
+    }
+  ],
+  "markers": [
+    {
+      "at": 0,
+      "label": "COLD OPEN",
+      "kind": "section"
+    },
+    {
+      "at": "8b",
+      "label": "INGEST",
+      "kind": "section"
+    },
+    {
+      "at": "16b",
+      "label": "SEE",
+      "kind": "section"
+    },
+    {
+      "at": "32b",
+      "label": "FIND",
+      "kind": "section"
+    },
+    {
+      "at": "48b",
+      "label": "BUILD",
+      "kind": "section"
+    },
+    {
+      "at": "64b",
+      "label": "REFINE",
+      "kind": "section"
+    },
+    {
+      "at": "80b",
+      "label": "CUT",
+      "kind": "section"
+    },
+    {
+      "at": "100b",
+      "label": "DELIVER",
+      "kind": "section"
+    },
+    {
+      "at": "108b",
+      "label": "CLOSE",
+      "kind": "section"
+    },
+    {
+      "at": 0,
+      "dur": 0.6,
+      "label": "fade up from black",
+      "kind": "expect-black"
+    },
+    {
+      "at": 3.9,
+      "dur": 0.3,
+      "label": "flash into ingest",
+      "kind": "expect-flash"
+    },
+    {
+      "at": "79.5b",
+      "dur": 0.3,
+      "label": "blackout before the drop",
+      "kind": "expect-black"
+    },
+    {
+      "at": "80b",
+      "dur": 0.3,
+      "label": "drop flash",
+      "kind": "expect-flash"
+    },
+    {
+      "at": "88b",
+      "dur": 0.2,
+      "label": "clock flash",
+      "kind": "expect-flash"
+    },
+    {
+      "at": "116b",
+      "dur": 0.3,
+      "label": "logo flash",
+      "kind": "expect-flash"
+    },
+    {
+      "at": "122.5b",
+      "dur": 1.5,
+      "label": "fade out",
+      "kind": "expect-black"
+    },
+    {
+      "at": "64b",
+      "dur": 8,
+      "label": "REFINE is graphics-only",
+      "kind": "expect-still"
+    },
+    {
+      "at": "107.8b",
+      "dur": 0.4,
+      "label": "breath after the tape stop",
+      "kind": "expect-black"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "video-os-next",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "A video editing toolbox for capable agents: eyes, memory, hands and verification over one edit document.",
+  "bin": { "vos": "bin/vos" },
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "test": "node --no-warnings --test tests/*.test.ts",
+    "vos": "node --no-warnings src/cli.ts"
+  },
+  "devDependencies": {
+    "hyperframes": "0.7.60"
+  }
+}

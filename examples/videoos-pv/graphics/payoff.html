@@ -1,0 +1,26 @@
+<style>
+.po-lb{position:absolute;left:0;right:0;height:138px;background:#000}
+.po-lab{left:96px;bottom:40px;font-size:17px;letter-spacing:.06em;color:rgba(242,239,233,.85)}
+.po-title{right:110px;bottom:38px;text-align:right;opacity:0}
+</style>
+<div class="po-lb po-t" style="top:0"></div><div class="po-lb po-b" style="bottom:0"></div>
+<div class="abs mono po-lab"></div>
+<div class="abs po-title">
+  <div style="font-family:'Hiragino Mincho ProN',serif;font-size:44px;letter-spacing:.2em">回っているよ</div>
+  <div class="mono" style="font-size:13px;letter-spacing:.2em;color:rgba(242,239,233,.7);margin-top:4px">A SHORT FILM · CUT WITH VIDEO OS</div>
+</div>
+<script>
+vos.graphic(({ tl, q, props, onFrame }) => {
+  // labels are the real beat labels of the film's timeline.json, keyed by beat id
+  const byBeat = Object.fromEntries(props.cut.clips.map((c) => [c.beat, c.label]));
+  const shots = props.shots.map(([t, beat]) => [t, beat + "  " + (byBeat[beat] ?? "")]);
+  tl.fromTo(q(".po-t"), { yPercent: -100 }, { yPercent: 0, duration: 0.5, ease: "expo.out" }, 0)
+    .fromTo(q(".po-b"), { yPercent: 100 }, { yPercent: 0, duration: 0.5, ease: "expo.out" }, 0)
+    .to(q(".po-title"), { opacity: 1, duration: 0.6 }, props.titleAt);
+  onFrame((t) => {
+    let s = "";
+    for (const [k, v] of shots) if (t >= k) s = v;
+    q(".po-lab").textContent = s;
+  });
+});
+</script>

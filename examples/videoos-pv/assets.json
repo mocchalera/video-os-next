@@ -1,0 +1,341 @@
+{
+  "assets": {
+    "bgm": {
+      "duration": 64,
+      "filename": "bgm.wav",
+      "has_audio": true,
+      "id": "a_4a080019daaaaf6e",
+      "kind": "audio",
+      "note": "original synthesized score, tools/bgm.py (120 BPM)",
+      "replaced": [
+        "a_8964f48126d4dfa3"
+      ],
+      "size": 12288078
+    },
+    "grok_video_03729a07_ad06_45f6_add9_6c939a7ed5e9": {
+      "duration": 6.041667,
+      "filename": "grok-video-03729a07-ad06-45f6-add9-6c939a7ed5e9.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 400,
+      "id": "a_26d596da38845bb0",
+      "kind": "video",
+      "size": 3000397,
+      "width": 736
+    },
+    "henna_final": {
+      "duration": 216.958333,
+      "filename": "final.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 1920,
+      "id": "a_91bf5cef24d5e489",
+      "kind": "video",
+      "note": "変な一個 lyric MV final",
+      "size": 26820283,
+      "width": 1080
+    },
+    "karita_final": {
+      "duration": 289.875,
+      "filename": "final.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 1920,
+      "id": "a_1b2e2dc42f78567d",
+      "kind": "video",
+      "note": "借りた火 lyric MV final",
+      "size": 362338314,
+      "width": 1080
+    },
+    "mawa_v15": {
+      "duration": 71.083333,
+      "filename": "rough-cut-v15-hands-spread-master.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 1080,
+      "id": "a_f385b371f0f1f5c5",
+      "kind": "video",
+      "note": "回っているよ v15 master (edited with video-os-v2)",
+      "size": 134005825,
+      "width": 1920
+    },
+    "tl_v04": {
+      "duration": null,
+      "filename": "timeline-overview-v4.png",
+      "has_audio": false,
+      "height": 180,
+      "id": "a_8c280443130ffb6c",
+      "kind": "image",
+      "size": 1392931,
+      "width": 4612
+    },
+    "tl_v05": {
+      "duration": null,
+      "filename": "timeline-overview-v5.png",
+      "has_audio": false,
+      "height": 180,
+      "id": "a_8c280443130ffb6c",
+      "kind": "image",
+      "size": 1392931,
+      "width": 4612
+    },
+    "tl_v07": {
+      "duration": null,
+      "filename": "timeline-overview-v7.png",
+      "has_audio": false,
+      "height": 180,
+      "id": "a_636404641b2c1235",
+      "kind": "image",
+      "size": 1388980,
+      "width": 4612
+    },
+    "tl_v08": {
+      "duration": null,
+      "filename": "timeline-overview-v8.png",
+      "has_audio": false,
+      "height": 180,
+      "id": "a_acd31a3a04c473c4",
+      "kind": "image",
+      "size": 1395278,
+      "width": 4606
+    },
+    "tl_v10": {
+      "duration": null,
+      "filename": "timeline-overview-v10.png",
+      "has_audio": false,
+      "height": 180,
+      "id": "a_db4e8ff6985cf0ae",
+      "kind": "image",
+      "size": 1392268,
+      "width": 4606
+    },
+    "tl_v12": {
+      "duration": null,
+      "filename": "timeline-overview-v12.png",
+      "has_audio": false,
+      "height": 180,
+      "id": "a_e5f44d4a494bf51f",
+      "kind": "image",
+      "size": 1529781,
+      "width": 5200
+    },
+    "tl_v13": {
+      "duration": null,
+      "filename": "timeline-overview-v13.png",
+      "has_audio": false,
+      "height": 180,
+      "id": "a_a24353a184475817",
+      "kind": "image",
+      "size": 1529351,
+      "width": 5200
+    },
+    "tl_v14": {
+      "duration": null,
+      "filename": "timeline-overview-v14.png",
+      "has_audio": false,
+      "height": 180,
+      "id": "a_ede5538cfa41dde4",
+      "kind": "image",
+      "size": 1540270,
+      "width": 5250
+    },
+    "tl_v15": {
+      "duration": null,
+      "filename": "timeline-overview-v15.png",
+      "has_audio": false,
+      "height": 180,
+      "id": "a_81319e231307d36a",
+      "kind": "image",
+      "size": 1551480,
+      "width": 5250
+    },
+    "シーン1": {
+      "duration": 10.041667,
+      "filename": "シーン1.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 416,
+      "id": "a_497e5189609072ac",
+      "kind": "video",
+      "size": 1781620,
+      "width": 752
+    },
+    "シーン1_b_封筒手元": {
+      "duration": 6.041667,
+      "filename": "シーン1-b-封筒手元.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 416,
+      "id": "a_cfe22ee9715e31f7",
+      "kind": "video",
+      "size": 1733319,
+      "width": 752
+    },
+    "シーン2": {
+      "duration": 10.041667,
+      "filename": "シーン2.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 416,
+      "id": "a_6b78f79057f0059c",
+      "kind": "video",
+      "size": 1647301,
+      "width": 752
+    },
+    "シーン3": {
+      "duration": 6.041667,
+      "filename": "シーン3.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 400,
+      "id": "a_243d7acdeb14d686",
+      "kind": "video",
+      "size": 1739115,
+      "width": 736
+    },
+    "シーン3_2_コインランドリー": {
+      "duration": 6.041667,
+      "filename": "シーン3-2-コインランドリー.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 400,
+      "id": "a_abe562186509994b",
+      "kind": "video",
+      "size": 1189698,
+      "width": 736
+    },
+    "シーン3_3_自転車": {
+      "duration": 6.041667,
+      "filename": "シーン3-3-自転車.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 400,
+      "id": "a_cb4f1f0f9bc42fa2",
+      "kind": "video",
+      "size": 1854010,
+      "width": 736
+    },
+    "シーン3_4_カーブミラー_v2": {
+      "duration": 6.041667,
+      "filename": "シーン3-4-カーブミラー-v2.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 400,
+      "id": "a_518845b30fc50f29",
+      "kind": "video",
+      "size": 1350817,
+      "width": 736
+    },
+    "シーン3_5_街頭時計": {
+      "duration": 6.041667,
+      "filename": "シーン3-5-街頭時計.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 400,
+      "id": "a_8f4d4b28345d29c1",
+      "kind": "video",
+      "size": 819365,
+      "width": 736
+    },
+    "シーン3_写真手元展開": {
+      "duration": 6.016,
+      "filename": "シーン3-写真手元展開.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 400,
+      "id": "a_1c4b9117f4125839",
+      "kind": "video",
+      "size": 2950776,
+      "width": 736
+    },
+    "シーン4_a": {
+      "duration": 10.041667,
+      "filename": "シーン4-a.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 400,
+      "id": "a_2c4b28ac09ba964a",
+      "kind": "video",
+      "size": 3232313,
+      "width": 736
+    },
+    "シーン4_b": {
+      "duration": 10.005,
+      "filename": "シーン4-b.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 378,
+      "id": "a_9ddea3fd502e8c8e",
+      "kind": "video",
+      "size": 2494689,
+      "width": 672
+    },
+    "シーン4_c_ランドリー前": {
+      "duration": 6.041667,
+      "filename": "シーン4-c-ランドリー前.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 416,
+      "id": "a_05c5ac13449ec141",
+      "kind": "video",
+      "size": 1353105,
+      "width": 752
+    },
+    "シーン4_c_ランドリー前_minimax": {
+      "duration": 10.144,
+      "filename": "シーン4-c-ランドリー前-minimax.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 480,
+      "id": "a_391cdfc41f8b9825",
+      "kind": "video",
+      "size": 5616318,
+      "width": 864
+    },
+    "シーン4_d_階段見下ろし_v2": {
+      "duration": 16.041667,
+      "filename": "シーン4-d-階段見下ろし-v2.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 416,
+      "id": "a_34d80984a8f3d0fe",
+      "kind": "video",
+      "size": 2457030,
+      "width": 752
+    },
+    "シーン5": {
+      "duration": 6.041667,
+      "filename": "シーン5.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 416,
+      "id": "a_7d1d1f0da769997f",
+      "kind": "video",
+      "size": 1328108,
+      "width": 752
+    },
+    "シーン6": {
+      "duration": 10.041667,
+      "filename": "シーン6.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 416,
+      "id": "a_fb32515e33d7aced",
+      "kind": "video",
+      "size": 1468777,
+      "width": 752
+    },
+    "シーン8": {
+      "duration": 6.041667,
+      "filename": "シーン8.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 400,
+      "id": "a_61fdc44d69afe7fe",
+      "kind": "video",
+      "size": 889690,
+      "width": 736
+    }
+  },
+  "format": "vos.assets/1"
+}

@@ -1,0 +1,56 @@
+<style>
+.ig-grid{position:absolute;left:50%;top:50%;width:1740px;height:840px;margin:-420px 0 0 -870px;transform-origin:50% 50%}
+.ig-cell{position:absolute;width:274px;height:154px;background:#111}
+.ig-fn{position:absolute;left:0;top:160px;font-size:12px;color:var(--dim);white-space:nowrap}
+.ig-band{position:absolute;left:0;right:0;top:410px;height:260px;background:rgba(7,9,13,.82)}
+.ig-title{position:absolute;left:0;right:0;top:432px;text-align:center}
+</style>
+<div class="ig-grid">
+    <div class="ig-cell" data-i="0" style="left:0px;top:0px"><div class="slot" data-slot="c1" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="1" style="left:293px;top:0px"><div class="slot" data-slot="c2" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="2" style="left:586px;top:0px"><div class="slot" data-slot="c3" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="3" style="left:879px;top:0px"><div class="slot" data-slot="c4" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="4" style="left:1172px;top:0px"><div class="slot" data-slot="c5" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="5" style="left:1465px;top:0px"><div class="slot" data-slot="c6" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="6" style="left:0px;top:280px"><div class="slot" data-slot="c7" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="7" style="left:293px;top:280px"><div class="slot" data-slot="c8" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="8" style="left:586px;top:280px"><div class="slot" data-slot="c9" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="9" style="left:879px;top:280px"><div class="slot" data-slot="c10" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="10" style="left:1172px;top:280px"><div class="slot" data-slot="c11" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="11" style="left:1465px;top:280px"><div class="slot" data-slot="c12" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="12" style="left:0px;top:560px"><div class="slot" data-slot="c13" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="13" style="left:293px;top:560px"><div class="slot" data-slot="c14" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="14" style="left:586px;top:560px"><div class="slot" data-slot="c15" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="15" style="left:879px;top:560px"><div class="slot" data-slot="c16" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="16" style="left:1172px;top:560px"><div class="slot" data-slot="c17" style="inset:0"></div><div class="ig-fn mono"></div></div>
+    <div class="ig-cell" data-i="17" style="left:1465px;top:560px"><div class="slot" data-slot="c18" style="inset:0"></div><div class="ig-fn mono"></div></div>
+</div>
+<div class="ig-band"></div>
+<div class="ig-title">
+  <div class="hero-jp mask" style="font-size:150px;height:170px"><span class="ig-t">全部、見る。</span></div>
+  <div class="mono ig-sub" style="font-size:20px;letter-spacing:.3em;margin-top:6px;color:var(--te)">EVERY CLIP. ON YOUR MAC.</div>
+</div>
+<script>
+vos.graphic(({ tl, q, qa, props, slotClips }) => {
+  // filenames come from the asset records of the clips the timeline put in each slot
+  qa(".ig-cell").forEach((cell, i) => {
+    const clip = slotClips("c" + (i + 1))[0];
+    const rec = clip && props.files && props.files[clip.alias];
+    cell.querySelector(".ig-fn").textContent = rec ? rec.filename : (clip ? clip.alias : "");
+    gsap.set(cell, { opacity: 0, scale: 0.82 });
+    tl.to(cell, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, i * 0.125);
+  });
+  const grid = q(".ig-grid");
+  tl.to(grid, { scale: 1.08, duration: 3.3, ease: "none" }, 0);
+  gsap.set(q(".ig-band"), { scaleY: 0 });
+  gsap.set(q(".ig-t"), { yPercent: 110 });
+  gsap.set(q(".ig-sub"), { opacity: 0 });
+  const focus = qa(".ig-cell")[props.focus ?? 7];
+  const fx = parseFloat(focus.style.left) + 137, fy = parseFloat(focus.style.top) + 77;
+  tl.to(q(".ig-band"), { scaleY: 1, duration: 0.4, ease: "power3.inOut" }, 1.9)
+    .to(q(".ig-t"), { yPercent: 0, duration: 0.55, ease: "expo.out" }, 2.0)
+    .to(q(".ig-sub"), { opacity: 1, duration: 0.3 }, 2.4)
+    .to([q(".ig-band"), q(".ig-title")], { opacity: 0, duration: 0.25 }, 3.3)
+    .to(grid, { scale: 7.2, x: (870 - fx) * 7.2, y: (420 - fy) * 7.2, duration: 0.75, ease: "expo.in" }, 3.3);
+});
+</script>

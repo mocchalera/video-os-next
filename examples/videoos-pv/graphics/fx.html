@@ -1,0 +1,23 @@
+<style>
+.fx-vig{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.55) 100%)}
+.fx-grain{position:absolute;inset:-64px;background:url(vos://file/design/grain.png);opacity:.075;mix-blend-mode:overlay}
+.fx-flash{position:absolute;inset:0;background:#fff;opacity:0}
+.fx-black{position:absolute;inset:0;background:#000;opacity:0}
+</style>
+<div class="fx-vig"></div><div class="fx-grain"></div><div class="fx-flash"></div><div class="fx-black"></div>
+<script>
+vos.graphic(({ tl, q, props, onFrame }) => {
+  for (const [t, peak, decay] of props.flashes) {
+    tl.to(q(".fx-flash"), { opacity: peak, duration: 0.03, ease: "none" }, t)
+      .to(q(".fx-flash"), { opacity: 0, duration: decay, ease: "power2.out" }, t + 0.03);
+  }
+  for (const [t, dur, fade] of props.blacks) {
+    tl.to(q(".fx-black"), { opacity: 1, duration: fade, ease: "none" }, t);
+    if (dur) tl.set(q(".fx-black"), { opacity: 0 }, t + dur);
+  }
+  onFrame((t) => {
+    const g = Math.floor(t * 15);
+    q(".fx-grain").style.transform = "translate(" + (((g * 73) % 64) - 32) + "px," + (((g * 151) % 64) - 32) + "px)";
+  });
+});
+</script>

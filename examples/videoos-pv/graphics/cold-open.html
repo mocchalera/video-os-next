@@ -1,0 +1,30 @@
+<style>
+.co-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,9,13,.92) 30%,rgba(7,9,13,.55))}
+.co-path{left:160px;top:300px;font-size:22px;color:var(--dim)}
+.co-hero{left:150px;top:380px}
+.co-meta{left:160px;top:790px;font-size:22px;letter-spacing:.06em}
+</style>
+<div class="co-shade"></div>
+<div class="co-wrap abs" style="inset:0">
+  <div class="abs mono co-path"></div>
+  <div class="abs hero-jp co-hero">
+    <div class="mask" style="height:180px"><span class="h1a">素材は、ある。</span></div>
+    <div class="mask" style="height:180px"><span class="h1b">時間が、<span class="or">ない。</span></span></div>
+  </div>
+  <div class="abs mono co-meta"></div>
+</div>
+<script>
+vos.graphic(({ tl, q, props, onFrame }) => {
+  const type = (s, t, t0, cps) => (t < t0 ? "" : s.slice(0, Math.min(s.length, Math.floor((t - t0) * cps))));
+  gsap.set([q(".h1a"), q(".h1b")], { yPercent: 110 });
+  tl.to(q(".h1a"), { yPercent: 0, duration: 0.6, ease: "expo.out" }, 0.5)
+    .to(q(".h1a"), { yPercent: -110, duration: 0.35, ease: "power2.in" }, 1.5)
+    .to(q(".h1b"), { yPercent: 0, duration: 0.6, ease: "expo.out" }, 1.5)
+    .to(q(".h1b"), { x: 18, duration: 0.05, yoyo: true, repeat: 5, ease: "none" }, 3.55)
+    .fromTo(q(".co-wrap"), { scale: 1 }, { scale: 1.06, duration: 4, ease: "none" }, 0);
+  onFrame((t) => {
+    q(".co-path").textContent = type(props.command, t, 0.15, 55);
+    q(".co-meta").textContent = type(props.meta, t, 2.35, 60);
+  });
+});
+</script>

@@ -1,0 +1,24 @@
+@font-face{font-family:ZK;src:url(fonts/ZenKakuGothicNew-Black.ttf);font-weight:900}
+@font-face{font-family:ZK;src:url(fonts/ZenKakuGothicNew-Bold.ttf);font-weight:700}
+@font-face{font-family:ZK;src:url(fonts/ZenKakuGothicNew-Medium.ttf);font-weight:500}
+@font-face{font-family:BC;src:url(fonts/BarlowCondensed-Bold.ttf);font-weight:700}
+@font-face{font-family:BC;src:url(fonts/BarlowCondensed-SemiBold.ttf);font-weight:600}
+@font-face{font-family:PlexMono;src:url(fonts/IBMPlexMono-Regular.ttf);font-weight:400}
+:root{--bg:#07090d;--ink:#f2efe9;--dim:#7d828c;--line:rgba(242,239,233,.16);--or:#ff5a1f;--te:#35e0c4}
+body{font-family:ZK,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.abs{position:absolute}
+.fill{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.mono{font-family:PlexMono,ZK,monospace;letter-spacing:.02em}
+.or{color:var(--or)}.te{color:var(--te)}.dim{color:var(--dim)}
+.mask{overflow:hidden;display:block}.mask>span{display:inline-block}
+.hero-jp{font-family:ZK;font-weight:900;font-size:168px;line-height:1.05;letter-spacing:-.02em}
+.tag{display:inline-block;font-family:PlexMono,ZK,monospace;font-size:15px;letter-spacing:.14em;padding:6px 12px;border:1px solid var(--te);color:var(--te)}
+.tag.o{border-color:var(--or);color:var(--or)}
+.tag.f{background:var(--te);color:#031;border-color:var(--te)}
+.chip{display:inline-block;font-family:PlexMono,ZK,monospace;font-size:14px;letter-spacing:.1em;padding:7px 12px;margin-right:10px;border:1px solid var(--line);color:rgba(242,239,233,.75)}
+.chip b{color:var(--te);font-weight:400}
+.sect{position:absolute}
+.sect .no{font-family:PlexMono,ZK,monospace;font-size:16px;color:var(--or);letter-spacing:.2em;margin-bottom:18px}
+.sect .en{font-family:BC;font-weight:700;font-size:210px;line-height:.8;letter-spacing:.01em;color:transparent;-webkit-text-stroke:2px rgba(242,239,233,.9)}
+.sect .jp{font-family:ZK;font-weight:900;font-size:64px;margin-top:18px}
+.slot{position:absolute;overflow:hidden;background:#000}

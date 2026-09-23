@@ -1,0 +1,2 @@
+Fonts in this folder are licensed under the SIL Open Font License 1.1:
+Zen Kaku Gothic New (Yoshimichi Ohira), Barlow Condensed (Jeremy Tribby), IBM Plex Mono (IBM).

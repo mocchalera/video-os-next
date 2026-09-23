@@ -1,0 +1,21 @@
+<style>
+.fm-phone{position:absolute;top:118px;width:470px;height:836px;border-radius:34px;overflow:hidden;background:#000;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.12)}
+.fm-cap{position:absolute;top:970px;width:470px;text-align:center;font-weight:700;font-size:26px}
+.fm-cap small{display:block;font-family:PlexMono,monospace;font-weight:400;font-size:13px;letter-spacing:.14em;color:var(--dim);margin-top:6px}
+</style>
+<div class="abs fm-chips" style="left:0;right:0;top:48px;text-align:center"><span class="chip">16:9 FILM</span><span class="chip">9:16 SOCIAL</span><span class="chip">LYRIC SYNC</span><span class="chip">PREMIERE XML ROUND-TRIP</span></div>
+<div class="fm-phone slot" data-slot="p1" style="left:185px"></div>
+<div class="fm-phone slot" data-slot="p2" style="left:725px"></div>
+<div class="fm-phone slot" data-slot="p3" style="left:1265px"></div>
+<div class="fm-cap" style="left:185px">借りた火<small>LYRIC MV · 9:16</small></div>
+<div class="fm-cap" style="left:725px">回っているよ<small>SHORT FILM · 16:9 → 9:16</small></div>
+<div class="fm-cap" style="left:1265px">変な一個<small>LYRIC MV · 9:16</small></div>
+<script>
+vos.graphic(({ tl, q, qa }) => {
+  const phones = qa(".fm-phone"), caps = qa(".fm-cap");
+  tl.from(phones, { y: 1100, duration: 0.6, stagger: 0.12, ease: "expo.out" }, 0)
+    .from(caps, { opacity: 0, y: 20, duration: 0.4, stagger: 0.12 }, 0.4)
+    .from(qa(".fm-chips .chip"), { opacity: 0, y: -10, duration: 0.3, stagger: 0.08 }, 0.3)
+    .to([...phones, ...caps, q(".fm-chips")], { y: 40, opacity: 0, scale: 0.96, duration: 0.45, ease: "power2.in", stagger: 0.03 }, 3.4);
+});
+</script>

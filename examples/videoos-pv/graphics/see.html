@@ -1,0 +1,106 @@
+<style>
+.sp-a,.sp-b{position:absolute;inset:0;overflow:hidden}
+.sp-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(4,6,9,.88) 0%,rgba(4,6,9,.55) 42%,rgba(4,6,9,0) 70%)}
+.sp-text{left:96px;top:196px;width:760px;font-size:23px;line-height:1.55;color:#e9f5f2}
+.sp-ev{position:absolute;height:34px;border-left:2px solid var(--te);background:rgba(53,224,196,.08);font-size:15px;line-height:34px;padding-left:10px;white-space:nowrap;color:rgba(233,245,242,.55);overflow:visible}
+.sp-ev.on{background:rgba(53,224,196,.22);color:#eafffb}
+.sp-head{position:absolute;top:-8px;width:2px;height:170px;background:var(--or)}
+.sp-steps{left:96px;top:110px;font-family:BC;font-weight:600;font-size:34px;letter-spacing:.12em;color:rgba(242,239,233,.35)}
+.sp-steps span.on{color:var(--ink)}
+.sp-pg{position:absolute;width:220px;height:124px;object-fit:cover}
+.sp-strip{position:absolute;left:0;top:450px;width:1920px;height:180px;display:flex}
+.sp-strip img{width:320px;height:180px;object-fit:cover}
+.sp-box{left:515px;top:14px;width:440px;height:425px;border:3px solid var(--or)}
+</style>
+<div class="sp-a">
+  <div class="slot sp-v" data-slot="photo" style="inset:0"></div>
+  <div class="sp-shade"></div>
+  <div class="abs" style="left:96px;top:118px"><span class="tag f">MARLIN-2B</span> <span class="tag">LOCAL VLM · ON-DEVICE</span></div>
+  <div class="abs mono sp-text"></div>
+  <div class="abs" style="left:96px;top:760px;width:760px">
+    <div class="mono dim sp-evlab" style="font-size:14px;letter-spacing:.14em;margin-bottom:12px"></div>
+    <div class="sp-evbox" style="position:relative;height:160px"><div class="sp-head"></div></div>
+  </div>
+  <div class="sect" style="right:96px;bottom:120px;text-align:right"><div class="no">01 — SEE</div><div class="en sp-en">SEE</div><div class="jp">見る</div></div>
+</div>
+<div class="sp-b" style="opacity:0">
+  <div class="abs sp-steps"><span class="st1">CONTACT SHEET</span>&nbsp;&nbsp;→&nbsp;&nbsp;<span class="st2">FILMSTRIP</span>&nbsp;&nbsp;→&nbsp;&nbsp;<span class="st3">PRECISION</span></div>
+  <div class="abs mono dim" style="left:96px;top:168px;font-size:16px;letter-spacing:.12em">PROGRESSIVE RESOLUTION · 粗く全体を、細かく瞬間を</div>
+    <img class="sp-pg" src="vos://asset/mawa_v15@0.6" style="left:270px;top:300px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@4.45" style="left:502px;top:300px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@8.3" style="left:734px;top:300px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@12.15" style="left:966px;top:300px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@16.0" style="left:1198px;top:300px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@19.85" style="left:1430px;top:300px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@23.7" style="left:270px;top:436px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@27.55" style="left:502px;top:436px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@31.4" style="left:734px;top:436px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@35.25" style="left:966px;top:436px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@39.1" style="left:1198px;top:436px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@42.95" style="left:1430px;top:436px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@46.8" style="left:270px;top:572px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@50.65" style="left:502px;top:572px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@54.5" style="left:734px;top:572px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@58.35" style="left:966px;top:572px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@62.2" style="left:1198px;top:572px">
+    <img class="sp-pg" src="vos://asset/mawa_v15@66.05" style="left:1430px;top:572px">
+  <div class="sp-strip"><img src="vos://asset/mawa_v15@16.7"><img src="vos://asset/mawa_v15@17.4"><img src="vos://asset/mawa_v15@18.1"><img src="vos://asset/mawa_v15@18.8"><img src="vos://asset/mawa_v15@19.5"><img src="vos://asset/mawa_v15@20.2"></div>
+  <div class="sp-peak" style="position:absolute;inset:0;opacity:0">
+    <img class="fill sp-peakimg" src="vos://asset/mawa_v15@19.7">
+    <div class="abs sp-box"></div>
+    <div class="abs" style="left:515px;top:456px"><span class="tag o sp-peaktag" style="background:rgba(0,0,0,.7)"></span><div class="mono sp-peakev" style="margin-top:10px;font-size:18px;color:#fff;text-shadow:0 1px 6px #000"></div></div>
+  </div>
+</div>
+<script>
+vos.graphic(({ tl, q, qa, props, onFrame, sourceTime }) => {
+  const d = props.describe; // bound to the real Marlin record of the source clip
+  const W = 760, span = props.eventSpan ?? 6;
+  q(".sp-evlab").textContent = "EVENTS · " + props.sourceFile;
+  const box = q(".sp-evbox");
+  const bars = d.events.map((e, i) => {
+    const el = document.createElement("div");
+    el.className = "sp-ev mono";
+    el.style.left = (e.start / span) * W + "px";
+    el.style.top = i * 40 + "px";
+    el.style.width = Math.max(24, ((e.end - e.start) / span) * W) + "px";
+    el.textContent = e.start.toFixed(1) + "–" + e.end.toFixed(1) + " " + e.description.replace(/^The (person|woman) /, "").replace(/\.$/, "");
+    box.appendChild(el);
+    return el;
+  });
+  const peak = d.finds.find((f) => f.query === props.peakQuery);
+  const peakEv = d.events.find((e) => peak && e.start <= peak.end && e.end >= peak.start && e.start >= peak.start - 0.5) || d.events[0];
+  q(".sp-peaktag").textContent = "PEAK · " + peak.start.toFixed(1) + "–" + peak.end.toFixed(1) + "s · " + peak.query;
+  q(".sp-peakev").textContent = "“" + peakEv.description + "”";
+
+  tl.fromTo(q(".sp-v"), { scale: 1.18 }, { scale: 1.04, duration: 4.1, ease: "power2.out" }, 0)
+    .from(q(".sp-en"), { xPercent: 40, opacity: 0, duration: 0.8, ease: "expo.out" }, 0.5)
+    .from(bars, { scaleX: 0, transformOrigin: "0 50%", duration: 0.5, stagger: 0.12, ease: "power3.out" }, 0.9)
+    .to(q(".sp-a"), { opacity: 0, duration: 0.25 }, 3.85)
+    .to(q(".sp-b"), { opacity: 1, duration: 0.2 }, 3.95);
+  const pgs = qa(".sp-pg");
+  gsap.set(pgs, { opacity: 0 });
+  gsap.set(q(".sp-strip"), { opacity: 0 });
+  tl.to(pgs, { opacity: 1, duration: 0.2, stagger: 0.03 }, 4.0)
+    .set(q(".st1"), { className: "st1 on" }, 4.0)
+    .to(pgs, { opacity: 0, scale: 0.6, duration: 0.3, stagger: 0.01, ease: "power2.in" }, 4.85)
+    .to(q(".sp-strip"), { opacity: 1, duration: 0.3 }, 5.0)
+    .fromTo(q(".sp-strip"), { scaleX: 0.4 }, { scaleX: 1, duration: 0.6, ease: "expo.out" }, 5.0)
+    .set(q(".st2"), { className: "st2 on" }, 5.0)
+    .to(q(".sp-strip"), { scale: 4.2, x: -420, duration: 0.6, ease: "expo.in" }, 5.9)
+    .to(q(".sp-peak"), { opacity: 1, duration: 0.15 }, 6.4)
+    .set(q(".st3"), { className: "st3 on" }, 6.4)
+    .fromTo(q(".sp-box"), { scale: 1.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "expo.out" }, 6.5)
+    .fromTo(q(".sp-peakimg"), { scale: 1.12 }, { scale: 1, duration: 1.6, ease: "power2.out" }, 6.4)
+    .fromTo(q(".sp-b"), { clipPath: "inset(0% 0% 0% 0%)" }, { clipPath: "inset(0% 0% 0% 100%)", duration: 0.4, ease: "expo.in", immediateRender: false }, 7.6);
+
+  const type = (s, t, t0, cps) => (t < t0 ? "" : s.slice(0, Math.min(s.length, Math.floor((t - t0) * cps))));
+  const scene = d.scene.split(". ").slice(0, 3).join(". ") + " …";
+  onFrame((t) => {
+    q(".sp-text").textContent = type(scene, t, 0.35, 75);
+    const st = sourceTime("photo", t);
+    const s = st ? st.t - (props.masterToSource ?? 0) : 0;
+    bars.forEach((el, i) => el.classList.toggle("on", s >= d.events[i].start && s < d.events[i].end));
+    q(".sp-head").style.left = Math.max(0, Math.min(W, (s / span) * W)) + "px";
+  });
+});
+</script>

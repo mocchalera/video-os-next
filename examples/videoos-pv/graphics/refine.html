@@ -1,0 +1,43 @@
+<style>
+.rf-row{position:absolute;left:220px;top:760px;height:44px;opacity:0}
+.rf-row img{height:44px;display:block}
+.rf-vl{position:absolute;left:-110px;top:4px;font-family:BC;font-weight:600;font-size:30px;letter-spacing:.04em}
+.rf-big{font-family:BC;font-weight:700;font-size:300px;line-height:.8}
+.rf-q{left:220px;top:860px;width:1480px;opacity:0}
+.rf-quote{font-weight:500;font-size:30px;line-height:1.55}
+</style>
+<div class="rf-wrap abs" style="inset:0">
+<div class="sect rf-sect" style="top:96px;left:96px"><div class="no">04 — REFINE</div><div class="en" style="font-size:150px">REFINE</div><div class="jp" style="font-size:50px">磨く</div></div>
+<div class="rf-row"><div class="rf-vl">v04</div><img src="vos://asset/tl_v04"></div>
+<div class="rf-row"><div class="rf-vl">v07</div><img src="vos://asset/tl_v07"></div>
+<div class="rf-row"><div class="rf-vl">v08</div><img src="vos://asset/tl_v08"></div>
+<div class="rf-row"><div class="rf-vl">v10</div><img src="vos://asset/tl_v10"></div>
+<div class="rf-row"><div class="rf-vl">v12</div><img src="vos://asset/tl_v12"></div>
+<div class="rf-row"><div class="rf-vl">v13</div><img src="vos://asset/tl_v13"></div>
+<div class="rf-row"><div class="rf-vl">v14</div><img src="vos://asset/tl_v14"></div>
+<div class="rf-row"><div class="rf-vl">v15</div><img src="vos://asset/tl_v15"></div>
+<div class="abs" style="right:96px;top:110px;text-align:right"><div class="mono dim" style="font-size:15px;letter-spacing:.14em">VERSION</div><div class="rf-big or"></div></div>
+<div class="abs rf-q"><div class="mono te rf-status" style="font-size:15px;letter-spacing:.14em;margin-bottom:10px"></div><div class="rf-quote"></div></div>
+</div>
+<script>
+vos.graphic(({ tl, q, qa, props, onFrame }) => {
+  const rows = qa(".rf-row"), labels = rows.map((r) => r.querySelector(".rf-vl").textContent);
+  rows.forEach((r, i) => {
+    const t0 = 0.5 + i * 0.5;
+    tl.fromTo(r, { opacity: 0, x: 80 }, { opacity: 1, x: 0, duration: 0.35, ease: "expo.out", immediateRender: false }, t0);
+    for (let j = 0; j < i; j++) tl.to(rows[j], { y: -(i - j) * 54, opacity: Math.max(0.14, 1 - (i - j) * 0.16), duration: 0.35, ease: "expo.out" }, t0);
+  });
+  const rv = props.review;
+  q(".rf-status").textContent = "REVIEW · roughcut-critic → status: " + rv.status + " · confidence " + rv.confidence;
+  tl.from(q(".rf-sect"), { opacity: 0, x: -30, duration: 0.5, ease: "power3.out" }, 0)
+    .to(rows[rows.length - 1], { boxShadow: "0 0 0 3px #ff5a1f", duration: 0.2 }, 0.5 + rows.length * 0.5)
+    .to(q(".rf-q"), { opacity: 1, duration: 0.3 }, 4.1)
+    .to(q(".rf-wrap"), { scale: 0.92, opacity: 0, duration: 0.4, ease: "power2.in" }, 7.4);
+  const quote = "「" + rv.strength + "」";
+  onFrame((t) => {
+    const vi = Math.max(0, Math.min(labels.length - 1, Math.floor((t - 0.5) / 0.5)));
+    q(".rf-big").textContent = labels[vi];
+    q(".rf-quote").textContent = t < 4.2 ? "" : quote.slice(0, Math.floor((t - 4.2) * 34));
+  });
+});
+</script>

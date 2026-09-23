@@ -1,0 +1,20 @@
+<style>
+.wp-panel{position:absolute;inset:0;background:var(--or);overflow:hidden}
+.wp-t{position:absolute;left:96px;top:50%;margin-top:-150px;font-family:BC;font-weight:700;font-size:300px;line-height:300px;color:#07090d;white-space:nowrap}
+.wp-n{font-family:PlexMono,monospace;font-size:36px;vertical-align:top;margin-right:30px;line-height:80px}
+.wp-j{font-family:ZK;font-weight:900;font-size:120px;margin-left:50px;vertical-align:40px}
+</style>
+<div class="wp-panel"><div class="wp-t"><span class="wp-n"></span><span class="wp-e"></span><span class="wp-j"></span></div></div>
+<script>
+vos.graphic(({ tl, q, props }) => {
+  q(".wp-n").textContent = props.no;
+  q(".wp-e").textContent = props.en;
+  q(".wp-j").textContent = props.jp;
+  const p = q(".wp-panel"), t = q(".wp-t");
+  // covers the cut: in over 0.28s, holds, exits from 0.48s
+  tl.fromTo(p, { clipPath: "inset(0% 100% 0% 0%)" }, { clipPath: "inset(0% 0% 0% 0%)", duration: 0.28, ease: "expo.in" }, 0)
+    .fromTo(t, { x: -260 }, { x: 0, duration: 0.6, ease: "expo.out" }, 0)
+    .to(p, { clipPath: "inset(0% 0% 0% 100%)", duration: 0.34, ease: "expo.out" }, 0.48)
+    .to(t, { x: 200, duration: 0.34, ease: "expo.out" }, 0.48);
+});
+</script>

@@ -1,0 +1,28 @@
+<style>
+.hd{position:absolute;inset:0;font-family:PlexMono,monospace;font-size:15px;letter-spacing:.08em;color:rgba(242,239,233,.72)}
+.hd-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--or);margin-right:10px;vertical-align:1px}
+.hd-c{position:absolute;width:26px;height:26px;border:0 solid rgba(242,239,233,.5)}
+</style>
+<div class="hd">
+  <div class="hd-c" style="left:32px;top:28px;border-left-width:1px;border-top-width:1px"></div>
+  <div class="hd-c" style="right:32px;top:28px;border-right-width:1px;border-top-width:1px"></div>
+  <div class="hd-c" style="left:32px;bottom:28px;border-left-width:1px;border-bottom-width:1px"></div>
+  <div class="hd-c" style="right:32px;bottom:28px;border-right-width:1px;border-bottom-width:1px"></div>
+  <div class="abs" style="left:56px;top:40px"><span class="hd-dot"></span>VIDEO OS · ROUGHCUT AGENT</div>
+  <div class="abs hd-tc" style="right:56px;top:40px"></div>
+  <div class="abs hd-sec" style="left:56px;bottom:38px"></div>
+  <div class="abs hd-br" style="right:56px;bottom:38px"></div>
+</div>
+<script>
+vos.graphic(({ q, props, fps, onFrame }) => {
+  q(".hd-br").textContent = props.corner;
+  const pad = (n) => String(n).padStart(2, "0");
+  onFrame((t) => {
+    const abs = t + props.offset, f = Math.floor(abs * fps + 1e-6);
+    q(".hd-tc").textContent = "00:00:" + pad(Math.floor(f / fps)) + ":" + pad(f % fps);
+    let s = "";
+    for (const [k, v] of props.sections) if (abs >= k) s = v;
+    q(".hd-sec").textContent = s;
+  });
+});
+</script>

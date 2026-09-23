@@ -1,0 +1,130 @@
+{
+  "source": "projects/mawatteiru-yo-20260902/05_timeline/timeline.json",
+  "sha256": "627d0df8a1458347df92550030b6acfca394f16dfad3a228447841172776a43e",
+  "fps": 24.0,
+  "total_frames": 1705,
+  "clips": [
+    {
+      "beat": "b01",
+      "asset": "AST_EE60F71F",
+      "frame": 0,
+      "frames": 84,
+      "label": "階段踊り場で手紙を持ち街を見上げる彼女"
+    },
+    {
+      "beat": "b02",
+      "asset": "AST_515B3D7D",
+      "frame": 84,
+      "frames": 120,
+      "label": "屋上引き・手すりの封筒"
+    },
+    {
+      "beat": "b03",
+      "asset": "AST_948E3895",
+      "frame": 204,
+      "frames": 84,
+      "label": "封筒から写真を取り出す手元"
+    },
+    {
+      "beat": "b04",
+      "asset": "AST_A1664EC6",
+      "frame": 288,
+      "frames": 108,
+      "label": "換気扇の横で佇む彼女"
+    },
+    {
+      "beat": "b05",
+      "asset": "AST_5DF223A6",
+      "frame": 396,
+      "frames": 96,
+      "label": "手元で5枚の写真を広げて見比べる"
+    },
+    {
+      "beat": "b06",
+      "asset": "AST_8CD1E421",
+      "frame": 492,
+      "frames": 84,
+      "label": "路地を歩く彼女"
+    },
+    {
+      "beat": "b07",
+      "asset": "AST_6C3F7889",
+      "frame": 576,
+      "frames": 72,
+      "label": "ランドリー前のクローズアップMiniMax"
+    },
+    {
+      "beat": "b08",
+      "asset": "AST_174E313B",
+      "frame": 648,
+      "frames": 96,
+      "label": "コインランドリーのドラム回転"
+    },
+    {
+      "beat": "b09",
+      "asset": "AST_7F82E6BE",
+      "frame": 744,
+      "frames": 84,
+      "label": "自転車の車輪回転"
+    },
+    {
+      "beat": "b10",
+      "asset": "AST_64DD20B5",
+      "frame": 828,
+      "frames": 96,
+      "label": "室外機のファン回転"
+    },
+    {
+      "beat": "b11",
+      "asset": "AST_67342ED6",
+      "frame": 924,
+      "frames": 96,
+      "label": "新カーブミラー（見上げる彼女と入道雲）"
+    },
+    {
+      "beat": "b12",
+      "asset": "AST_2B3173F9",
+      "frame": 1020,
+      "frames": 144,
+      "label": "止まった街頭時計"
+    },
+    {
+      "beat": "b13",
+      "asset": "AST_6250FEC9",
+      "frame": 1164,
+      "frames": 144,
+      "label": "写真重ね（夕暮れ）"
+    },
+    {
+      "beat": "b14",
+      "asset": "AST_583F1571",
+      "frame": 1308,
+      "frames": 144,
+      "label": "夕暮れの階段見晴らし"
+    },
+    {
+      "beat": "b15",
+      "asset": "AST_583F1571",
+      "frame": 1452,
+      "frames": 108,
+      "label": "夕暮れのクローズアップ（正面）"
+    },
+    {
+      "beat": "b16",
+      "asset": "AST_B99D7EB5",
+      "frame": 1560,
+      "frames": 145,
+      "label": "誰もいない屋上とタイトルロゴ"
+    }
+  ],
+  "emotion_curve": [
+    "強い夏の光と白い封筒（導入）",
+    "視線の先の不在と写真の断片（提示）",
+    "街を逆に辿る探索（静かな追体験）",
+    "写真の5大モチーフとの遭遇（ドラム、自転車、室外機、ミラー、時計）",
+    "写真と現実の小さな違和感（交差・ズレ）",
+    "階段からの夕景（時間の推移）",
+    "夕暮れの屋上、最後の写真（収束）",
+    "彼女のいない屋上、画面外からの声（余白とカットアウト）"
+  ]
+}
