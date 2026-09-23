@@ -108,7 +108,8 @@ export interface TextHit {
 
 /** Lexical search over stored descriptions (fast, offline, no model). */
 export function searchDescriptions(p: Project, query: string, limit = 10): TextHit[] {
-  const terms = query.toLowerCase().split(/[\s,、。]+/).filter((t) => t.length > 1);
+  const STOP = new Set(["the", "and", "for", "with", "that", "this", "from", "into", "onto", "are", "was", "his", "her", "its", "their", "some", "someone", "something", "showing", "shows", "while", "over", "under", "near"]);
+  const terms = query.toLowerCase().split(/[\s,、。]+/).filter((t) => t.length > 2 && !STOP.has(t));
   const hits: TextHit[] = [];
   for (const [alias, rec] of Object.entries(p.assets.assets)) {
     const d = readDescribe(p, rec.id);

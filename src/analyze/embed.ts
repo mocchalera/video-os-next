@@ -76,7 +76,7 @@ export interface IndexMeta {
   model: string;
   dim: number;
   key: string; // what the index was built from; rebuild when it changes
-  windows: { start: number; end: number; text?: string }[];
+  windows: { start: number; end: number; text?: string; scope?: "clip" | "moment" }[];
   provenance: { at: string };
 }
 
@@ -118,9 +118,9 @@ export function indexAsset(p: Project, alias: string, ch: Channel, opts: IndexOp
   if (ch === "text") {
     const d = readDescribe(p, a.id);
     if (!d) return skip("no description (run `vos describe` first)");
-    key = "text:" + sha256(JSON.stringify(d.events) + d.scene);
-    if (d.scene) windows.push({ start: 0, end: a.duration ?? 0, text: d.scene });
-    for (const e of d.events) windows.push({ start: e.start, end: e.end, text: e.description });
+    key = "text2:" + sha256(JSON.stringify(d.events) + d.scene);
+    if (d.scene) windows.push({ start: 0, end: a.duration ?? 0, text: d.scene, scope: "clip" });
+    for (const e of d.events) windows.push({ start: e.start, end: e.end, text: e.description, scope: "moment" });
     items = windows.map((w) => ({ kind: "text", role: "passage", text: w.text! }));
   } else if (ch === "visual") {
     if (a.kind === "audio") return skip("audio asset");
@@ -199,10 +199,12 @@ const dot = (a: Float32Array, b: Float32Array) => {
   return s;
 };
 
+type RankedHit = { alias: string; start: number; end: number; sim: number; text?: string; scope: "clip" | "moment" };
+
 export function find(p: Project, query: string, opts: { channels?: Channel[]; limit?: number; image?: string; perChannel?: number } = {}): FindResult {
   const want = opts.channels ?? CHANNELS;
   const perChannel = opts.perChannel ?? 40;
-  const lists: { name: Channel | "lexical"; hits: { alias: string; start: number; end: number; sim: number; text?: string }[] }[] = [];
+  const lists: { name: Channel | "lexical"; hits: RankedHit[] }[] = [];
   const used: Channel[] = [];
   const unavailable: FindResult["channels_unavailable"] = [];
 
@@ -220,48 +222,72 @@ export function find(p: Project, query: string, opts: { channels?: Channel[]; li
       unavailable.push({ channel: ch, reason: e.message });
       continue;
     }
-    const hits: (typeof lists)[number]["hits"] = [];
+    const hits: RankedHit[] = [];
     for (const { alias, idx } of indexed) {
       if (idx!.meta.dim !== q.length) {
         unavailable.push({ channel: ch, reason: `index for ${alias} has dim ${idx!.meta.dim} ≠ query ${q.length} (rebuild with vos index --force)` });
         continue;
       }
-      idx!.rows.forEach((v, i) => hits.push({ alias, start: idx!.meta.windows[i].start, end: idx!.meta.windows[i].end, sim: dot(q, v), text: idx!.meta.windows[i].text }));
+      idx!.rows.forEach((v, i) => {
+        const w = idx!.meta.windows[i];
+        hits.push({ alias, start: w.start, end: w.end, sim: dot(q, v), text: w.text, scope: w.scope ?? "moment" });
+      });
     }
-    hits.sort((a, b) => b.sim - a.sim);
+    hits.sort((a, b) => b.sim - a.sim || a.alias.localeCompare(b.alias) || a.start - b.start);
     lists.push({ name: ch, hits: hits.slice(0, perChannel) });
     used.push(ch);
   }
   if (!opts.image) {
-    const lex = searchDescriptions(p, query, perChannel).map((h) => ({ alias: h.alias, start: h.start, end: h.end, sim: h.score, text: h.text }));
+    const lex = searchDescriptions(p, query, perChannel).map((h): RankedHit => ({ alias: h.alias, start: h.start, end: h.end, sim: h.score, text: h.text, scope: h.source === "scene" ? "clip" : "moment" }));
     if (lex.length) lists.push({ name: "lexical", hits: lex });
   }
 
-  // reciprocal rank fusion, then merge overlapping/adjacent spans of the same asset
+  // 1) spans from moment-level hits (overlapping windows of one asset merge)
+  // 2) each list contributes at most its best reciprocal rank to a span (no stacking of windows)
+  // 3) clip-level hits (whole-clip descriptions) lift that asset's spans, or stand alone if it has none
   const K = 60;
-  type Acc = FindHit;
-  const raw: Acc[] = [];
+  type Span = { alias: string; start: number; end: number; best: Map<string, { rrf: number; sim: number }>; text?: string; textSim: number };
+  const spans: Span[] = [];
+  const credit = (sp: Span, list: string, rrf: number, h: RankedHit) => {
+    const cur = sp.best.get(list);
+    if (!cur || rrf > cur.rrf) sp.best.set(list, { rrf, sim: h.sim });
+    if (h.text && h.scope === "moment" && h.sim >= sp.textSim) { sp.text = h.text; sp.textSim = h.sim; }
+  };
+  const moments = lists.flatMap((l) => l.hits.map((h, r) => ({ l: l.name, h, rrf: 1 / (K + r + 1) }))).filter((x) => x.h.scope === "moment");
+  moments.sort((a, b) => a.h.alias.localeCompare(b.h.alias) || a.h.start - b.h.start || a.h.end - b.h.end);
+  for (const m of moments) {
+    let sp = spans.find((s) => s.alias === m.h.alias && m.h.start < s.end - 0.05 && m.h.end > s.start + 0.05);
+    if (!sp) spans.push((sp = { alias: m.h.alias, start: m.h.start, end: m.h.end, best: new Map(), textSim: -Infinity }));
+    sp.start = Math.min(sp.start, m.h.start);
+    sp.end = Math.max(sp.end, m.h.end);
+    credit(sp, m.l, m.rrf, m.h);
+  }
   for (const l of lists) {
-    l.hits.forEach((h, rank) => raw.push({ alias: h.alias, start: h.start, end: h.end, score: 1 / (K + rank + 1), channels: { [l.name]: round(h.sim, 3) }, text: h.text }));
+    l.hits.forEach((h, r) => {
+      if (h.scope !== "clip") return;
+      const own = spans.filter((s) => s.alias === h.alias);
+      if (own.length) own.forEach((s) => credit(s, `${l.name}`, 1 / (K + r + 1) * 0.5, h)); // half weight: coarser evidence
+      else {
+        const sp: Span = { alias: h.alias, start: h.start, end: h.end, best: new Map(), text: h.text, textSim: h.sim };
+        credit(sp, l.name, 1 / (K + r + 1), h);
+        spans.push(sp);
+      }
+    });
   }
-  raw.sort((a, b) => a.alias.localeCompare(b.alias) || a.start - b.start || b.end - a.end);
-  const merged: Acc[] = [];
-  for (const h of raw) {
-    const m = merged[merged.length - 1];
-    // merge only spans that genuinely overlap (touching windows stay separate)
-    if (m && m.alias === h.alias && h.start < m.end - 0.05 && !(m.end - m.start > 20 && h.end - h.start < 20)) {
-      m.end = Math.max(m.end, h.end);
-      m.score += h.score;
-      for (const [k, v] of Object.entries(h.channels)) m.channels[k as Channel] = Math.max(m.channels[k as Channel] ?? -1, v!);
-      if (!m.text && h.text) m.text = h.text;
-    } else merged.push({ ...h, channels: { ...h.channels } });
-  }
-  merged.sort((a, b) => b.score - a.score || a.alias.localeCompare(b.alias) || a.start - b.start);
+  const scored = spans.map((s) => ({ s, score: [...s.best.values()].reduce((a, b) => a + b.rrf, 0) }));
+  scored.sort((a, b) => b.score - a.score || a.s.alias.localeCompare(b.s.alias) || a.s.start - b.s.start);
   return {
     query: opts.image ? `image:${opts.image}` : query,
     channels_used: used,
     channels_unavailable: unavailable,
-    hits: merged.slice(0, opts.limit ?? 10).map((h) => ({ ...h, start: round(h.start), end: round(h.end), score: round(h.score * 100, 2) })),
+    hits: scored.slice(0, opts.limit ?? 10).map(({ s, score }) => ({
+      alias: s.alias,
+      start: round(s.start),
+      end: round(s.end),
+      score: round(score * 100, 2),
+      channels: Object.fromEntries([...s.best.entries()].map(([k, v]) => [k, round(v.sim, 3)])),
+      text: s.text,
+    })),
   };
 }
 
