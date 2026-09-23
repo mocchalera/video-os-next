@@ -9,8 +9,10 @@ There is no pipeline to follow; there is a project state to read and an edit doc
 |---|---|---|
 | What exists, what's missing, what's stale | `vos status` | `assets.json`, `.vos/paths.json`, receipts |
 | See footage or a render | `vos look <alias\|render> --at 1,2.5 \| --count 12` → PNG, then read the image | `.vos/cache/look/` |
-| What happens in a clip | `vos describe <alias>` (Marlin-2B, local, slow) | `.vos/analysis/<id>/describe.json` |
-| Find a moment | `vos find "<words>"` (stored descriptions) / `--asset a` (Marlin temporal find) | same |
+| What happens in a clip | `vos describe <alias…>` / `--all` (Marlin-2B, local, one model load) | `.vos/analysis/<id>/describe.json` |
+| Make footage searchable | `vos index [--channels text,visual,audio]` | `.vos/analysis/<id>/embed.<channel>.{json,f32}` |
+| Find a moment | `vos find "<words>"` (text+visual+audio+lexical, rank-fused; ja/en) · `--image f.jpg` · `--asset a` (Marlin temporal find inside one clip) | same |
+| Models present? | `vos models` / `vos models pull visual\|audio` (network, ask the human first) | HF cache, `~/.cache/vos/models` |
 | Tempo of music | `vos beats <alias>` | `.vos/analysis/<id>/beats.json` |
 | Edit | write `timeline.json` + `graphics/*.html` | those files (the only edit state) |
 | Build / render | `vos compile` / `vos render [--draft]` | `.vos/build/`, `out/*.receipt.json` |
@@ -61,6 +63,11 @@ Graphic skeleton: see `examples/videoos-pv/graphics/wipe.html` (small) and `find
 
 - `src/` TypeScript run directly by Node ≥ 22.18 (type stripping; erasable syntax only — no enums,
   no parameter properties). Zero runtime npm deps. `npm test` runs `node --test`.
-- `python/marlin_worker.py` one-shot Marlin-2B worker. Machine tool paths: `vos doctor --write`
-  (stored in `~/.config/vos/config.json`, never committed).
+- Toolchain is repo-owned: `node_modules/` (HyperFrames) and `python/.venv` (torch, transformers,
+  Marlin, Qwen3-VL embedding, CLAP, onnxruntime). Set up with `scripts/setup.sh`
+  (`--offline-from <dir>` assembles from an existing install). `python/requirements.lock.txt` is the pin.
+- Workers: `python/marlin_worker.py` (describe/find), `python/embed_worker.py` (text/visual/audio;
+  `VOS_EMBED_MOCK=1` gives deterministic vectors for tests).
+- Search channels never mix vector spaces; `find` fuses ranks (RRF) and says which channels it
+  could not use and why. A missing model is reported, never silently skipped.
 - `docs/DESIGN.md` is the design; change it when you change a principle.

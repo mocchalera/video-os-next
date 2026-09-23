@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { analysisCoverage } from "../analyze/marlin.ts";
+import { CHANNELS, modelPresent } from "../analyze/embed.ts";
 import { latestRender } from "../render/render.ts";
 import { sha256File } from "./hash.ts";
 import { P, type Project } from "./project.ts";
@@ -11,6 +12,7 @@ import { readJson } from "./util.ts";
 export interface Status {
   project: { name: string; root: string; canvas: Project["file"]["canvas"] };
   assets: { total: number; by_kind: Record<string, number>; offline: string[]; described: number; undescribed_video: string[] };
+  search: Record<string, { model: boolean; indexed: number }>;
   timeline: { path: string; ok: boolean; error?: string; hint?: string; duration?: number; clips?: number; graphics?: number; warnings?: string[]; unused_assets?: string[] };
   render: { latest: string | null; stale: boolean | null; inspected: boolean };
   attention: string[]; // the things an editor should know right now
@@ -31,6 +33,7 @@ export function status(p: Project): Status {
   const st: Status = {
     project: { name: p.file.name, root: p.root, canvas: p.file.canvas },
     assets: { total: assets.length, by_kind, offline, described: Object.values(cov).filter((c) => c.describe).length, undescribed_video: undescribed },
+    search: Object.fromEntries(CHANNELS.map((ch) => [ch, { model: modelPresent(ch), indexed: assets.filter(([, a]) => fs.existsSync(path.join(P.analysis(p.root, a.id), `embed.${ch}.json`))).length }])),
     timeline: { path: path.relative(p.root, tlPath), ok: false },
     render: { latest: null, stale: null, inspected: false },
     attention: [],
@@ -38,6 +41,7 @@ export function status(p: Project): Status {
   const byId = new Map<string, string[]>();
   for (const [alias, a] of assets) byId.set(a.id, [...(byId.get(a.id) ?? []), alias]);
   for (const group of byId.values()) if (group.length > 1) st.attention.push(`identical content under different aliases: ${group.join(" = ")}`);
+  for (const [ch, v] of Object.entries(st.search)) if (!v.model) st.attention.push(`search: ${ch} model missing — \`vos models pull ${ch}\``);
   if (offline.length) st.attention.push(`${offline.length} asset(s) offline on this machine: ${offline.slice(0, 6).join(", ")}${offline.length > 6 ? ", …" : ""}`);
   if (fs.existsSync(tlPath)) {
     try {

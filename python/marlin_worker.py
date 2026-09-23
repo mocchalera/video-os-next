@@ -2,7 +2,7 @@
 """Marlin-2B one-shot worker for video-os-next.
 
 Usage:
-  python marlin_worker.py caption <video>
+  python marlin_worker.py caption <video> [<video> …]   (one JSON line per video; model loads once)
   python marlin_worker.py find <video> "<event description>"
 
 Prints one JSON object on stdout. Requires torch + transformers and a local
@@ -29,9 +29,15 @@ def main() -> int:
         model_id, trust_remote_code=True, dtype=getattr(torch, "bfloat16", None), device_map="auto"
     )
     if mode == "caption":
-        res = model.caption(video, max_new_tokens=int(os.environ.get("VOS_MARLIN_MAX_TOKENS", "2048")))
-        if not isinstance(res, dict):
-            res = {"caption": str(res), "events": []}
+        for v in sys.argv[2:]:
+            try:
+                res = model.caption(v, max_new_tokens=int(os.environ.get("VOS_MARLIN_MAX_TOKENS", "2048")))
+                if not isinstance(res, dict):
+                    res = {"caption": str(res), "events": []}
+                print(json.dumps({"ok": True, "model": model_id, "video": v, "result": res}, ensure_ascii=False, default=str), flush=True)
+            except Exception as exc:  # keep going; report per video
+                print(json.dumps({"ok": False, "video": v, "error": str(exc)}), flush=True)
+        return 0
     else:
         query = sys.argv[3] if len(sys.argv) > 3 else "the strongest action moment"
         res = model.find(video, event=query)

@@ -40,6 +40,32 @@ function num(x: any): number {
   return typeof x === "number" ? x : Number(x);
 }
 
+/** Describe several assets with one model load. Returns per-alias record or error. */
+export function describeMany(p: Project, aliases: string[]): { alias: string; ok: boolean; error?: string }[] {
+  const py = marlinPython();
+  if (!py) throw new VosError("marlin_unavailable", "no Python with Marlin deps configured", "expected python/.venv");
+  const assets = aliases.map((al) => resolveAsset(p, al)).filter((a) => a.kind === "video");
+  const byPath = new Map(assets.map((a) => [requireOnline(a), a]));
+  const r = run(py, [MARLIN_WORKER, "caption", ...byPath.keys()], { env: { ...process.env, HF_HUB_OFFLINE: "1", TRANSFORMERS_OFFLINE: "1" }, timeout: 6 * 60 * 60 * 1000 });
+  const out: { alias: string; ok: boolean; error?: string }[] = [];
+  for (const line of r.stdout.split("\n").filter((l) => l.startsWith("{"))) {
+    const j = JSON.parse(line);
+    const a = byPath.get(j.video);
+    if (!a) continue;
+    if (!j.ok) { out.push({ alias: a.alias, ok: false, error: j.error }); continue; }
+    const res = j.result ?? {};
+    const prev = readDescribe(p, a.id);
+    writeJson(describePath(p, a.id), {
+      format: "vos.describe/1", asset: a.id, scene: String(res.scene ?? res.caption ?? ""),
+      events: (res.events ?? []).map((e: any) => ({ start: num(e.start ?? e.start_sec), end: num(e.end ?? e.end_sec), description: String(e.description ?? "") })),
+      finds: prev?.finds ?? [], provenance: { producer: "marlin-local", model: j.model, at: new Date().toISOString() },
+    } satisfies DescribeRecord);
+    out.push({ alias: a.alias, ok: true });
+  }
+  if (!out.length) throw new VosError("marlin_failed", `Marlin produced no results (exit ${r.status}): ${r.stderr.trim().split("\n").slice(-4).join(" | ")}`);
+  return out;
+}
+
 export function describe(p: Project, alias: string): DescribeRecord {
   const a = resolveAsset(p, alias);
   if (a.kind !== "video") throw new VosError("not_video", `describe needs a video asset; "${a.alias}" is ${a.kind}`);

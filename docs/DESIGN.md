@@ -129,7 +129,8 @@ vos.graphic(({ tl, q, qa, props, b, onFrame }) => {
 |---|---|---|
 | 記憶 | `vos init`, `vos ingest <files> [--as alias]`, `vos status` | assets.json / 可用性・解析充足・陳腐化 |
 | 目 | `vos look <alias\|render> --at … \| --every … \| --count …` | 時刻焼き込みフレームシート PNG |
-| 目 | `vos describe <alias>` / `vos find "<query>" [--asset a]` | Marlin 描写・イベント / 時刻スパン |
+| 目 | `vos describe <alias…>` / `--all` | Marlin 描写・イベント（モデル 1 回ロード） |
+| 目 | `vos index` / `vos find "<query>" [--image f] [--asset a]` | 埋め込み索引 / 融合検索の時刻スパン |
 | 耳 | `vos beats <alias>` | BPM・オフセット・拍配列・信頼度 |
 | 手 | `vos compile [timeline]` | HyperFrames プロジェクト + 解決済み timeline |
 | 手 | `vos render [--draft] [--graphics-only]` | MP4 / 透過 MOV + receipt |
@@ -161,9 +162,33 @@ FFmpeg は解析・抽出・検査・後処理に使う。
 - 再生成した素材は `vos ingest f --as alias --replace`。旧 ID は `replaced` に残り、旧素材で作った
   render は receipt 照合で自動的に stale になる。
 
-## 10. ロードマップ
+## 10. 検索（find）
+
+3 つの独立チャネル。ベクトル空間は混ぜず、各チャネルで順位を付けてから順位融合（RRF, k=60）する。
+
+| チャネル | モデル | 何を索引するか | 次元 |
+|---|---|---|---|
+| text | multilingual-e5-small（ONNX q8, ローカル） | Marlin の scene / event 記述（時刻スパン付き） | 384 |
+| visual | Qwen/Qwen3-VL-Embedding-2B | `--step` 秒ごとのフレーム（画像クエリも可） | 2048 |
+| audio | laion/clap-htsat-fused | 5 秒窓・2.5 秒ホップ | 512 |
+| lexical | なし | 記述への語一致（モデル不要の最後の砦） | — |
+
+- 索引は `.vos/analysis/<id>/embed.<ch>.{json,f32}`。何から作ったか（`key`）を持ち、記述や step が
+  変われば再構築、同じなら `fresh`。
+- 同一素材の重なる窓はマージして 1 スパンにし、各チャネルの類似度を併記する（どの目が見つけたか分かる）。
+- モデルが無いチャネルは `channels_unavailable` に理由付きで出る。黙って劣化しない。
+- モデルのダウンロード（`vos models pull`）だけがネットワークを使う。明示操作のみ。
+
+## 11. ツールチェーン
+
+- `node_modules/`（HyperFrames）と `python/.venv`（torch / transformers / Marlin / Qwen3-VL / CLAP /
+  onnxruntime）はリポジトリ所有。`~/.config/vos/config.json` と環境変数は上書き用途のみ。
+- `scripts/setup.sh`: オンラインは lock ファイルから、`--offline-from <dir>` は既存インストールから
+  依存閉包をコピーして組み立てる（Node の解決規則どおりに辿る / RECORD 単位で dist をコピー）。
+
+## 12. ロードマップ
 
 - v0.1（本版）: 上記コマンド、PV を本方式で再構築して実証
-- v0.2: 埋め込み検索（Qwen3-VL / CLAP）を `find` に統合、`look` の差分比較、OTIO 書き出し
+- v0.2: 埋め込み検索（本版で実装）、`look` の差分比較、OTIO 書き出し
 - v0.3: recipe 層（弱いモデル向けの手順書: rough-cut, social-cutdown, interview）
 - v0.4: 透過オーバーレイ付き Premiere ラウンドトリップの取り込み側（diff → timeline patch）

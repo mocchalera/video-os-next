@@ -3,3 +3,4 @@ node_modules/
 out/
 projects/
 .DS_Store
+python/.venv/

@@ -7,11 +7,15 @@ Opus 5.5 / GPT-6 級のモデルが、映像を自分で見て、組んで、確
 （artifact が正・決定論・ローカル・最後の一手は人間へ）を継承し、固定パイプラインを捨てて作り直した。
 
 ```bash
-bin/vos doctor --write               # ffmpeg / HyperFrames / Marlin を見つけて記録
+scripts/setup.sh                     # node_modules（HyperFrames）と python/.venv（Marlin・埋め込み）を用意
+bin/vos doctor                       # ffmpeg / HyperFrames / Python / モデルの有無
 bin/vos init my-film && cd my-film
 ../bin/vos ingest ~/footage/*.mp4    # 内容ハッシュで登録（別マシンでも同じ ID）
 ../bin/vos look shot_03 --count 12   # フレームシートで素材を見る
 ../bin/vos describe shot_03          # Marlin-2B（ローカル）で描写・イベント
+../bin/vos describe --all            # 全動画を Marlin で記述（モデル読み込み 1 回）
+../bin/vos index                     # 埋め込み索引（text / visual / audio）
+../bin/vos find "空を見上げる女性"     # 3 チャネル + 語彙検索を順位融合、時刻スパンで返す
 ../bin/vos beats music               # BPM・拍グリッド
 $EDITOR timeline.json graphics/*.html
 ../bin/vos render --draft && ../bin/vos inspect   # 時刻付き findings + カット点シート
@@ -49,9 +53,10 @@ src/core               project / assets / time / timeline / status
 src/compile            timeline + graphics → HyperFrames ページ（純関数・決定論）
 src/render             HyperFrames 実行 + receipt
 src/inspect            look（フレームシート）/ inspect（証拠）
-src/analyze            beats / Marlin
+src/analyze            beats / Marlin / embed（検索）
 src/export             FCP7 XML（Premiere）
-python/marlin_worker.py
+python/                marlin_worker.py, embed_worker.py, requirements.lock.txt, .venv/（gitignore）
+scripts/setup.sh       環境構築（オンライン / --offline-from）
 docs/DESIGN.md         設計
 AGENTS.md              エージェント向けの地図
 ```

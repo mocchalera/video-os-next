@@ -2,7 +2,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { analyzeBeats } from "./analyze/beats.ts";
-import { describe, findInAsset, readDescribe, searchDescriptions } from "./analyze/marlin.ts";
+import { describe, describeMany, findInAsset, readDescribe } from "./analyze/marlin.ts";
+import { CHANNELS, find as findAll, indexAsset, modelStatus, pullModel, type Channel } from "./analyze/embed.ts";
 import { compile, compileDigest } from "./compile/hyperframes.ts";
 import { CONFIG_PATH, hyperframesBin, loadConfig, marlinPython, saveConfig } from "./core/config.ts";
 import { importVos2Analysis } from "./core/import-vos2.ts";
@@ -23,8 +24,11 @@ memory   vos init <dir> [--name n] [--fps 30 --width 1920 --height 1080]
          vos ingest <files…> [--as alias] [--note text] [--replace]
          vos status
 eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--width 480] [--out f.png]
-         vos describe <alias>                       Marlin-2B scene + events (local)
-         vos find "<query>" [--asset alias]          search descriptions; with --asset runs Marlin find
+         vos describe <alias…> | --all [--force]     Marlin-2B scene + events (local; one model load)
+         vos index [aliases…] [--channels text,visual,audio] [--step 1] [--force]   build embedding indexes
+         vos find "<query>" [--channels …] [--image f.jpg] [--limit 10]   fused text/visual/audio + lexical search
+         vos find "<event>" --asset alias           Marlin temporal find inside one clip
+         vos models [pull <visual|audio>]           embedding models: status / download (network)
 ears     vos beats <alias> [--hint 120]
 hands    vos compile [--timeline f]                  timeline + graphics → HyperFrames page
          vos render [--draft] [--graphics-only] [--out f]
@@ -121,6 +125,7 @@ async function main() {
       out(s, () => {
         console.log(`${s.project.name}  ${s.project.canvas.width}x${s.project.canvas.height}@${s.project.canvas.fps}`);
         console.log(`assets    ${s.assets.total} (${Object.entries(s.assets.by_kind).map(([k, v]) => `${v} ${k}`).join(", ")}); described ${s.assets.described}; offline ${s.assets.offline.length}`);
+        console.log(`search    ${Object.entries(s.search).map(([k, v]) => `${k} ${v.model ? `${v.indexed}/${s.assets.total} indexed` : "no model"}`).join(" · ")}`);
         console.log(`timeline  ${s.timeline.ok ? `ok  ${s.timeline.duration}s  ${s.timeline.clips} media clips, ${s.timeline.graphics} graphics` : `NOT OK  ${s.timeline.error ?? ""}`}`);
         console.log(`render    ${s.render.latest ?? "none"}${s.render.stale ? "  (STALE)" : ""}${s.render.latest ? (s.render.inspected ? "  inspected" : "  not inspected") : ""}`);
         if (s.attention.length) console.log("\nattention\n" + s.attention.map((x) => `  • ${x}`).join("\n"));
@@ -138,6 +143,12 @@ async function main() {
 
     case "describe": {
       const p = proj(a);
+      if (rest.length > 1 || a.all) {
+        const targets = a.all ? Object.entries(p.assets.assets).filter(([al, x]) => x.kind === "video" && (a.force || !readDescribe(p, x.id))).map(([al]) => al) : rest;
+        const res = describeMany(p, targets);
+        out(res, () => res.forEach((r) => console.log(`${r.ok ? "described" : "FAILED   "} ${r.alias}${r.error ? "  " + r.error : ""}`)));
+        return;
+      }
       const rec = a.cached ? readDescribe(p, resolveAsset(p, rest[0]).id) : describe(p, rest[0]);
       out(rec, () => {
         if (!rec) return console.log("no description yet");
@@ -154,10 +165,55 @@ async function main() {
       if (a.asset) {
         const hit = findInAsset(p, a.asset, q);
         out({ asset: a.asset, query: q, ...hit }, () => console.log(`${a.asset}  ${hit.start}–${hit.end}s`));
-      } else {
-        const hits = searchDescriptions(p, q, Number(a.limit ?? 10));
-        out(hits, () => hits.forEach((h) => console.log(`${h.score.toFixed(2)}  ${h.alias}  ${h.start.toFixed(1)}–${h.end.toFixed(1)}s  ${h.text}`)));
+        return;
       }
+      const channels = a.channels ? (String(a.channels).split(",") as Channel[]) : undefined;
+      const r = findAll(p, q, { channels, limit: Number(a.limit ?? 10), image: a.image });
+      out(r, () => {
+        console.log(`channels: ${r.channels_used.join(", ") || "none"}${r.channels_unavailable.length ? `   (unavailable: ${r.channels_unavailable.map((u) => `${u.channel} — ${u.reason}`).join("; ")})` : ""}`);
+        for (const h of r.hits) {
+          const ch = Object.entries(h.channels).map(([k, v]) => `${k} ${v}`).join(" · ");
+          console.log(`${h.score.toFixed(2).padStart(6)}  ${h.alias}  ${h.start.toFixed(1)}–${h.end.toFixed(1)}s  [${ch}]${h.text ? "  " + h.text.slice(0, 90) : ""}`);
+        }
+      });
+      return;
+    }
+
+    case "index": {
+      const p = proj(a);
+      const channels = a.channels ? (String(a.channels).split(",") as Channel[]) : CHANNELS;
+      const aliases = rest.length ? rest : Object.keys(p.assets.assets);
+      const results = [];
+      for (const ch of channels) {
+        for (const al of aliases) {
+          try {
+            const r = indexAsset(p, al, ch, { step: a.step ? Number(a.step) : undefined, force: !!a.force });
+            results.push(r);
+            if (!JSON_OUT) console.log(`${ch.padEnd(6)} ${r.status.padEnd(7)} ${r.alias}${r.windows ? `  (${r.windows} windows)` : ""}${r.reason ? `  — ${r.reason}` : ""}`);
+          } catch (e: any) {
+            if (e.code === "model_missing") {
+              results.push({ alias: "*", channel: ch, status: "skipped", reason: e.message });
+              if (!JSON_OUT) console.log(`${ch.padEnd(6)} skipped (all) — ${e.message}\n       hint: ${e.hint}`);
+              break;
+            }
+            throw e;
+          }
+        }
+      }
+      if (JSON_OUT) out(results);
+      return;
+    }
+
+    case "models": {
+      if (rest[0] === "pull") {
+        const ch = rest[1] as Channel;
+        if (!["visual", "audio"].includes(ch)) throw new VosError("usage", "vos models pull <visual|audio>");
+        const dir = pullModel(ch);
+        out({ channel: ch, path: dir }, () => console.log(`downloaded → ${dir}`));
+        return;
+      }
+      const st = modelStatus();
+      out(st, () => st.forEach((m) => console.log(`${m.channel.padEnd(7)} ${m.present ? "present" : "MISSING"}  ${m.id}  (${m.approx_size})  ${m.what}`)));
       return;
     }
 
@@ -250,7 +306,8 @@ async function main() {
         ffmpeg: which("ffmpeg") ? ffmpegVersion() : null,
         ffprobe: !!which("ffprobe"),
         hyperframes: hyperframesBin(),
-        marlin_python: marlinPython(),
+        python: marlinPython(),
+        embedding_models: Object.fromEntries(modelStatus().map((m) => [m.channel, m.present ? "present" : "missing"])),
         marlin_snapshot: fs.existsSync(path.join(process.env.HOME ?? "", ".cache/huggingface/hub/models--NemoStation--Marlin-2B")),
         config: CONFIG_PATH,
         discovered: found,

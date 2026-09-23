@@ -7,7 +7,8 @@ import { readJsonIf, which, writeJson } from "./util.ts";
 /** Machine-local tool locations. Never committed. */
 export interface MachineConfig {
   hyperframes_bin?: string;
-  marlin_python?: string;
+  python?: string; // one interpreter for every model worker (Marlin, embeddings)
+  marlin_python?: string; // legacy key, still honoured
   marlin_model?: string;
 }
 
@@ -24,16 +25,23 @@ export function saveConfig(c: MachineConfig): void {
 
 export function hyperframesBin(): string | null {
   const c = loadConfig();
-  const candidates = [process.env.VOS_HYPERFRAMES_BIN, c.hyperframes_bin, path.join(REPO_ROOT, "node_modules", ".bin", "hyperframes"), which("hyperframes") ?? undefined];
+  // repo-owned install wins; env / machine config are explicit overrides
+  const repo = path.join(REPO_ROOT, "node_modules", ".bin", "hyperframes");
+  const candidates = [process.env.VOS_HYPERFRAMES_BIN, fs.existsSync(repo) ? repo : undefined, c.hyperframes_bin, which("hyperframes") ?? undefined];
   for (const x of candidates) if (x && fs.existsSync(x)) return x;
   return null;
 }
 
-export function marlinPython(): string | null {
+/** Repo-owned environment first; machine config / env only override it. */
+export const REPO_PYTHON = path.join(REPO_ROOT, "python", ".venv", "bin", "python3");
+
+export function pythonBin(): string | null {
   const c = loadConfig();
-  for (const x of [process.env.VOS_MARLIN_PYTHON, c.marlin_python]) if (x && fs.existsSync(x)) return x;
+  for (const x of [process.env.VOS_PYTHON, process.env.VOS_MARLIN_PYTHON, c.python, REPO_PYTHON, c.marlin_python]) if (x && fs.existsSync(x)) return x;
   return null;
 }
+
+export const marlinPython = pythonBin;
 
 export const MARLIN_WORKER = path.join(REPO_ROOT, "python", "marlin_worker.py");
 export const REPO = REPO_ROOT;
