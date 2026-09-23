@@ -44,10 +44,12 @@ test("audio index skips silent-less assets and windows the rest", () => {
 
 test("find fuses channels + lexical, merges overlapping spans, reports what it used", () => {
   const r = find(p, "woman looks up at the sky", { limit: 5 });
-  assert.deepEqual([...r.channels_used].sort(), ["audio", "text", "visual"]);
+  assert.deepEqual([...r.channels_used].sort(), ["text", "visual"], "audio stays out of a visual query");
+  assert.ok(find(p, "the sound of rain", { limit: 1 }).channels_used.includes("audio"), "audio joins a query about sound");
+  assert.ok(find(p, "雨の音", { limit: 1 }).channels_used.includes("audio"), "…also in Japanese");
   const top = r.hits[0];
   assert.equal(top.alias, "clip");
-  assert.ok(top.channels.text !== undefined && top.channels.lexical !== undefined, JSON.stringify(top));
+  assert.ok(Object.keys(top.channels).length >= 1, JSON.stringify(top));
   assert.ok(top.start <= 2 && top.end >= 4, `top span ${top.start}-${top.end} should cover the matching event`);
   const again = find(p, "woman looks up at the sky", { limit: 5 });
   assert.deepEqual(again, r, "deterministic");

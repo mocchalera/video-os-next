@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { analyzeBeats } from "./analyze/beats.ts";
 import { describe, describeMany, findInAsset, readDescribe } from "./analyze/marlin.ts";
-import { CHANNELS, find as findAll, indexAsset, modelStatus, pullModel, type Channel } from "./analyze/embed.ts";
+import { CHANNELS, find as findAll, indexChannel, modelStatus, pullModel, type Channel } from "./analyze/embed.ts";
 import { compile, compileDigest } from "./compile/hyperframes.ts";
 import { CONFIG_PATH, hyperframesBin, loadConfig, marlinPython, saveConfig } from "./core/config.ts";
 import { importVos2Analysis } from "./core/import-vos2.ts";
@@ -25,7 +25,7 @@ memory   vos init <dir> [--name n] [--fps 30 --width 1920 --height 1080]
          vos status
 eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--width 480] [--out f.png]
          vos describe <alias…> | --all [--force]     Marlin-2B scene + events (local; one model load)
-         vos index [aliases…] [--channels text,visual,audio] [--step 1] [--force]   build embedding indexes
+         vos index [aliases…] [--channels text,visual,audio] [--step 1] [--force] [--verbose]   one model load per channel
          vos find "<query>" [--channels …] [--image f.jpg] [--limit 10]   fused text/visual/audio + lexical search
          vos find "<event>" --asset alias           Marlin temporal find inside one clip
          vos models [pull <visual|audio>]           embedding models: status / download (network)
@@ -185,19 +185,17 @@ async function main() {
       const aliases = rest.length ? rest : Object.keys(p.assets.assets);
       const results = [];
       for (const ch of channels) {
-        for (const al of aliases) {
-          try {
-            const r = indexAsset(p, al, ch, { step: a.step ? Number(a.step) : undefined, force: !!a.force });
+        try {
+          for (const r of indexChannel(p, aliases, ch, { step: a.step ? Number(a.step) : undefined, force: !!a.force })) {
             results.push(r);
-            if (!JSON_OUT) console.log(`${ch.padEnd(6)} ${r.status.padEnd(7)} ${r.alias}${r.windows ? `  (${r.windows} windows)` : ""}${r.reason ? `  — ${r.reason}` : ""}`);
-          } catch (e: any) {
-            if (e.code === "model_missing") {
-              results.push({ alias: "*", channel: ch, status: "skipped", reason: e.message });
-              if (!JSON_OUT) console.log(`${ch.padEnd(6)} skipped (all) — ${e.message}\n       hint: ${e.hint}`);
-              break;
-            }
-            throw e;
+            if (!JSON_OUT && (r.status !== "skipped" || a.verbose)) console.log(`${ch.padEnd(6)} ${r.status.padEnd(7)} ${r.alias}${r.windows ? `  (${r.windows} windows)` : ""}${r.reason ? `  — ${r.reason}` : ""}`);
           }
+          const sk = results.filter((r) => r.channel === ch && r.status === "skipped").length;
+          if (!JSON_OUT && sk && !a.verbose) console.log(`${ch.padEnd(6)} skipped ${sk} asset(s) (--verbose for reasons)`);
+        } catch (e: any) {
+          if (e.code !== "model_missing") throw e;
+          results.push({ alias: "*", channel: ch, status: "skipped", reason: e.message });
+          if (!JSON_OUT) console.log(`${ch.padEnd(6)} skipped (all) — ${e.message}\n       hint: ${e.hint}`);
         }
       }
       if (JSON_OUT) out(results);

@@ -141,6 +141,8 @@ def audio_clap(items):
                 y = cache[it["path"]][int(it["start"] * 48000) : int(it["end"] * 48000)]
                 inp = proc(audio=[y], sampling_rate=48000, return_tensors="pt").to(dev)
                 v = model.get_audio_features(**inp)
+            # transformers ≥5 returns a ModelOutput; the projected 512-d embedding is pooler_output
+            v = getattr(v, "pooler_output", v)
             rows.append(v[0].float().cpu().numpy().tolist())
     return normalise(rows), MODELS["audio"], dev
 
