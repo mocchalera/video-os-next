@@ -283,3 +283,49 @@ test("reference mode: refs keep native framing, guides are cut to the output siz
   assert.equal(buildRequest({ prompt: "x", refs: [{ asset: "a", at: 0 }], quality: "turbo" }).steps, 4);
   down();
 });
+
+test("control: a previz depth video is uploaded and patched in; the request carries its content id", () => {
+  const vm = freshVm();
+  up({ budgetCu: 8 });
+  const p = fixtureProject();
+  const r = clip(p, { prompt: "an alley", controlVideo: "clip", controlEnd: 0.8, size: "draft", seconds: 2, as: "ctl" });
+  const st = fakeState(vm);
+  assert.equal(st.last.control_video, `vosgen_${r.request_id}_control.mp4`);
+  assert.deepEqual(st.last.control, { asset: p.assets.assets.clip.id, strength: 1, end: 0.8 });
+  assert.ok(fs.existsSync(path.join(vm, "content/ComfyUI/input", st.last.control_video)));
+  assert.throws(() => clip(p, { prompt: "x", controlVideo: "still" }), /needs a video asset/);
+  assert.notEqual(r.request_id, buildRequest({ prompt: "an alley", size: "draft", seconds: 2 }).id);
+  down();
+});
+
+test("previz: Blender renders beauty + depth at the generation size and frame count; cached on the same inputs", async (t) => {
+  const { blenderBin, renderPreviz } = await import("../src/gen/previz.ts");
+  if (!blenderBin()) return t.skip("Blender not installed");
+  const p = fixtureProject();
+  const scene = path.join(p.root, "box.py");
+  fs.writeFileSync(scene, `import bpy, math
+bpy.ops.mesh.primitive_cube_add(location=(0, 4, 0))
+bpy.ops.object.camera_add(location=(0, 0, 0.5), rotation=(math.radians(90), 0, 0))
+scene.camera = bpy.context.object
+scene.camera.keyframe_insert("location", frame=1)
+scene.camera.location = (0, 1.5, 0.5)
+scene.camera.keyframe_insert("location", frame=frames)
+`);
+  const r = renderPreviz(p, scene, { as: "boxpv", seconds: 1, size: "256x160" });
+  assert.equal(r.cached, false);
+  assert.equal(r.frames, 39, "24 frames snapped up to the 17k+5 grid");
+  const q = loadProject(p.root);
+  for (const alias of ["boxpv", "boxpv_depth"]) {
+    const a = q.assets.assets[alias];
+    assert.equal(`${a.width}x${a.height}`, "256x160");
+    assert.equal(a.fps, 24);
+  }
+  const depthFile = q.paths[q.assets.assets.boxpv_depth.id];
+  const yavg = (at: number) => {
+    const out = execFileSync("ffmpeg", ["-v", "error", "-ss", String(at), "-i", depthFile, "-frames:v", "1", "-vf",
+      "crop=32:32:112:64,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-", "-f", "null", "-"]).toString();
+    return Number(/YAVG=([\d.]+)/.exec(out)?.[1]);
+  };
+  assert.ok(yavg(0.9) > yavg(0.0) + 5, "the cube gets closer → brighter in the depth pass (near = white)");
+  assert.equal(renderPreviz(p, scene, { as: "boxpv", seconds: 1, size: "256x160" }).cached, true);
+});

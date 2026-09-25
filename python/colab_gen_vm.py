@@ -158,6 +158,14 @@ REF_WEIGHTS = [
 ]
 
 
+CONTROL_WEIGHTS = [("model_patches/minimax_h3_fun_controlnet_union_pruned_int8_convrot.safetensors", "model_patches")]
+
+
+def _ensure_control_weights():
+    os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
+    return [_fetch(p, d) for p, d in CONTROL_WEIGHTS]
+
+
 def _ensure_ref_weights():
     os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
     with cf.ThreadPoolExecutor(4) as ex:
@@ -181,6 +189,16 @@ def graph(r):
     model = node("unet", "UNETLoader", unet_name=r["unet"], weight_dtype="default")
     if r.get("lora"):
         model = node("lora", "LoraLoaderModelOnly", model=model, lora_name=r["lora"], strength_model=r.get("lora_strength", 1.0))
+    if r.get("control_video"):
+        # stock template video_minimax_h3_fun_controlnet_union: depth / canny / pose video → model patch (guidance 1.0)
+        cv = node("ctl_load", "LoadVideo", file=r["control_video"])
+        g["ctl_parts"] = {"class_type": "GetVideoComponents", "inputs": {"video": cv}}
+        frames_in = node("ctl_size", "ImageScale", image=["ctl_parts", 0], upscale_method="lanczos",
+                         width=r["width"], height=r["height"], crop="center")
+        patch = node("ctl_patch", "ModelPatchLoader", name=CONTROL_WEIGHTS[0][0].split("/")[-1])
+        model = node("control", "MiniMaxH3FunControlNetApply", model=model, model_patch=patch, vae=["vvae", 0],
+                     strength=r["control"]["strength"], start_percent=0.0, end_percent=r["control"]["end"],
+                     control_video=frames_in)
     if r.get("sol_tau") is not None:
         # dynamic combo = flat dotted keys; other inputs are the node defaults at COMFY_REV
         model = node("sparse", "BlockSparseAttention", model=model, **{
@@ -313,6 +331,8 @@ def _run_job(r):
             return
         if r.get("mode") == "ref2va":
             rep["ref_weights"] = _ensure_ref_weights()
+        if r.get("control_video"):
+            rep["control_weights"] = _ensure_control_weights()
         pid = _post("/prompt", {"prompt": graph(r), "client_id": str(uuid.uuid4())})["prompt_id"]
         while True:
             h = json.load(urllib.request.urlopen(f"{URL}/history/{pid}"))

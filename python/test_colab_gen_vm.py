@@ -60,6 +60,16 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(g["guider"]["inputs"]["conditioning"], ["guide_1", 0])
         self.assertEqual(g["sample"]["inputs"]["latent_image"], ["cond", 1])
 
+    def test_control_video_patches_the_model_before_sparse_attention(self):
+        g = vm.graph({**REQ, "control_video": "vosgen_x_control.mp4", "control": {"strength": 1.0, "end": 0.8}})
+        self.assertEqual(g["ctl_load"]["inputs"]["file"], "vosgen_x_control.mp4")
+        self.assertEqual(g["ctl_size"]["inputs"]["width"], 1344)
+        self.assertEqual(g["control"]["class_type"], "MiniMaxH3FunControlNetApply")
+        self.assertEqual(g["control"]["inputs"]["model"], ["lora", 0])
+        self.assertEqual(g["control"]["inputs"]["end_percent"], 0.8)
+        self.assertEqual(g["sparse"]["inputs"]["model"], ["control", 0])
+        self.assertEqual(g["ctl_patch"]["inputs"]["name"], "minimax_h3_fun_controlnet_union_pruned_int8_convrot.safetensors")
+
     def test_frames_follow_the_17k_plus_5_grid(self):
         self.assertEqual(vm.frames_for(5), 124)
         self.assertEqual(vm.frames_for(2), 56)

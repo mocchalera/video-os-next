@@ -67,6 +67,13 @@ export interface GenRequest {
   refs?: FrameRef[]; // <Picture 1..n>
   guides?: GuideRef[]; // <Picture n+1..>, pinned to output seconds
   ref_image_size?: "match" | "max";
+  control?: ControlRef; // Fun ControlNet (depth/canny/pose video); absent otherwise
+}
+
+export interface ControlRef {
+  asset: string; // content id of the control video (e.g. a previz depth pass)
+  strength: number;
+  end: number; // fraction of the denoising steps the control applies to
 }
 
 export interface GuideRef extends FrameRef {
@@ -92,6 +99,7 @@ export interface ClipOptions {
   guides?: GuideRef[];
   refSize?: "match" | "max";
   quality?: "turbo" | "full"; // reference mode only: 20 full steps (default) vs 4-step turbo LoRA (drafts)
+  control?: ControlRef;
 }
 
 /** Reference-to-video (stock templates video_minimax_h3_r2v / multiframe_reference). */
@@ -183,6 +191,7 @@ export function buildRequest(o: ClipOptions): GenRequest {
       sol_tau: o.dense ? null : H3.sol_tau, unet: H3_REF.unet, text_encoder: H3.text_encoder, video_vae: H3.video_vae,
       audio_vae: H3.audio_vae, comfy_rev: H3.comfy_rev, weights_rev: H3.weights_rev,
       refs: o.refs ?? [], guides: o.guides ?? [], ref_image_size: o.refSize ?? "match",
+      ...(o.control ? { control: o.control } : {}),
     };
     return { id: sha256(stableStringify(body)).slice(0, 16), ...body };
   }
@@ -192,6 +201,7 @@ export function buildRequest(o: ClipOptions): GenRequest {
     video_vae: H3.video_vae, audio_vae: H3.audio_vae, comfy_rev: H3.comfy_rev, weights_rev: H3.weights_rev,
     ...(o.firstFrame ? { first_frame: o.firstFrame } : {}),
     ...(o.lastFrame ? { last_frame: o.lastFrame } : {}),
+    ...(o.control ? { control: o.control } : {}),
   };
   return { id: sha256(stableStringify(body)).slice(0, 16), ...body };
 }
@@ -314,11 +324,14 @@ export interface ClipResult extends IngestResult {
   warnings?: string[];
 }
 
-export interface ClipCall extends Omit<ClipOptions, "firstFrame" | "lastFrame" | "refs" | "guides"> {
+export interface ClipCall extends Omit<ClipOptions, "firstFrame" | "lastFrame" | "refs" | "guides" | "control"> {
   from?: string; // "<alias>[@sec]" — image→video start frame
   to?: string; // "<alias>[@sec]" — end frame
   refs?: string; // "a@1,b" — reference images <Picture 1..n>
   guides?: string; // "a@1=0,b@2=3.5" — stills pinned to output seconds, <Picture n+1..>
+  controlVideo?: string; // alias of a control video (a previz depth pass, a canny/pose video)
+  controlStrength?: number;
+  controlEnd?: number;
   as?: string;
   note?: string;
   replace?: boolean;
@@ -373,14 +386,20 @@ export function clip(p: Project, o: ClipCall): ClipResult {
     if (!m) throw new VosError("usage", `bad guide "${x}"`, "use <alias>@<source sec>=<output sec>, e.g. layout@2=1.5");
     return { ...resolveFrame(p, m[1]), to: Number(m[2]) };
   });
+  const ctl = o.controlVideo ? resolveAsset(p, o.controlVideo) : null;
+  if (ctl && ctl.kind !== "video") throw new VosError("usage", `--control needs a video asset; "${ctl.alias}" is ${ctl.kind}`);
+  const control = ctl ? { asset: ctl.id, strength: o.controlStrength ?? 1.0, end: o.controlEnd ?? 1.0 } : undefined;
   // image→video with no explicit size: follow the source's orientation
   const lead = first ?? refs[0] ?? null;
   const size = o.size ?? (lead && lead.width && lead.height && lead.height > lead.width ? "768p-portrait" : undefined);
   const req = buildRequest({ ...o, size, firstFrame: first?.ref, lastFrame: last?.ref, refs: refs.map((r) => r.ref),
-    guides: guides.map((g) => ({ ...g.ref, to: g.to })) });
+    guides: guides.map((g) => ({ ...g.ref, to: g.to })), control });
+  if (ctl && ctl.duration != null && ctl.duration + 0.05 < req.seconds) {
+    process.stderr.write(`vos: control video ${ctl.alias} is ${ctl.duration}s, shorter than the ${req.seconds}s clip — its last frame is held\n`);
+  }
   const { media, sidecar } = genPaths(p, req.id);
   const alias = o.as;
-  const note = o.note ?? `generated (${req.model}${first ? `, from ${first.alias}@${first.ref.at}` : ""}${refs.length ? `, refs ${refs.map((r) => r.alias).join("+")}` : ""}${guides.length ? `, guides ${guides.map((g) => `${g.alias}→${g.to}s`).join("+")}` : ""}): ${req.prompt.slice(0, 80)}${req.prompt.length > 80 ? "…" : ""}`;
+  const note = o.note ?? `generated (${req.model}${first ? `, from ${first.alias}@${first.ref.at}` : ""}${refs.length ? `, refs ${refs.map((r) => r.alias).join("+")}` : ""}${guides.length ? `, guides ${guides.map((g) => `${g.alias}→${g.to}s`).join("+")}` : ""}${ctl ? `, control ${ctl.alias}` : ""}): ${req.prompt.slice(0, 80)}${req.prompt.length > 80 ? "…" : ""}`;
   const done = (cached: ClipResult["cached"], extra: Partial<ClipResult> = {}): ClipResult => {
     const r = ingest(p, media, alias, note, !!o.replace);
     saveAssets(p);
@@ -417,6 +436,11 @@ export function clip(p: Project, o: ClipCall): ClipResult {
     (remoteReq.guide_images ??= []).push({ image: name, at: g.to });
     frames[`guide${i}`] = { sha256: sha256(fs.readFileSync(png)) };
   });
+  if (ctl) {
+    const name = `vosgen_${req.id}_control.mp4`;
+    upload(requireOnline(ctl), `/content/ComfyUI/input/${name}`);
+    remoteReq.control_video = name;
+  }
   const job = runRemote(remoteReq, o.timeoutSec ?? 1800);
   download(job.output, media);
   const rate = Number(status().rate_cu_h) || null;
