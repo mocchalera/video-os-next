@@ -61,3 +61,18 @@ test("FCP7 export carries real source in/out in frames", () => {
   assert.match(xml, /vos slot title\/win/);
   assert.match(xml, /<marker><name>B<\/name>/);
 });
+
+test("three.js is bundled only into pages whose graphics use it", () => {
+  const p = fixtureProject();
+  writeTimeline(p, baseTimeline());
+  const plain = compile(loadProject(p.root));
+  assert.ok(!fs.readFileSync(path.join(plain.buildDir, "index.html"), "utf8").includes("three.js"));
+  assert.ok(!fs.existsSync(path.join(plain.buildDir, "three.js")));
+  fs.writeFileSync(path.join(p.root, "graphics", "title.html"),
+    `<div class="t" data-slot="win"></div><script>vos.graphic(({ three }) => { const g = three(); g.update = (t) => {}; });</script>`);
+  const withThree = compile(loadProject(p.root));
+  const html = fs.readFileSync(path.join(withThree.buildDir, "index.html"), "utf8");
+  assert.match(html, /<script src="\.\/three\.js"><\/script>/);
+  assert.ok(fs.statSync(path.join(withThree.buildDir, "three.js")).size > 1_000_000);
+  assert.match(html, /"width":320,"height":180/, "the runtime knows the canvas size for the renderer");
+});

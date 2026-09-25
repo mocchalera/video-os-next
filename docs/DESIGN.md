@@ -188,6 +188,13 @@ FFmpeg は解析・抽出・検査・後処理に使う。
 - モデルが無いチャネルは `channels_unavailable` に理由付きで出る。黙って劣化しない。
 - モデルのダウンロード（`vos models pull`）だけがネットワークを使う。明示操作のみ。
 
+## 5.5 3D（three.js）
+
+グラフィックの中で `three()` を呼ぶと、キャンバス・WebGLRenderer（preserveDrawingBuffer, pixelRatio 1）・Scene・Camera が
+用意され、`update(t)` をローカル時間で呼んだあと毎フレーム描画する。three.js（r182, MIT, `src/runtime/three.js`）は
+それを使うグラフィックがあるページにだけ読み込む。ヘッドレスレンダーで WebGL が描け、2 回のレンダーでフレームが
+ビット一致することを確認済み。Clock / requestAnimationFrame は使わない（同じ t は同じ絵）。
+
 ## 10.5 生成（gen）
 
 素材が足りないとき、モデルは生成で調達できる。ただし「ローカル実行・追加コストゼロ」の例外なので、次を守る。

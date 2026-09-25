@@ -64,6 +64,9 @@ Judge with your eyes on frames; findings are evidence, not a score.
 Time: `12.5` / `"12.5s"` / `"360f"` / `"16b"` / sums like `"32b-0.3s"`. `grid` may be `{ "from": "<music alias>" }`.
 
 Graphic skeleton: see `examples/videoos-pv/graphics/wipe.html` (small) and `find.html` (slots + bound data).
+3D: `vos.graphic(({ three }) => { const g = three(); …; g.update = t => …; })` — three.js r182, one frame per
+timeline frame, deterministic (no Clock / requestAnimationFrame). Example: `examples/graphics/three-cube.html`.
+Fonts must be declared with `@font-face` in `design/` (lint rejects undeclared families).
 
 ## Repo
 

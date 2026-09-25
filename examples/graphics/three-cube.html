@@ -1,0 +1,16 @@
+<div class="c3" style="position:absolute;inset:0"></div>
+<script>
+vos.graphic(({ three, q }) => {
+  const g = three({ el: q(".c3"), fov: 40 });
+  const { THREE, scene, camera } = g;
+  scene.background = new THREE.Color(0x10131a);
+  const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xff6a3d, roughness: 0.4 }));
+  scene.add(cube, new THREE.AmbientLight(0xffffff, 0.4));
+  const key = new THREE.DirectionalLight(0xffffff, 2.5);
+  key.position.set(2, 3, 4);
+  scene.add(key);
+  camera.position.set(0, 0.6, 3.2);
+  camera.lookAt(0, 0, 0);
+  g.update = (t) => { cube.rotation.y = t * 1.2; cube.rotation.x = t * 0.5; };
+});
+</script>
