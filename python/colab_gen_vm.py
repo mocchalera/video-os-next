@@ -36,13 +36,16 @@ WEIGHTS = [
     ("vae/minimax_h3_audio_vae_fp32.safetensors", "vae"),
     ("loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors", "loras"),
 ]
-TORCH_CU130 = ("pip install -q 'torch==2.11.0+cu130' torchvision torchaudio "
+# pin all three: an unpinned torchvision stays on Colab's cu128 build and ComfyUI refuses to start
+TORCH_CU130 = ("pip install -q 'torch==2.11.0+cu130' 'torchvision==0.26.0+cu130' 'torchaudio==2.11.0+cu130' "
                "--index-url https://download.pytorch.org/whl/cu130")
 
 os.makedirs(f"{ROOT}/jobs", exist_ok=True)
 os.makedirs(f"{ROOT}/out", exist_ok=True)
-STATE = {"server": None, "flags": [], "torch": None, "boot": None}
-_JOBS: "queue.Queue[dict]" = queue.Queue()
+# Survive re-loading this file into the same kernel (e.g. after a fix): keep the live queue, server and boot
+# state, otherwise the running worker thread keeps draining the old queue and new jobs are never picked up.
+STATE = globals().get("STATE") or {"server": None, "flags": [], "torch": None, "boot": None}
+_JOBS = globals().get("_JOBS") or queue.Queue()
 
 
 def _sh(cmd, check=True):
@@ -226,15 +229,23 @@ def _run_job(r):
 
 def _worker():
     while True:
-        _run_job(_JOBS.get())
+        r = _JOBS.get()
+        open(f"{ROOT}/jobs/{r['id']}.started", "w").close()
+        try:
+            _run_job(r)
+        except Exception:  # never let one job kill the queue
+            _write(f"{ROOT}/jobs/{r['id']}.json", {"id": r["id"], "state": "error", "error": traceback.format_exc()[-2000:]},
+                   f"{ROOT}/jobs/{r['id']}.done")
 
 
-if not any(t.name == "vosgen-worker" for t in threading.enumerate()):
-    threading.Thread(target=_worker, name="vosgen-worker", daemon=True).start()
+# one worker per kernel namespace, kept across re-loads (tracked by object, not by thread name)
+if not (globals().get("_WORKER") and _WORKER.is_alive()):
+    _WORKER = threading.Thread(target=_worker, name="vosgen-worker", daemon=True)
+    _WORKER.start()
 
 
 def submit(r):
-    for ext in ("json", "done"):
+    for ext in ("json", "done", "started"):
         p = f"{ROOT}/jobs/{r['id']}.{ext}"
         if os.path.exists(p):
             os.remove(p)

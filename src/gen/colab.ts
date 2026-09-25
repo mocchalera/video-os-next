@@ -121,9 +121,12 @@ function guardExec(code: string, timeoutSec = 120): void {
   }
 }
 
-function waitRemote(remotePath: string, timeoutSec: number): void {
+function waitRemote(remotePath: string, timeoutSec: number, what = remotePath): void {
   const r = run(GUARD(), ["wait", SESSION, remotePath, "--timeout", String(timeoutSec), "--every", "15"], { timeout: (timeoutSec + 120) * 1000 });
-  if (r.status !== 0) throw new VosError("colab_wait", `timed out waiting for ${remotePath}`, "the lease keeps the VM alive only while vos is waiting; `vos gen status` shows it");
+  if (r.status === 0) return;
+  const s = (guard(["status", SESSION]).sessions ?? []).find((x: any) => x.name === SESSION);
+  if (s && s.state !== "running") throw new VosError("gen_stopped", `the guard stopped the session (${s.stop_reason}) while waiting for ${what}`, "check `vos gen status`; start again with a budget from the human");
+  throw new VosError("colab_wait", `timed out after ${timeoutSec}s waiting for ${what}`, "the VM is still leased; `vos gen status`, or `vos gen down` to stop paying");
 }
 
 function download(remotePath: string, local: string): void {
@@ -218,7 +221,9 @@ export function clip(p: Project, o: ClipOptions & { as?: string; note?: string; 
   const sess = requireSession();
   const boot = waitBoot();
   guardExec(`submit(${JSON.stringify({ ...req, timeout: o.timeoutSec ?? 1800 })})`);
-  waitRemote(`${REMOTE}/jobs/${req.id}.done`, (o.timeoutSec ?? 1800) + 60);
+  // a job the VM never picks up must fail fast, not burn the budget (live e2e, 2026-09-25)
+  waitRemote(`${REMOTE}/jobs/${req.id}.started`, 180, "the VM to start the job");
+  waitRemote(`${REMOTE}/jobs/${req.id}.done`, (o.timeoutSec ?? 1800) + 60, "the generation to finish");
   const job = remoteJson(`${REMOTE}/jobs/${req.id}.json`);
   if (job.state !== "ok") throw new VosError("gen_failed", `generation failed on the VM`, String(job.error ?? "").slice(-600) + "\n" + String(job.log_tail ?? "").slice(-400));
   download(job.output, media);

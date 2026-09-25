@@ -43,5 +43,26 @@ class GraphTests(unittest.TestCase):
             self.assertEqual((vm.frames_for(s) - 5) % 17, 0)
 
 
+class ReloadTests(unittest.TestCase):
+    def test_reloading_the_worker_keeps_the_queue_alive(self):
+        """Live e2e failure: re-exec of this file made a new queue; the old worker thread never saw new jobs."""
+        import time
+        src = (HERE / "colab_gen_vm.py").read_text()
+        ns = {"__name__": "vosgen_kernel"}
+        exec(src, ns)
+        done = []
+        exec(src, ns)  # second load, as after a hot fix on the VM
+        ns["_run_job"] = lambda r: done.append(r["id"])
+        ns["submit"]({"id": "reload1"})
+        for _ in range(50):
+            if done:
+                break
+            time.sleep(0.05)
+        self.assertEqual(done, ["reload1"])
+        first = ns["_WORKER"]
+        exec(src, ns)
+        self.assertIs(ns["_WORKER"], first, "re-load must reuse the live worker, not start another")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

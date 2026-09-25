@@ -23,6 +23,7 @@ function freshVm(): string {
   process.env.FAKE_CLIP = clipFile;
   delete process.env.FAKE_JOB_FAIL;
   delete process.env.FAKE_BOOT_FAIL;
+  delete process.env.FAKE_NEVER_STARTS;
   return vm;
 }
 const fakeState = (vm: string) => JSON.parse(fs.readFileSync(path.join(vm, "state.json"), "utf8"));
@@ -90,6 +91,39 @@ test("a failed job surfaces the VM error and ingests nothing", () => {
   assert.throws(() => clip(p, { prompt: "boom", as: "bad" }), (e: any) => e.code === "gen_failed" && /CUDA OOM/.test(e.hint));
   assert.equal(loadProject(p.root).assets.assets.bad, undefined);
   down();
+});
+
+test("a job the VM never starts fails fast instead of waiting out the budget", () => {
+  freshVm();
+  up({ budgetCu: 8 });
+  process.env.FAKE_NEVER_STARTS = "1";
+  assert.throws(() => clip(fixtureProject(), { prompt: "stuck" }), (e: any) => e.code === "colab_wait" && /start the job/.test(e.message));
+  down();
+});
+
+test("a wait that ends because the guard stopped the session says so", () => {
+  const vm = freshVm();
+  up({ budgetCu: 8 });
+  process.env.FAKE_NEVER_STARTS = "1";
+  const st = JSON.parse(fs.readFileSync(path.join(vm, "state.json"), "utf8"));
+  st.sessions["vos-gen"].state = "running";
+  fs.writeFileSync(path.join(vm, "state.json"), JSON.stringify(st));
+  // simulate the supervisor stopping on budget right after submit
+  const orig = process.env.VOS_COLAB_GUARD;
+  const shim = path.join(vm, "guard-stops.mjs");
+  fs.writeFileSync(shim, `#!/usr/bin/env node
+import { execFileSync } from "node:child_process"; import * as fs from "node:fs";
+const a = process.argv.slice(2);
+if (a[0] === "wait") { const s = JSON.parse(fs.readFileSync(process.env.FAKE_VM + "/state.json","utf8")); s.sessions["vos-gen"].state = "stopped"; s.sessions["vos-gen"].stop_reason = "budget"; fs.writeFileSync(process.env.FAKE_VM + "/state.json", JSON.stringify(s)); process.exit(1); }
+try { process.stdout.write(execFileSync(${JSON.stringify(FAKE)}, a)); } catch (e) { process.stdout.write(e.stdout ?? ""); process.exit(e.status ?? 1); }
+`);
+  fs.chmodSync(shim, 0o755);
+  process.env.VOS_COLAB_GUARD = shim;
+  try {
+    assert.throws(() => clip(fixtureProject(), { prompt: "x" }), (e: any) => e.code === "gen_stopped" && /budget/.test(e.message));
+  } finally {
+    process.env.VOS_COLAB_GUARD = orig;
+  }
 });
 
 test("a failed bootstrap is reported, not retried silently", () => {

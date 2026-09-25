@@ -43,6 +43,8 @@ switch (cmd) {
       const r = JSON.parse(m[1]);
       state.submitted = (state.submitted ?? 0) + 1;
       state.last = r;
+      if (process.env.FAKE_NEVER_STARTS) { save(); console.log(JSON.stringify({ ok: true })); break; }
+      put(`/content/vosgen/jobs/${r.id}.started`, "");
       if (process.env.FAKE_JOB_FAIL) {
         put(`/content/vosgen/jobs/${r.id}.json`, JSON.stringify({ id: r.id, state: "error", error: "CUDA OOM", log_tail: "..." }));
       } else {
