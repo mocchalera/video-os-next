@@ -6,6 +6,7 @@ import { sha256File } from "../core/hash.ts";
 import { ffmpegVersion, probe } from "../core/media.ts";
 import { P, type Project } from "../core/project.ts";
 import { run, runOk, VosError, writeJson } from "../core/util.ts";
+import { mixAudio, muxAudio, type MixReport } from "./mix.ts";
 
 export interface RenderOptions extends CompileOptions {
   draft?: boolean;
@@ -23,6 +24,7 @@ export interface Receipt {
   inputs: unknown;
   settings: { quality: string; fps: number; graphics_only: boolean; format: string };
   tools: { hyperframes: string; ffmpeg: string; node: string };
+  audio: MixReport | null; // the final audio was mixed by vos (null = no audible clips / graphics-only)
   created_at: string; // informational only; excluded from any digest
 }
 
@@ -73,6 +75,18 @@ export function render(p: Project, opts: RenderOptions = {}): { output: string; 
   if (r.status !== 0 || !fs.existsSync(output)) {
     throw new VosError("render_failed", `HyperFrames render failed (exit ${r.status})${r.stderr ? ":\n" + r.stderr.trim().split("\n").slice(-8).join("\n") : ""}`);
   }
+  let audio: MixReport | null = null;
+  if (!opts.graphicsOnly) {
+    const tmp = fs.mkdtempSync(path.join(c.buildDir, "mix-"));
+    const wav = path.join(tmp, "mix.wav");
+    audio = mixAudio(c.resolved, wav, tmp);
+    if (audio) {
+      const muxed = path.join(tmp, `muxed.${format}`);
+      muxAudio(output, wav, muxed, c.resolved.frames / fps);
+      fs.renameSync(muxed, output);
+    }
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
   const pr = probe(output);
   const receipt: Receipt = {
     format: "vos.receipt/1",
@@ -84,6 +98,7 @@ export function render(p: Project, opts: RenderOptions = {}): { output: string; 
     inputs: c.inputs,
     settings: { quality, fps, graphics_only: !!opts.graphicsOnly, format },
     tools: { hyperframes: hfVersion(bin), ffmpeg: ffmpegVersion(), node: process.version },
+    audio,
     created_at: new Date().toISOString(),
   };
   const receiptPath = output.replace(/\.(mp4|mov)$/, ".receipt.json");

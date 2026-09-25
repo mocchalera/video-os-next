@@ -56,7 +56,10 @@ Judge with your eyes on frames; findings are evidence, not a score.
     { "id": "G1", "kind": "graphics", "clips": [ { "id": "ui", "src": "graphics/ui.html", "at": 0, "dur": "8b", "props": {} } ] },
     { "id": "S1", "kind": "video", "clips": [ { "id": "c2", "asset": "b", "slot": "ui/viewer", "at": "2b", "dur": "2b" } ] },
     { "id": "A1", "kind": "audio", "clips": [ { "id": "m", "asset": "music", "at": 0, "dur": "64b", "gain_db": -1 } ] } ],
-  "markers": [ { "at": "32b", "dur": 0.2, "label": "drop", "kind": "expect-flash" } ] }
+  "markers": [ { "at": "32b", "dur": 0.2, "label": "drop", "kind": "expect-flash" } ],
+  "master": { "loudness": -14, "true_peak": -1 } }   // default; null loudness = leave the level alone
+// audio: vos mixes the final sound itself (ffmpeg): gain_db may be > 0 (≤ +24); a video clip's own sound needs "audio": true;
+// duck music under narration: { "id": "A1", "kind": "audio", "duck": { "by": "A2", "db": -12 }, "clips": [...] }
 ```
 Time: `12.5` / `"12.5s"` / `"360f"` / `"16b"` / sums like `"32b-0.3s"`. `grid` may be `{ "from": "<music alias>" }`.
 

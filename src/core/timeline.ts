@@ -41,6 +41,21 @@ export interface Track {
   mute?: boolean;
   /** "overlay" tracks (HUD, grain, transitions) are ignored when analysing cuts */
   role?: "content" | "overlay";
+  /** audio: dip this track while clips on track `by` play (e.g. music under narration) */
+  duck?: Duck;
+}
+
+export interface Duck {
+  by: string; // track id whose clips trigger the dip
+  db?: number; // dip depth, default -12
+  attack?: number; // seconds to reach the dip before a clip starts, default 0.25
+  release?: number; // seconds to recover after it ends, default 0.5
+}
+
+/** Final audio: vos mixes every audible clip itself (ffmpeg), then normalises the master. */
+export interface Master {
+  loudness?: number | null; // integrated LUFS target, default -14 (streaming); null = leave the level alone
+  true_peak?: number; // dBTP ceiling, default -1
 }
 
 export interface Marker {
@@ -58,6 +73,7 @@ export interface TimelineDoc {
   grid?: Grid | { from: string };
   tracks: Track[];
   markers?: Marker[];
+  master?: Master;
 }
 
 // ---------- resolved form: everything in frames, assets resolved ----------
@@ -75,7 +91,8 @@ export interface RMedia {
   fit: "cover" | "contain";
   fx: ClipFx;
   fade: { in: number; out: number };
-  gain: number; // linear
+  gain: number; // linear, clamped to 1 (browser playback in the compiled page)
+  gainDb: number; // as written; the vos mixer applies it unclamped
   withAudio: boolean;
   label?: string;
 }
@@ -105,7 +122,8 @@ export interface Resolved {
   canvas: { width: number; height: number; fps: number; background: string };
   frames: number;
   grid?: Grid;
-  tracks: { id: string; kind: Track["kind"]; index: number; mute: boolean; role: "content" | "overlay" }[];
+  tracks: { id: string; kind: Track["kind"]; index: number; mute: boolean; role: "content" | "overlay"; duck?: Duck }[];
+  master: { loudness: number | null; true_peak: number };
   media: RMedia[];
   graphics: RGraphics[];
   markers: RMarker[];
@@ -158,13 +176,22 @@ export function resolveTimeline(p: Project, doc: TimelineDoc): Resolved {
   need(Array.isArray(doc.tracks), "tracks", "must be an array");
 
   const ids = new Set<string>();
-  const out: Resolved = { name: doc.name, canvas, frames: total, grid, tracks: [], media: [], graphics: [], markers: [], warnings };
+  const m = doc.master ?? {};
+  need(m.loudness === undefined || m.loudness === null || (typeof m.loudness === "number" && m.loudness <= -5 && m.loudness >= -40), "master.loudness", "must be an integrated LUFS target between -40 and -5, or null");
+  need(m.true_peak === undefined || (typeof m.true_peak === "number" && m.true_peak <= 0), "master.true_peak", "must be <= 0 dBTP");
+  const master = { loudness: m.loudness === undefined ? -14 : m.loudness, true_peak: m.true_peak ?? -1 };
+  const out: Resolved = { name: doc.name, canvas, frames: total, grid, tracks: [], media: [], graphics: [], markers: [], warnings, master };
 
   doc.tracks.forEach((t, ti) => {
     const tw = `tracks[${ti}](${t.id})`;
     need(t.id && typeof t.id === "string", `tracks[${ti}]`, 'needs a string "id"');
     need(["video", "audio", "graphics"].includes(t.kind), tw, 'kind must be "video" | "audio" | "graphics"');
-    out.tracks.push({ id: t.id, kind: t.kind, index: ti, mute: !!t.mute, role: t.role === "overlay" ? "overlay" : "content" });
+    if (t.duck) {
+      need(t.kind !== "graphics", `tracks[${ti}](${t.id}).duck`, "only audio / video tracks can be ducked");
+      need(doc.tracks.some((o) => o.id === t.duck!.by && o.id !== t.id), `tracks[${ti}](${t.id}).duck.by`, `must name another track (got "${t.duck.by}")`);
+      need(t.duck.db === undefined || (t.duck.db < 0 && t.duck.db >= -60), `tracks[${ti}](${t.id}).duck.db`, "must be a dip between -60 and 0 dB");
+    }
+    out.tracks.push({ id: t.id, kind: t.kind, index: ti, mute: !!t.mute, role: t.role === "overlay" ? "overlay" : "content", ...(t.duck ? { duck: t.duck } : {}) });
     (t.clips ?? []).forEach((c: any, ci: number) => {
       const w = `${tw}.clips[${ci}]${c?.id ? `(${c.id})` : ""}`;
       need(c && typeof c.id === "string" && c.id, w, 'needs a unique string "id"');
@@ -213,7 +240,7 @@ export function resolveTimeline(p: Project, doc: TimelineDoc): Resolved {
       }
       const gain_db = typeof c.gain_db === "number" ? c.gain_db : 0;
       const gain = Math.min(1, 10 ** (gain_db / 20));
-      if (gain_db > 0) warnings.push(`${w}: gain_db ${gain_db} > 0 is clamped to 0 dB (browser volume max is 1)`);
+      need(gain_db <= 24, `${w}.gain_db`, "must be <= +24 dB");
       out.media.push({
         kind,
         id: c.id,
@@ -228,6 +255,7 @@ export function resolveTimeline(p: Project, doc: TimelineDoc): Resolved {
         fx: c.fx ?? {},
         fade: { in: c.fade?.in ?? 0, out: c.fade?.out ?? 0 },
         gain,
+        gainDb: gain_db,
         withAudio: t.kind === "audio" || !!c.audio,
         label: c.label,
       });

@@ -222,6 +222,17 @@ FFmpeg は解析・抽出・検査・後処理に使う。
 - **速さの根拠は実測。** 既定値（cu130 の INT8 カーネル、Turbo LoRA 6 ステップ、sol-attn τ1.3）と測定値は
   `scripts/colab/spike/RESULTS.md`。生成後は `vos look` で画を見てから使う。
 
+## 10.6 音（最終ミックス）
+
+最終音声はブラウザ任せにせず vos が ffmpeg でタイムラインから組む（`src/render/mix.ts`）。ブラウザは音量 1 が上限で
+小さい生成音声を持ち上げられず、ダッキングもラウドネス制御もないため。
+
+- クリップ: トリム → `gain_db`（+24 dB まで、クランプしない）→ フェード → タイムライン位置へ配置。
+- トラック: 合算。`duck: { by, db, attack, release }` は `by` トラックの**タイムライン上のクリップ区間**からゲイン包絡を
+  作って下げる（信号解析をしないので決定論的）。
+- マスター: 2 パスの EBU R128 loudnorm で `master.loudness`（既定 -14 LUFS）/ `master.true_peak`（既定 -1 dBTP）へ。
+- 映像ストリームはコピーのまま音声だけ差し替え、receipt の `audio` にミックス内容（ソース数・ダック・正規化前の実測）を残す。
+
 ## 11. ツールチェーン
 
 - `node_modules/`（HyperFrames）と `python/.venv`（torch / transformers / Marlin / Qwen3-VL / CLAP /
