@@ -34,7 +34,7 @@ switch (cmd) {
   case "exec": {
     const code = fs.readFileSync(args[args.indexOf("-f") + 1], "utf8");
     if (state.sessions[args[0]]?.state !== "running") { save(); process.exit(1); }
-    if (code.trim() === "bootstrap()") {
+    if (/^bootstrap\(.*\)$/.test(code.trim())) {
       put("/content/vosgen/boot.json", JSON.stringify({ state: process.env.FAKE_BOOT_FAIL ? "error" : "ready", error: "boom", torch: "2.11.0+cu130 13.0", sec: 1 }));
       put("/content/vosgen/boot.done", "");
     }
@@ -48,7 +48,7 @@ switch (cmd) {
       if (process.env.FAKE_JOB_FAIL) {
         put(`/content/vosgen/jobs/${r.id}.json`, JSON.stringify({ id: r.id, state: "error", error: "CUDA OOM", log_tail: "..." }));
       } else {
-        put(`/content/vosgen/out/${r.id}.mp4`, fs.readFileSync(FIXTURE));
+        put(`/content/vosgen/out/${r.id}.mp4`, Buffer.concat([fs.readFileSync(FIXTURE), Buffer.from(`${r.kind ?? "gen"}:${r.id}`)]));
         put(`/content/vosgen/jobs/${r.id}.json`, JSON.stringify({ id: r.id, state: "ok", output: `/content/vosgen/out/${r.id}.mp4`, sec: 81.2, s_per_it: 10.03, gpu: "NVIDIA A100-SXM4-40GB", torch: "2.11.0+cu130 13.0", flags: [], comfy_rev: "1568e6cf", weights_rev: "1c41cfca" }));
       }
       put(`/content/vosgen/jobs/${r.id}.done`, "");

@@ -6,6 +6,7 @@ import { contentId, sha256 } from "../core/hash.ts";
 import { ingest, P, requireOnline, resolveAsset, saveAssets, type IngestResult, type Project } from "../core/project.ts";
 import { fetchFromLibrary, libraryDir, publish } from "./library.ts";
 import { readJson, run, stableStringify, VosError, writeJson } from "../core/util.ts";
+import { loadTimeline, resolveTimeline, timelinePath } from "../core/timeline.ts";
 
 /**
  * vos gen — footage generation on a rented Colab GPU (MiniMax-H3 via ComfyUI).
@@ -216,6 +217,7 @@ export interface UpOptions {
   leaseMin?: number;
   gpu?: string;
   wait?: boolean;
+  light?: boolean; // ComfyUI only, no H3 weights: enough for `vos gen upscale` (e.g. on a cheaper T4)
 }
 
 export function up(o: UpOptions) {
@@ -225,8 +227,8 @@ export function up(o: UpOptions) {
     "--max-hours", String(o.maxHours ?? 2), "--lease-min", String(o.leaseMin ?? 20)], 900_000);
   if (!s.ok) throw new VosError("gen_up_failed", s.error ?? "could not start a guarded session", s.orphans ? "run `scripts/colab/vos-colab reap` after checking them" : undefined);
   guardExec(fs.readFileSync(VM_WORKER, "utf8"));
-  guardExec("bootstrap()");
-  const res: any = { ok: true, session: SESSION, endpoint: s.endpoint, budget_cu: o.budgetCu, bootstrap: "started" };
+  guardExec(o.light ? "bootstrap(light=True)" : "bootstrap()");
+  const res: any = { ok: true, session: SESSION, endpoint: s.endpoint, budget_cu: o.budgetCu, bootstrap: "started", light: !!o.light };
   if (o.wait) res.boot = waitBoot();
   return res;
 }
@@ -302,6 +304,16 @@ function upload(local: string, remote: string): void {
   if (r.status !== 0) throw new VosError("colab_upload", `could not upload ${path.basename(local)}`, r.stderr.slice(-400));
 }
 
+/** Queue one job on the VM and wait for it; a job the VM never picks up fails fast instead of burning the budget. */
+function runRemote(remoteReq: { id: string; [k: string]: unknown }, timeoutSec: number): any {
+  guardExec(`submit(${JSON.stringify({ ...remoteReq, timeout: timeoutSec })})`);
+  waitRemote(`${REMOTE}/jobs/${remoteReq.id}.started`, 180, "the VM to start the job");
+  waitRemote(`${REMOTE}/jobs/${remoteReq.id}.done`, timeoutSec + 60, "the job to finish");
+  const job = remoteJson(`${REMOTE}/jobs/${remoteReq.id}.json`);
+  if (job.state !== "ok") throw new VosError("gen_failed", `job failed on the VM`, String(job.error ?? "").slice(-600) + "\n" + String(job.log_tail ?? "").slice(-400));
+  return job;
+}
+
 export function clip(p: Project, o: ClipCall): ClipResult {
   const first = o.from ? resolveFrame(p, o.from) : null;
   const last = o.to ? resolveFrame(p, o.to) : null;
@@ -322,7 +334,7 @@ export function clip(p: Project, o: ClipCall): ClipResult {
 
   const sess = requireSession();
   const boot = waitBoot();
-  const remoteReq: any = { ...req, timeout: o.timeoutSec ?? 1800 };
+  const remoteReq: any = { ...req };
   const frames: Record<string, { sha256: string }> = {};
   for (const [key, f] of [["first", first], ["last", last]] as const) {
     if (!f) continue;
@@ -332,12 +344,7 @@ export function clip(p: Project, o: ClipCall): ClipResult {
     remoteReq[`${key}_image`] = name;
     frames[key] = { sha256: sha256(fs.readFileSync(png)) };
   }
-  guardExec(`submit(${JSON.stringify(remoteReq)})`);
-  // a job the VM never picks up must fail fast, not burn the budget (live e2e, 2026-09-25)
-  waitRemote(`${REMOTE}/jobs/${req.id}.started`, 180, "the VM to start the job");
-  waitRemote(`${REMOTE}/jobs/${req.id}.done`, (o.timeoutSec ?? 1800) + 60, "the generation to finish");
-  const job = remoteJson(`${REMOTE}/jobs/${req.id}.json`);
-  if (job.state !== "ok") throw new VosError("gen_failed", `generation failed on the VM`, String(job.error ?? "").slice(-600) + "\n" + String(job.log_tail ?? "").slice(-400));
+  const job = runRemote(remoteReq, o.timeoutSec ?? 1800);
   download(job.output, media);
   const rate = Number(status().rate_cu_h) || null;
   writeJson(sidecar, {
@@ -370,4 +377,124 @@ export function pull(p: Project, id: string, o: { as?: string; note?: string; re
   const r = ingest(p, media, o.as, o.note ?? `generated (${g.request?.model}): ${String(g.request?.prompt ?? "").slice(0, 80)}`, !!o.replace);
   saveAssets(p);
   return { ...r, cached: "library", request_id: id, file: path.relative(p.root, media) };
+}
+
+// ------------------------------------------------------------------ finishing upscale
+
+export const UPSCALERS = ["realesrgan-x2", "realesrgan-x4"] as const;
+
+export interface UpscalePlan {
+  alias: string;
+  from: string; // source content id
+  source_request: string | null; // generation request id, when known
+  size: [number, number];
+  target: [number, number];
+  model: string;
+  id: string; // upscale request id
+  status: "todo" | "cached" | "skipped";
+  reason?: string;
+}
+
+/** Smallest even size that covers the canvas at the source aspect (the renderer covers; bigger is waste). */
+export function coverSize(w: number, h: number, cw: number, ch: number): [number, number] {
+  const f = Math.max(cw / w, ch / h);
+  const even = (x: number) => 2 * Math.ceil(x / 2);
+  return [even(w * f), even(h * f)];
+}
+
+/** content id → provenance sidecar of everything under <project>/generated (the file↔sidecar link is by content). */
+function generatedIndex(p: Project): Map<string, any> {
+  const dir = path.join(p.root, "generated");
+  const idx = new Map<string, any>();
+  if (!fs.existsSync(dir)) return idx;
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.endsWith(".gen.json")) continue;
+    const id = f.slice(0, -".gen.json".length);
+    const media = path.join(dir, `${id}.mp4`);
+    if (!fs.existsSync(media)) continue;
+    const g = readJson(path.join(dir, f));
+    idx.set(g.file?.content_id ?? contentId(media), { ...g, __id: id });
+  }
+  return idx;
+}
+
+/** Generated clips the timeline actually uses, and what finishing them would take. Pure planning, no network. */
+export function planUpscale(p: Project, o: { model?: string; only?: string[] } = {}): UpscalePlan[] {
+  const r = resolveTimeline(p, loadTimeline(timelinePath(p)));
+  const byContent = generatedIndex(p);
+  const seen = new Set<string>();
+  const plans: UpscalePlan[] = [];
+  for (const m of r.media) {
+    const a = m.asset;
+    if (m.kind !== "video" || seen.has(a.alias) || (o.only && !o.only.includes(a.alias))) continue;
+    seen.add(a.alias);
+    const g = byContent.get(a.id) ?? null;
+    if (!g) continue; // not generated footage: not ours to touch
+    const size: [number, number] = [a.width ?? 0, a.height ?? 0];
+    const base = { alias: a.alias, from: a.id, source_request: g.request?.id ?? g.source?.request_id ?? null, size };
+    if (g.format === "vos.gen-upscale/1") {
+      plans.push({ ...base, target: size, model: g.upscale?.model, id: g.__id, status: "skipped", reason: "already upscaled" });
+      continue;
+    }
+    const target = coverSize(size[0], size[1], r.canvas.width, r.canvas.height);
+    if (target[0] <= size[0] && target[1] <= size[1]) {
+      plans.push({ ...base, target: size, model: "-", id: "-", status: "skipped", reason: "already covers the canvas" });
+      continue;
+    }
+    const f = target[0] / size[0];
+    const model = o.model ?? (f <= 2 ? "realesrgan-x2" : "realesrgan-x4");
+    if (!(UPSCALERS as readonly string[]).includes(model)) throw new VosError("usage", `unknown upscaler ${model}`, `use ${UPSCALERS.join(" | ")}`);
+    const id = sha256(stableStringify({ kind: "upscale", v: 1, from: a.id, model, width: target[0], height: target[1], comfy_rev: H3.comfy_rev })).slice(0, 16);
+    const cached = fs.existsSync(genPaths(p, id).media);
+    plans.push({ ...base, target, model, id, status: cached ? "cached" : "todo" });
+  }
+  return plans;
+}
+
+/**
+ * Finishing pass: upscale every generated clip the timeline uses, in one session, then rebind each alias to the
+ * upscaled content (`replace`). The timeline is untouched; assets.json keeps the previous content id in `replaced`,
+ * and the latest render becomes stale — re-render to see the result.
+ */
+export function upscale(p: Project, o: { model?: string; only?: string[]; dryRun?: boolean; timeoutSec?: number } = {}) {
+  const plans = planUpscale(p, o);
+  if (o.dryRun) return { dry_run: true, plans };
+  const results: any[] = [];
+  for (const pl of plans) {
+    if (pl.status === "skipped") {
+      results.push(pl);
+      continue;
+    }
+    const { media, sidecar } = genPaths(p, pl.id);
+    let cached: ClipResult["cached"] = fs.existsSync(media) && fs.existsSync(sidecar) ? "project" : false;
+    if (!cached && fetchFromLibrary(pl.id, media, sidecar)) cached = "library";
+    let sec: number | undefined;
+    if (!cached) {
+      requireSession();
+      waitBoot();
+      const src = resolveAsset(p, pl.alias);
+      const name = `vosgen_${pl.id}_src.mp4`;
+      upload(requireOnline(src), `/content/ComfyUI/input/${name}`);
+      const job = runRemote({ id: pl.id, kind: "upscale", src_image: name, model: pl.model, width: pl.target[0], height: pl.target[1] }, o.timeoutSec ?? 1800);
+      download(job.output, media);
+      sec = job.sec;
+      writeJson(sidecar, {
+        format: "vos.gen-upscale/1",
+        source: { content_id: pl.from, request_id: pl.source_request, size: pl.size },
+        upscale: { model: pl.model, file: job.upscaler?.file, width: pl.target[0], height: pl.target[1] },
+        file: { bytes: fs.statSync(media).size, content_id: contentId(media) },
+        ran: { gpu: job.gpu, torch: job.torch, comfy_rev: job.comfy_rev, sec: job.sec },
+        at: new Date().toISOString(),
+      });
+      try {
+        publish(pl.id, media, sidecar);
+      } catch (e: any) {
+        process.stderr.write(`vos: could not publish to the library: ${e.message}\n`);
+      }
+    }
+    const r = ingest(p, media, pl.alias, `upscaled (${pl.model}, ${pl.size.join("x")}→${pl.target.join("x")}) from ${pl.source_request ?? pl.from}`, true);
+    results.push({ ...pl, status: "done", cached, sec, ingest: r.status });
+  }
+  saveAssets(p);
+  return { dry_run: false, plans: results };
 }

@@ -32,9 +32,10 @@ eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--w
          vos find "<event>" --asset alias           Marlin temporal find inside one clip
          vos models [pull <visual|audio>]           embedding models: status / download (network)
 ears     vos beats <alias> [--hint 120]
-make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait]   rent a guarded Colab GPU (costs money: ask the human for N)
+make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait] [--light --gpu T4]   rent a guarded Colab GPU (costs money: ask the human for N)
          vos gen clip --prompt "…"|--prompt-file f.txt [--from alias@sec] [--to alias@sec] [--seconds 5] [--size 768p|draft|WxH] [--seed 1] [--dense] [--as alias]
          vos gen status | down                      MiniMax-H3 text/image→video+audio; cached per request; ingested with provenance
+         vos gen upscale [--dry-run] [--model realesrgan-x2|x4] [--only a,b]   finishing pass: upscale the generated clips the timeline uses
          vos gen library [--search words] [--init <dir>] · vos gen pull <id> [--as alias]   shared takes (e.g. Google Drive)
 hands    vos compile [--timeline f]                  timeline + graphics → HyperFrames page
          vos render [--draft] [--graphics-only] [--out f]
@@ -211,7 +212,7 @@ async function main() {
     case "gen": {
       const sub = rest[0];
       if (sub === "up") {
-        const r = gen.up({ budgetCu: Number(a["budget-cu"]), maxHours: a["max-hours"] ? Number(a["max-hours"]) : undefined, leaseMin: a["lease-min"] ? Number(a["lease-min"]) : undefined, gpu: a.gpu, wait: !!a.wait });
+        const r = gen.up({ budgetCu: Number(a["budget-cu"]), maxHours: a["max-hours"] ? Number(a["max-hours"]) : undefined, leaseMin: a["lease-min"] ? Number(a["lease-min"]) : undefined, gpu: a.gpu, wait: !!a.wait, light: !!a.light });
         out(r, () => console.log(`${r.status ?? "up"}  ${gen.SESSION}${r.budget_cu ? `  budget ${r.budget_cu} CU` : ""}${r.bootstrap ? `  bootstrap ${r.boot ? r.boot.state : "started (vos gen status)"}` : ""}`));
         return;
       }
@@ -239,6 +240,14 @@ async function main() {
         out(r, () => {
           console.log(`${r.cached ? `cached (${r.cached})` : `generated in ${r.sec}s`}  ${r.alias}  ${r.file}${r.library ? "  → library" : ""}`);
           for (const w of r.warnings ?? []) console.log(`  note: ${w}`);
+        });
+        return;
+      }
+      if (sub === "upscale") {
+        const r = gen.upscale(proj(a), { model: a.model, only: a.only ? String(a.only).split(",") : undefined, dryRun: !!a["dry-run"] });
+        out(r, () => {
+          for (const x of r.plans) console.log(`${String(x.status).padEnd(8)} ${x.alias.padEnd(20)} ${x.size.join("x")} → ${x.target.join("x")}  ${x.model}${x.reason ? `  (${x.reason})` : ""}${x.sec ? `  ${x.sec}s` : ""}${x.cached ? `  cached (${x.cached})` : ""}`);
+          if (!r.dry_run && r.plans.some((x: any) => x.status === "done")) console.log("aliases now point to the upscaled takes — re-render to see them");
         });
         return;
       }

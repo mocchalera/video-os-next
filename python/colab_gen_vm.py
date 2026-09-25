@@ -82,23 +82,27 @@ def _torch_info():
     return _sh("python -c 'import torch;print(torch.__version__, torch.version.cuda)'", False).strip()
 
 
-def _bootstrap():
-    rep = {"state": "running", "comfy_rev": COMFY_REV, "weights_rev": WEIGHTS_REV}
+def _bootstrap(light=False):
+    """light=True: ComfyUI only (no H3 weights, no torch swap) — enough for upscaling or checking node schemas."""
+    rep = {"state": "running", "comfy_rev": COMFY_REV, "weights_rev": WEIGHTS_REV, "light": light}
     t0 = time.time()
     try:
         os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
         if not os.path.isdir(COMFY):
             _sh(f"git clone -q https://github.com/comfyanonymous/ComfyUI.git {COMFY}")
         _sh(f"cd {COMFY} && git fetch -q && git checkout -q {COMFY_REV} && pip install -q -r requirements.txt")
-        with cf.ThreadPoolExecutor(8) as ex:
-            tf = ex.submit(_sh, TORCH_CU130 + " 2>&1 | tail -3", False)
-            dl = [ex.submit(_fetch, p, d) for p, d in WEIGHTS]
-            rep["weights"] = [f.result() for f in dl]
-            rep["torch_pip"] = tf.result()[-500:]
+        if not light:
+            with cf.ThreadPoolExecutor(8) as ex:
+                tf = ex.submit(_sh, TORCH_CU130 + " 2>&1 | tail -3", False)
+                dl = [ex.submit(_fetch, p, d) for p, d in WEIGHTS]
+                rep["weights"] = [f.result() for f in dl]
+                rep["torch_pip"] = tf.result()[-500:]
         rep["torch"] = STATE["torch"] = _torch_info()
         # kitchen CUDA kernels need CUDA >= 13; otherwise the Triton backend is the measured next best
         cuda_ok = bool(re.search(r"\s1[3-9]\.", " " + rep["torch"]))
         STATE["flags"] = [] if cuda_ok else ["--enable-triton-backend"]
+        if not _sh("nvidia-smi -L 2>/dev/null", False).strip():
+            STATE["flags"] = ["--cpu"]
         rep["server"] = _start_server(STATE["flags"])
         rep["state"] = "ready"
     except Exception:
@@ -109,11 +113,11 @@ def _bootstrap():
     _write(f"{ROOT}/boot.json", rep, f"{ROOT}/boot.done")
 
 
-def bootstrap():
+def bootstrap(light=False):
     for f in ("boot.json", "boot.done"):
         if os.path.exists(f"{ROOT}/{f}"):
             os.remove(f"{ROOT}/{f}")
-    threading.Thread(target=_bootstrap, daemon=True).start()
+    threading.Thread(target=_bootstrap, args=(light,), daemon=True).start()
     print(json.dumps({"ok": True, "bootstrap": "started"}))
 
 
@@ -192,6 +196,43 @@ def graph(r):
     return g
 
 
+# Finishing upscalers: permissive licences only (commercial use OK), fetched on first use.
+UPSCALERS = {
+    "realesrgan-x2": ("RealESRGAN_x2plus.pth",
+                      "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth"),
+    "realesrgan-x4": ("RealESRGAN_x4plus.pth",
+                      "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth"),
+}
+
+
+def _ensure_upscaler(key):
+    name, url = UPSCALERS[key]
+    dest = f"{COMFY}/models/upscale_models/{name}"
+    if not os.path.exists(dest):
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        urllib.request.urlretrieve(url, dest + ".part")
+        os.replace(dest + ".part", dest)
+    return name
+
+
+def graph_upscale(r):
+    """Whole clip: decode → model upscale → exact target size → re-mux with the original audio and fps."""
+    g = {}
+
+    def node(nid, cls, **inputs):
+        g[nid] = {"class_type": cls, "inputs": inputs}
+        return [nid, 0]
+
+    vid = node("load", "LoadVideo", file=r["src_image"])
+    g["parts"] = {"class_type": "GetVideoComponents", "inputs": {"video": vid}}
+    model = node("umodel", "UpscaleModelLoader", model_name=r["model_file"])
+    up = node("up", "ImageUpscaleWithModel", upscale_model=model, image=["parts", 0])
+    sized = node("size", "ImageScale", image=up, upscale_method="lanczos", width=r["width"], height=r["height"], crop="disabled")
+    out = node("video", "CreateVideo", images=sized, audio=["parts", 1], fps=["parts", 2])
+    node("save", "SaveVideo", video=out, filename_prefix=f"vosgen/{r['id']}", format="auto", codec="auto")
+    return g
+
+
 def _run_job(r):
     jid = r["id"]
     rep = {"id": jid, "state": "running", "flags": STATE["flags"], "torch": STATE["torch"],
@@ -201,8 +242,15 @@ def _run_job(r):
     try:
         if not (STATE["boot"] and STATE["boot"]["state"] == "ready"):
             raise RuntimeError("bootstrap not ready")
+        if STATE["boot"].get("light") and r.get("kind") != "upscale":
+            raise RuntimeError("this session was started with --light (no H3 weights): `vos gen down`, then `vos gen up` without --light")
         log_mark = os.path.getsize(f"{ROOT}/server.log")
-        pid = _post("/prompt", {"prompt": graph(r), "client_id": str(uuid.uuid4())})["prompt_id"]
+        if r.get("kind") == "upscale":
+            r = {**r, "model_file": _ensure_upscaler(r["model"])}
+            g = graph_upscale(r)
+        else:
+            g = graph(r)
+        pid = _post("/prompt", {"prompt": g, "client_id": str(uuid.uuid4())})["prompt_id"]
         while True:
             h = json.load(urllib.request.urlopen(f"{URL}/history/{pid}"))
             st = h.get(pid, {}).get("status", {})
@@ -220,6 +268,8 @@ def _run_job(r):
                  for o in k if isinstance(o, dict) and o.get("filename", "").endswith(".mp4")]
         src = os.path.join(COMFY, "output", files[0].get("subfolder", ""), files[0]["filename"])
         shutil.move(src, f"{ROOT}/out/{jid}.mp4")
+        if r.get("kind") == "upscale":
+            rep["upscaler"] = {"model": r["model"], "file": r["model_file"]}
         with open(f"{ROOT}/server.log") as f:
             f.seek(log_mark)
             its = re.findall(r"(\d+)/\1 \[[0-9:]+<00:00, +([0-9.]+)s/it", f.read())
@@ -258,3 +308,11 @@ def submit(r):
 
 
 print(json.dumps({"ok": True, "worker": "vosgen", "comfy_rev": COMFY_REV}))
+
+
+def schema(classes):
+    """Live input schema of node classes, to check graphs against the running ComfyUI."""
+    info = json.load(urllib.request.urlopen(f"{URL}/object_info"))
+    out = {c: (info[c]["input"] if c in info else None) for c in classes}
+    _write(f"{ROOT}/schema.json", out, f"{ROOT}/schema.done")
+    print(json.dumps({"ok": True, "missing": [c for c, v in out.items() if v is None]}))

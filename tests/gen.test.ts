@@ -223,3 +223,35 @@ test("H3 prompt format: alignment line is written by vos from --from/--to, with 
   assert.match(promptWarnings("a boat in the rain", 5)[0], /free text/);
   assert.match(promptWarnings(body, 2).join(), /beyond the 2s clip/);
 });
+
+test("upscale: only generated clips the timeline uses; alias rebound to the upscaled take; idempotent", async () => {
+  const { coverSize, planUpscale, upscale } = await import("../src/gen/colab.ts");
+  const { writeTimeline } = await import("./helpers.ts");
+  assert.deepEqual(coverSize(1344, 768, 1920, 1080), [1920, 1098]);
+  assert.deepEqual(coverSize(864, 480, 1920, 1080), [1944, 1080]);
+  const vm = freshVm();
+  up({ budgetCu: 8, light: true });
+  assert.ok(fakeState(vm).calls.some((c: string) => c.includes("exec vos-gen")), "light boot goes through the guard too");
+  const p = fixtureProject();
+  const g = clip(p, { prompt: "to be finished", size: "draft", seconds: 2, as: "gen1" }); // fake returns a 320x180 clip
+  clip(p, { prompt: "generated but unused", size: "draft", seconds: 2, as: "unused" });
+  writeTimeline(p, { format: "vos.timeline/1", name: "t", canvas: { width: 640, height: 360, fps: 24 }, duration: 3,
+    tracks: [{ id: "V1", kind: "video", clips: [
+      { id: "a", asset: "gen1", at: 0, dur: 1 }, { id: "b", asset: "clip", at: 1, dur: 1 }, { id: "c", asset: "gen1", at: 2, in: 1, dur: 1 }] }] });
+  const plan = planUpscale(loadProject(p.root));
+  assert.deepEqual(plan.map((x) => [x.alias, x.status, x.target.join("x"), x.model]), [["gen1", "todo", "640x360", "realesrgan-x2"]],
+    "the camera clip and the unused take are not touched; gen1 once");
+  const before = loadProject(p.root).assets.assets.gen1.id;
+  const r = upscale(loadProject(p.root));
+  assert.equal(r.plans[0].status, "done");
+  assert.equal(fakeState(vm).last.kind, "upscale");
+  assert.equal(fakeState(vm).last.width, 640);
+  const after = loadProject(p.root).assets.assets.gen1;
+  assert.deepEqual(after.replaced, [before], "history keeps the pre-upscale content");
+  assert.match(after.note ?? "", /upscaled \(realesrgan-x2, 320x180→640x360\)/);
+  const side = JSON.parse(fs.readFileSync(genPaths(p, r.plans[0].id).sidecar, "utf8"));
+  assert.equal(side.format, "vos.gen-upscale/1");
+  assert.equal(side.source.request_id, g.request_id);
+  assert.equal(planUpscale(loadProject(p.root))[0].status, "skipped", "second run: already upscaled");
+  down();
+});
