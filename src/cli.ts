@@ -33,7 +33,7 @@ eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--w
          vos models [pull <visual|audio>]           embedding models: status / download (network)
 ears     vos beats <alias> [--hint 120]
 make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait] [--light --gpu T4]   rent a guarded Colab GPU (costs money: ask the human for N)
-         vos gen clip --prompt "…"|--prompt-file f.txt [--from alias@sec] [--to alias@sec] [--seconds 5] [--size 768p|draft|WxH] [--seed 1] [--dense] [--as alias]
+         vos gen clip --prompt "…"|--prompt-file f.txt [--from alias@sec] [--to alias@sec] [--refs a@s,b] [--guides a@s=t,…] [--ref-size match|max] [--quality turbo|full] [--seconds 5] [--size 768p|draft|WxH] [--seed 1] [--dense] [--as alias]
          vos gen status | down                      MiniMax-H3 text/image→video+audio; cached per request; ingested with provenance
          vos gen upscale [--dry-run] [--model realesrgan-x2|x4] [--only a,b]   finishing pass: upscale the generated clips the timeline uses
          vos gen library [--search words] [--init <dir>] · vos gen pull <id> [--as alias]   shared takes (e.g. Google Drive)
@@ -236,7 +236,7 @@ async function main() {
       if (sub === "clip") {
         const p = proj(a);
         const prompt = a["prompt-file"] ? fs.readFileSync(String(a["prompt-file"]), "utf8") : a.prompt;
-        const r = gen.clip(p, { prompt, from: a.from, to: a.to, seconds: a.seconds ? Number(a.seconds) : undefined, size: a.size, seed: a.seed ? Number(a.seed) : undefined, steps: a.steps ? Number(a.steps) : undefined, dense: !!a.dense, as: a.as, note: a.note, replace: !!a.replace });
+        const r = gen.clip(p, { prompt, from: a.from, to: a.to, refs: a.refs, guides: a.guides, refSize: a["ref-size"], quality: a.quality, seconds: a.seconds ? Number(a.seconds) : undefined, size: a.size, seed: a.seed ? Number(a.seed) : undefined, steps: a.steps ? Number(a.steps) : undefined, dense: !!a.dense, as: a.as, note: a.note, replace: !!a.replace });
         out(r, () => {
           console.log(`${r.cached ? `cached (${r.cached})` : `generated in ${r.sec}s`}  ${r.alias}  ${r.file}${r.library ? "  → library" : ""}`);
           for (const w of r.warnings ?? []) console.log(`  note: ${w}`);

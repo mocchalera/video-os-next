@@ -19,7 +19,7 @@ Sources (read them when in doubt): MiniMax-H3 `skills/h3-prompt-writing/SKILL.md
 | I2VA first frame | `--from hero@2.5` | start **exactly** from that frame, develop forward |
 | FL2VA first+last | `--from a@1 --to b@3` | describe the **motion path** that connects the two frames |
 | L2VA last frame | `--to b@3` | infer a plausible preceding state, converge onto the frame |
-| Ref2VA references | *(not yet in vos — see §7)* | |
+| Ref2VA references | `--refs a@0,b [--guides c@2=1.5]` | six-field format, cite `<Picture N>` (§7) |
 
 **Do not write the alignment line yourself.** The official format starts image-anchored prompts with a line such as
 `For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.`
@@ -81,13 +81,50 @@ Two voices at once: `(S1,S2)`. Keep the same ID for the same person in every sho
 - Continuing a generated shot: `--from <previous clip>@<a late frame>` and describe only what happens next. This is how
   consecutive clips stay continuous (same boat, same light) until references land in vos.
 
-## 7. References (character / style) — status
+## 7. Reference mode — characters, styles, props, keyframes (`--refs` / `--guides`)
 
-The official Ref2VA mode uses six fields (`subject_definitions`, `summary`, `retention_analysis`,
-`detailed_description`, `overall_soundscape`, `non_diegetic_music`) with labels `<Subject N>`, `<Picture N>`,
-`<Video N>`, `<Audio N>` that keep one meaning throughout, and retention levels (`fully_preserved`,
-`partially_preserved`, `attribute_transfer`, `weak_reference`). vos does not drive the ref2va model yet; this section
-will be completed when it does.
+`vos gen clip --refs hero@0,look@3.2 [--guides layout@2=0,layout@5=3.5] [--ref-size match|max] [--quality turbo|full]`
+
+- **Numbering** (stock ComfyUI templates): `--refs` are `<Picture 1..n>` in the order given; `--guides` continue the
+  numbering (`<Picture n+1..>`) in the order given. At most 9 images in total. vos warns if a picture is attached but
+  never cited, or cited but not attached.
+- **refs** keep their own framing (identity / style / prop sheets). `--ref-size max` keeps up to a 2048 px short edge:
+  stronger identity, slower. **guides** are cut to the output size and pinned to an output second (`src=out`,
+  e.g. `layout@2=1.5`): the frame at 1.5 s will match that still. A guide at `=0` is the opening frame.
+- `--quality turbo` (default, 4 steps with the ref2v turbo LoRA v0.1) is fast; the stock template notes it is lower
+  quality. `--quality full` = 20 steps. Draft with turbo, finish with full.
+- `--from/--to` do not mix with references; use a guide at 0 / at the end instead.
+
+The prompt uses **six fields**, in this order:
+
+```
+subject_definitions:
+<Subject 1> is the woman in <Picture 1>, featuring … (define every reusable person / place / prop / style)
+<Picture 2> is the keyframe of [Shot 2], showing …   (say what each guide still is and which shot it anchors)
+
+summary:
+[reference generation] One paragraph: what the target video is and how the references relate to it.
+(task tags: [reference generation], [keyframe completion + reference generation], [video editing], …)
+
+retention_analysis:
+<Subject 1> (appears in [Shot 1], [Shot 2]): partially_preserved - face, skin and lipstick kept; clothing changes in [Shot 2].
+<Picture 2> ([Shot 2] keyframe): fully_preserved - the arrangement … is recreated in [Shot 2].
+(levels: fully_preserved / partially_preserved / attribute_transfer / weak_reference; audio: fully_copy / partially_copy / reference / weak_reference)
+
+detailed_description:
+Style/medium paragraph. [Shot 1] The shot begins from <Picture 1>. … [Shot 2] At 00:01.500, the shot cuts to …, whose keyframe corresponds to <Picture 2>. …
+
+overall_soundscape:
+…
+
+non_diegetic_music:
+…
+```
+
+- A label keeps one meaning everywhere. Use `<Subject N>` for the reusable thing, `<Picture N>` for the image itself.
+- Guide times in the prompt (`At 00:01.500`) should match the `=seconds` you pinned.
+- For continuity across **separate clips**, reuse the same `--refs` (same character sheet / style frame) in every clip
+  and keep `subject_definitions` identical; change only the shots.
 
 ## 8. Working habit in vos
 

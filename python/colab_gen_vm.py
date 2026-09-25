@@ -151,6 +151,19 @@ def _post(path, body):
         raise RuntimeError(f"ComfyUI rejected the graph: {e.read().decode()[:2000]}") from e
 
 
+# reference-to-video (character / style / keyframes): separate diffusion model + turbo LoRA, fetched on first use
+REF_WEIGHTS = [
+    ("diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors", "diffusion_models"),
+    ("loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors", "loras"),
+]
+
+
+def _ensure_ref_weights():
+    os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
+    with cf.ThreadPoolExecutor(4) as ex:
+        return [f.result() for f in [ex.submit(_fetch, p, d) for p, d in REF_WEIGHTS]]
+
+
 def frames_for(seconds):
     """24 fps snapped up to the model's 17k+5 grid (stock template formula)."""
     n = max(5, round(seconds * 24))
@@ -177,13 +190,28 @@ def graph(r):
     clip = node("clip", "CLIPLoader", clip_name=r["text_encoder"], type="minimax", device="default")
     vvae = node("vvae", "VAELoader", vae_name=r["video_vae"])
     avae = node("avae", "VAELoader", vae_name=r["audio_vae"])
-    frames = {}
-    for key in ("first", "last"):  # image→video: frames uploaded to ComfyUI/input, already at exact size
-        if r.get(f"{key}_image"):
-            frames[f"{key}_frame"] = node(f"img_{key}", "LoadImage", image=r[f"{key}_image"])
-    node("cond", "MiniMaxH3ImageToVideo", clip=clip, vae=vvae, prompt=r["prompt"],
-         width=r["width"], height=r["height"], length=frames_for(r["seconds"]), **frames)
-    guider = node("guider", "BasicGuider", model=model, conditioning=["cond", 0])
+    length = frames_for(r["seconds"])
+    if r.get("mode") == "ref2va":
+        # stock template video_minimax_h3_r2v / multiframe_reference: refs are <Picture 1..n> in connection order,
+        # guides continue the numbering and pin stills to output frames (MiniMaxH3AddGuide, frame = round(sec*24))
+        refs = {f"ref_images.ref_image_{i}": node(f"ref_{i}", "LoadImage", image=name)
+                for i, name in enumerate(r.get("ref_images", []))}
+        node("cond", "MiniMaxH3ReferenceToVideo", clip=clip, vae=vvae, audio_vae=avae, prompt=r["prompt"],
+             width=r["width"], height=r["height"], length=length, ref_image_size=r.get("ref_image_size", "match"), **refs)
+        positive = ["cond", 0]
+        for i, gd in enumerate(r.get("guide_images", [])):
+            img = node(f"guide_img_{i}", "LoadImage", image=gd["image"])
+            positive = node(f"guide_{i}", "MiniMaxH3AddGuide", positive=positive, latent=["cond", 1], vae=vvae,
+                            audio_vae=avae, image=img, frame_idx=min(length - 1, round(gd["at"] * 24)))
+    else:
+        frames = {}
+        for key in ("first", "last"):  # image→video: frames uploaded to ComfyUI/input, already at exact size
+            if r.get(f"{key}_image"):
+                frames[f"{key}_frame"] = node(f"img_{key}", "LoadImage", image=r[f"{key}_image"])
+        node("cond", "MiniMaxH3ImageToVideo", clip=clip, vae=vvae, prompt=r["prompt"],
+             width=r["width"], height=r["height"], length=length, **frames)
+        positive = ["cond", 0]
+    guider = node("guider", "BasicGuider", model=model, conditioning=positive)
     sigmas = node("sched", "BasicScheduler", model=model, scheduler="simple", steps=r["steps"], denoise=1.0)
     noise = node("noise", "RandomNoise", noise_seed=r["seed"])
     samp = node("sampler", "KSamplerSelect", sampler_name=r.get("sampler", "res_multistep"))
@@ -283,6 +311,8 @@ def _run_job(r):
             rep["sec"] = round(time.time() - t0, 1)
             _write(f"{ROOT}/jobs/{jid}.json", rep, f"{ROOT}/jobs/{jid}.done")
             return
+        if r.get("mode") == "ref2va":
+            rep["ref_weights"] = _ensure_ref_weights()
         pid = _post("/prompt", {"prompt": graph(r), "client_id": str(uuid.uuid4())})["prompt_id"]
         while True:
             h = json.load(urllib.request.urlopen(f"{URL}/history/{pid}"))

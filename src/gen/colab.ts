@@ -63,6 +63,14 @@ export interface GenRequest {
   weights_rev: string;
   first_frame?: FrameRef; // image→video: absent for text→video (keeps t2v ids unchanged)
   last_frame?: FrameRef;
+  mode?: "ref2va"; // reference-to-video (characters / styles / keyframes); absent otherwise
+  refs?: FrameRef[]; // <Picture 1..n>
+  guides?: GuideRef[]; // <Picture n+1..>, pinned to output seconds
+  ref_image_size?: "match" | "max";
+}
+
+export interface GuideRef extends FrameRef {
+  to: number; // output second the still is pinned to
 }
 
 /** A frame of a project asset, by content id — portable and stable across machines. */
@@ -80,7 +88,20 @@ export interface ClipOptions {
   dense?: boolean; // disable sparse attention (exactness over speed)
   firstFrame?: FrameRef;
   lastFrame?: FrameRef;
+  refs?: FrameRef[];
+  guides?: GuideRef[];
+  refSize?: "match" | "max";
+  quality?: "turbo" | "full"; // reference mode only: 4-step turbo LoRA vs 20 full steps
 }
+
+/** Reference-to-video (stock templates video_minimax_h3_r2v / multiframe_reference). */
+export const H3_REF = {
+  unet: "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+  lora: "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+  turbo_steps: 4,
+  full_steps: 20,
+  max_images: 9,
+} as const;
 
 export function parseSize(s: string | undefined): [number, number] {
   const key = s ?? "768p";
@@ -122,8 +143,17 @@ export function withAlignment(prompt: string, seconds: number, first: boolean, l
 }
 
 /** Advice, not errors: the model accepts free text, but follows the official three-field format far better. */
-export function promptWarnings(prompt: string, seconds: number): string[] {
+export function promptWarnings(prompt: string, seconds: number, images = 0): string[] {
   const w: string[] = [];
+  if (images > 0) {
+    for (const f of ["subject_definitions:", "summary:", "retention_analysis:", "detailed_description:", "overall_soundscape:", "non_diegetic_music:"]) {
+      if (!prompt.includes(f)) w.push(`reference prompt has no "${f}" field — see skills/h3-prompt/SKILL.md §7`);
+    }
+    const used = new Set([...prompt.matchAll(/<Picture (\d+)>/g)].map((m) => Number(m[1])));
+    for (const k of used) if (k > images) w.push(`<Picture ${k}> is cited but only ${images} image(s) are attached (refs first, then guides)`);
+    for (let k = 1; k <= images; k++) if (!used.has(k)) w.push(`<Picture ${k}> is attached but never cited in the prompt`);
+    return w;
+  }
   for (const f of ["integrated_multimodal_description:", "overall_soundscape:", "non_diegetic_music:"]) {
     if (!prompt.includes(f)) w.push(`prompt has no "${f}" field — see skills/h3-prompt/SKILL.md`);
   }
@@ -140,6 +170,22 @@ export function buildRequest(o: ClipOptions): GenRequest {
   const seconds = o.seconds ?? 5;
   if (!(seconds > 0 && seconds <= 15)) throw new VosError("usage", "--seconds must be in (0, 15]", "the model's trained range is ~5-15 s");
   const [width, height] = parseSize(o.size);
+  const ref = !!(o.refs?.length || o.guides?.length);
+  if (ref) {
+    if (o.firstFrame || o.lastFrame) throw new VosError("usage", "--from/--to cannot be combined with --refs/--guides", "in reference mode pin the opening frame with a guide at 0: --guides shot@2=0");
+    const n = (o.refs?.length ?? 0) + (o.guides?.length ?? 0);
+    if (n > H3_REF.max_images) throw new VosError("usage", `${n} reference images; the model takes at most ${H3_REF.max_images}`);
+    for (const g of o.guides ?? []) if (!(g.to >= 0 && g.to < seconds)) throw new VosError("usage", `guide pinned at ${g.to}s is outside the ${seconds}s clip`);
+    const full = o.quality === "full";
+    const body = {
+      model: H3.model, mode: "ref2va" as const, prompt: o.prompt.trim(), seconds, width, height, seed: o.seed ?? 1,
+      steps: o.steps ?? (full ? H3_REF.full_steps : H3_REF.turbo_steps), lora: full ? "" : H3_REF.lora,
+      sol_tau: o.dense ? null : H3.sol_tau, unet: H3_REF.unet, text_encoder: H3.text_encoder, video_vae: H3.video_vae,
+      audio_vae: H3.audio_vae, comfy_rev: H3.comfy_rev, weights_rev: H3.weights_rev,
+      refs: o.refs ?? [], guides: o.guides ?? [], ref_image_size: o.refSize ?? "match",
+    };
+    return { id: sha256(stableStringify(body)).slice(0, 16), ...body };
+  }
   const body = {
     model: H3.model, prompt: withAlignment(o.prompt.trim(), seconds, !!o.firstFrame, !!o.lastFrame), seconds, width, height, seed: o.seed ?? 1, steps: o.steps ?? H3.steps,
     lora: H3.lora, sol_tau: o.dense ? null : H3.sol_tau, unet: H3.unet, text_encoder: H3.text_encoder,
@@ -268,9 +314,11 @@ export interface ClipResult extends IngestResult {
   warnings?: string[];
 }
 
-export interface ClipCall extends Omit<ClipOptions, "firstFrame" | "lastFrame"> {
+export interface ClipCall extends Omit<ClipOptions, "firstFrame" | "lastFrame" | "refs" | "guides"> {
   from?: string; // "<alias>[@sec]" — image→video start frame
   to?: string; // "<alias>[@sec]" — end frame
+  refs?: string; // "a@1,b" — reference images <Picture 1..n>
+  guides?: string; // "a@1=0,b@2=3.5" — stills pinned to output seconds, <Picture n+1..>
   as?: string;
   note?: string;
   replace?: boolean;
@@ -290,11 +338,11 @@ export function resolveFrame(p: Project, spec: string): { ref: FrameRef; alias: 
   return { ref: { asset: a.id, at }, alias: a.alias, file: requireOnline(a), kind: a.kind, width: a.width, height: a.height };
 }
 
-/** Extract one frame, scaled + centre-cropped to exactly the generation size (no guessing by the model node). */
+/** Extract one frame, scaled + centre-cropped to exactly the generation size (no guessing by the model node); 0x0 = native. */
 export function extractFrame(file: string, at: number, width: number, height: number, out: string): string {
   fs.mkdirSync(path.dirname(out), { recursive: true });
-  const r = run("ffmpeg", ["-v", "error", "-y", "-ss", String(at), "-i", file, "-frames:v", "1",
-    "-vf", `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`, out]);
+  const vf = width && height ? ["-vf", `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`] : [];
+  const r = run("ffmpeg", ["-v", "error", "-y", "-ss", String(at), "-i", file, "-frames:v", "1", ...vf, out]);
   if (r.status !== 0 || !fs.existsSync(out)) throw new VosError("frame_extract_failed", `could not extract a frame at ${at}s`, r.stderr.slice(-300));
   return out;
 }
@@ -314,19 +362,29 @@ function runRemote(remoteReq: { id: string; [k: string]: unknown }, timeoutSec: 
   return job;
 }
 
+const list = (s?: string) => (s ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+
 export function clip(p: Project, o: ClipCall): ClipResult {
   const first = o.from ? resolveFrame(p, o.from) : null;
   const last = o.to ? resolveFrame(p, o.to) : null;
+  const refs = list(o.refs).map((x) => resolveFrame(p, x));
+  const guides = list(o.guides).map((x) => {
+    const m = /^(.+)=([\d.]+)s?$/.exec(x);
+    if (!m) throw new VosError("usage", `bad guide "${x}"`, "use <alias>@<source sec>=<output sec>, e.g. layout@2=1.5");
+    return { ...resolveFrame(p, m[1]), to: Number(m[2]) };
+  });
   // image→video with no explicit size: follow the source's orientation
-  const size = o.size ?? (first && first.width && first.height && first.height > first.width ? "768p-portrait" : undefined);
-  const req = buildRequest({ ...o, size, firstFrame: first?.ref, lastFrame: last?.ref });
+  const lead = first ?? refs[0] ?? null;
+  const size = o.size ?? (lead && lead.width && lead.height && lead.height > lead.width ? "768p-portrait" : undefined);
+  const req = buildRequest({ ...o, size, firstFrame: first?.ref, lastFrame: last?.ref, refs: refs.map((r) => r.ref),
+    guides: guides.map((g) => ({ ...g.ref, to: g.to })) });
   const { media, sidecar } = genPaths(p, req.id);
   const alias = o.as;
-  const note = o.note ?? `generated (${req.model}${first ? `, from ${first.alias}@${first.ref.at}` : ""}): ${req.prompt.slice(0, 80)}${req.prompt.length > 80 ? "…" : ""}`;
+  const note = o.note ?? `generated (${req.model}${first ? `, from ${first.alias}@${first.ref.at}` : ""}${refs.length ? `, refs ${refs.map((r) => r.alias).join("+")}` : ""}${guides.length ? `, guides ${guides.map((g) => `${g.alias}→${g.to}s`).join("+")}` : ""}): ${req.prompt.slice(0, 80)}${req.prompt.length > 80 ? "…" : ""}`;
   const done = (cached: ClipResult["cached"], extra: Partial<ClipResult> = {}): ClipResult => {
     const r = ingest(p, media, alias, note, !!o.replace);
     saveAssets(p);
-    const warnings = promptWarnings(o.prompt, req.seconds);
+    const warnings = promptWarnings(o.prompt, req.seconds, (req.refs?.length ?? 0) + (req.guides?.length ?? 0));
     return { ...r, cached, request_id: req.id, file: path.relative(p.root, media), ...(warnings.length ? { warnings } : {}), ...extra };
   };
   if (fs.existsSync(media) && fs.existsSync(sidecar)) return done("project");
@@ -344,6 +402,21 @@ export function clip(p: Project, o: ClipCall): ClipResult {
     remoteReq[`${key}_image`] = name;
     frames[key] = { sha256: sha256(fs.readFileSync(png)) };
   }
+  // references keep their own framing (the model scales them per ref_image_size); guides are output frames → exact size
+  refs.forEach((f, i) => {
+    const png = extractFrame(f.file, f.ref.at, 0, 0, path.join(P.cache(p.root), "gen", `${req.id}_ref${i}.png`));
+    const name = `vosgen_${req.id}_ref${i}.png`;
+    upload(png, `/content/ComfyUI/input/${name}`);
+    (remoteReq.ref_images ??= []).push(name);
+    frames[`ref${i}`] = { sha256: sha256(fs.readFileSync(png)) };
+  });
+  guides.forEach((g, i) => {
+    const png = extractFrame(g.file, g.ref.at, req.width, req.height, path.join(P.cache(p.root), "gen", `${req.id}_guide${i}.png`));
+    const name = `vosgen_${req.id}_guide${i}.png`;
+    upload(png, `/content/ComfyUI/input/${name}`);
+    (remoteReq.guide_images ??= []).push({ image: name, at: g.to });
+    frames[`guide${i}`] = { sha256: sha256(fs.readFileSync(png)) };
+  });
   const job = runRemote(remoteReq, o.timeoutSec ?? 1800);
   download(job.output, media);
   const rate = Number(status().rate_cu_h) || null;

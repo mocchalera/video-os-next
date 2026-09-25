@@ -43,6 +43,23 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(g["cond"]["inputs"]["last_frame"], ["img_last", 0])
         self.assertNotIn("first_frame", vm.graph(REQ)["cond"]["inputs"])
 
+    def test_reference_mode_wires_refs_then_guides_like_the_stock_template(self):
+        r = {**REQ, "mode": "ref2va", "unet": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+             "lora": "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors", "steps": 4, "ref_image_size": "max",
+             "ref_images": ["a.png", "b.png"], "guide_images": [{"image": "k1.png", "at": 1.5}, {"image": "k2.png", "at": 9}]}
+        g = vm.graph(r)
+        c = g["cond"]
+        self.assertEqual(c["class_type"], "MiniMaxH3ReferenceToVideo")
+        self.assertEqual(c["inputs"]["ref_images.ref_image_0"], ["ref_0", 0])
+        self.assertEqual(c["inputs"]["ref_images.ref_image_1"], ["ref_1", 0])
+        self.assertEqual(c["inputs"]["ref_image_size"], "max")
+        self.assertEqual(g["guide_0"]["inputs"]["frame_idx"], 36)
+        self.assertEqual(g["guide_0"]["inputs"]["positive"], ["cond", 0])
+        self.assertEqual(g["guide_1"]["inputs"]["positive"], ["guide_0", 0], "guides chain")
+        self.assertEqual(g["guide_1"]["inputs"]["frame_idx"], 123, "clamped to the last frame of a 5 s clip")
+        self.assertEqual(g["guider"]["inputs"]["conditioning"], ["guide_1", 0])
+        self.assertEqual(g["sample"]["inputs"]["latent_image"], ["cond", 1])
+
     def test_frames_follow_the_17k_plus_5_grid(self):
         self.assertEqual(vm.frames_for(5), 124)
         self.assertEqual(vm.frames_for(2), 56)

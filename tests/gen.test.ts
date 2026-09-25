@@ -255,3 +255,31 @@ test("upscale: only generated clips the timeline uses; alias rebound to the upsc
   assert.equal(planUpscale(loadProject(p.root))[0].status, "skipped", "second run: already upscaled");
   down();
 });
+
+test("reference mode: refs keep native framing, guides are cut to the output size and pinned; numbering and limits checked", () => {
+  const vm = freshVm();
+  up({ budgetCu: 8 });
+  const p = fixtureProject();
+  const refPrompt = "subject_definitions:\n<Subject 1> is the pattern in <Picture 1>.\n<Picture 2> is the keyframe of [Shot 1].\n\nsummary:\n[reference generation] x\n\nretention_analysis:\n<Subject 1>: fully_preserved\n\ndetailed_description:\n[Shot 1] x\n\noverall_soundscape: x\n\nnon_diegetic_music: N/A";
+  const r = clip(p, { prompt: refPrompt, refs: "still", guides: "clip@1=1.5", size: "draft", seconds: 2, as: "refd" });
+  const st = fakeState(vm);
+  assert.equal(st.last.mode, "ref2va");
+  assert.equal(st.last.steps, 4);
+  assert.deepEqual(st.last.ref_images, [`vosgen_${r.request_id}_ref0.png`]);
+  assert.deepEqual(st.last.guide_images, [{ image: `vosgen_${r.request_id}_guide0.png`, at: 1.5 }]);
+  assert.equal(probeWH(path.join(vm, "content/ComfyUI/input", st.last.ref_images[0])), "64,64", "reference keeps its own framing");
+  assert.equal(probeWH(path.join(vm, "content/ComfyUI/input", st.last.guide_images[0].image)), "864,480", "guide is an output frame");
+  assert.equal(r.warnings, undefined, "a complete six-field prompt citing both pictures has no warnings");
+  const g = JSON.parse(fs.readFileSync(genPaths(p, r.request_id).sidecar, "utf8"));
+  assert.deepEqual(Object.keys(g.frames).sort(), ["guide0", "ref0"]);
+  assert.match(loadProject(p.root).assets.assets.refd.note ?? "", /refs still, guides clip→1.5s/);
+
+  const w = clip(p, { prompt: "<Picture 3> walks", refs: "still,clip@0.5", size: "draft", seconds: 2 }).warnings ?? [];
+  assert.ok(w.some((x) => /<Picture 3> is cited but only 2/.test(x)));
+  assert.ok(w.some((x) => /<Picture 1> is attached but never cited/.test(x)));
+  assert.throws(() => clip(p, { prompt: "x", refs: "still", from: "clip@1" }), /cannot be combined/);
+  assert.throws(() => clip(p, { prompt: "x", guides: "clip@1=3", seconds: 2 }), /outside the 2s clip/);
+  assert.throws(() => clip(p, { prompt: "x", refs: Array(10).fill("still").join(",") }), /at most 9/);
+  assert.equal(buildRequest({ prompt: "x", refs: [{ asset: "a", at: 0 }], quality: "full" }).steps, 20);
+  down();
+});
