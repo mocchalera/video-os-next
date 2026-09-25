@@ -79,3 +79,13 @@ Offline tests: `python3 scripts/colab/test_guard.py` (fake backend; includes a r
 | i2v `--from` 768p 5 s | A100 | 269.8 s incl. cold TE; first frame matches the source frame |
 | upscale 1344x768→1920x1098, 5 s | T4 (`--light`) | ~200 s/clip (~0.06 CU) streamed; ComfyUI graph version OOM-killed the server (13 GB RAM VM) |
 | ref2va `--refs` 768p 5 s, full 20 steps | A100 | 239.5 s; clean. turbo 4 steps: smears / flare artifacts. Shape of a stylised ref object drifted to a generic one |
+| `--control` Blender previz depth (alley dolly), 768p 5 s | A100 | 260 s incl. first ControlNet patch download + TE load; layout (door right, crates left, lit end wall) and the forward dolly follow the previz; look from the prompt |
+| cold `vos gen up --wait` | A100 | 297 s (58 GB in ~150 s); one boot took ~17 min — download speed varies, budget for it |
+
+### Failures met on real hardware (all fixed, each with a test)
+- first-VM loss mid-run (cause unknown) and a 6 h hung `colab exec` → the guard (lease, budget stop, verified release)
+- re-loaded worker created a second job queue → queue/worker kept across re-loads
+- ComfyUI upscale graph held the whole clip in RAM → server OOM on T4 → frame streaming
+- connection lost while loading the worker right after allocation; `up` left the VM leased → `up` releases the VM on any
+  failure, idempotent execs retried once, bootstrap must start within 90 s
+- LoadVideo reports its input control video in the history → only this job's `type=output` file is taken
