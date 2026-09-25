@@ -222,7 +222,10 @@ async function main() {
       const sub = rest[0];
       if (sub === "up") {
         const r = gen.up({ budgetCu: Number(a["budget-cu"]), maxHours: a["max-hours"] ? Number(a["max-hours"]) : undefined, leaseMin: a["lease-min"] ? Number(a["lease-min"]) : undefined, gpu: a.gpu, wait: !!a.wait, light: !!a.light });
-        out(r, () => console.log(`${r.status ?? "up"}  ${gen.SESSION}${r.budget_cu ? `  budget ${r.budget_cu} CU` : ""}${r.bootstrap ? `  bootstrap ${r.boot ? r.boot.state : "started (vos gen status)"}` : ""}`));
+        out(r, () => {
+          console.log(`${r.status ?? "up"}  ${gen.SESSION}${r.budget_cu ? `  budget ${r.budget_cu} CU` : ""}${r.bootstrap ? `  bootstrap ${r.boot ? `${r.boot.state} in ${r.boot.sec}s` : "started (vos gen status)"}` : ""}`);
+          for (const w of r.boot?.weights ?? []) console.log(`  weights  ${w.file}  ${w.gb} GB in ${w.sec}s`);
+        });
         return;
       }
       if (sub === "status") {
