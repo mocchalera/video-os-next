@@ -51,3 +51,13 @@ test("duplicate clip ids are rejected", () => {
   d.tracks[0].clips[1].id = "a";
   assert.throws(() => resolve(d), /duplicate clip id/);
 });
+
+test("cadence: 24 fps footage on a 30 fps canvas warns; clean ratios do not", async () => {
+  const { cadenceMismatch } = await import("../src/core/timeline.ts");
+  assert.equal(cadenceMismatch(24, 30), true);
+  assert.equal(cadenceMismatch(23.976, 30), true);
+  assert.equal(cadenceMismatch(24, 24), false);
+  assert.equal(cadenceMismatch(30, 60), false);
+  assert.equal(cadenceMismatch(60, 30), false);
+  assert.equal(cadenceMismatch(29.97, 30), false);
+});

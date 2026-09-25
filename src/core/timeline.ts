@@ -208,6 +208,9 @@ export function resolveTimeline(p: Project, doc: TimelineDoc): Resolved {
         slot = { clip, name };
       }
       const kind = t.kind === "audio" ? "audio" : asset.kind === "image" ? "image" : "video";
+      if (kind === "video" && asset.fps && cadenceMismatch(asset.fps, fps)) {
+        warnings.push(`${w}: "${asset.alias}" is ${round2(asset.fps)} fps on a ${fps} fps canvas — uneven frame repeats (judder); generated footage is 24 fps, so a 24 fps canvas ("canvas": {"fps": 24}) plays it cleanly`);
+      }
       const gain_db = typeof c.gain_db === "number" ? c.gain_db : 0;
       const gain = Math.min(1, 10 ** (gain_db / 20));
       if (gain_db > 0) warnings.push(`${w}: gain_db ${gain_db} > 0 is clamped to 0 dB (browser volume max is 1)`);
@@ -258,3 +261,12 @@ export function cutPoints(r: Resolved): number[] {
   for (const g of r.graphics) if (!overlay.has(g.track)) s.add(g.start);
   return [...s].filter((f) => f > 0 && f < r.frames).sort((a, b) => a - b);
 }
+
+/** A source plays without judder only if the canvas shows each source frame a whole number of times (or skips evenly). */
+export function cadenceMismatch(srcFps: number, canvasFps: number): boolean {
+  const r = canvasFps / srcFps;
+  const near = (x: number) => Math.abs(x - Math.round(x)) < 0.01;
+  return !(near(r) || near(1 / r));
+}
+
+const round2 = (x: number) => Math.round(x * 100) / 100;

@@ -60,7 +60,7 @@ export function status(p: Project): Status {
         warnings: r.warnings,
         unused_assets: assets.map(([a]) => a).filter((a) => !used.has(a)),
       };
-      if (r.warnings.length) st.attention.push(`${r.warnings.length} timeline warning(s)`);
+      if (r.warnings.length) st.attention.push(`${r.warnings.length} timeline warning(s), e.g. ${r.warnings[0]}`);
     } catch (e: any) {
       st.timeline = { ...st.timeline, ok: false, error: e.message, hint: e.hint };
       st.attention.push(`timeline does not resolve: ${e.message}`);
