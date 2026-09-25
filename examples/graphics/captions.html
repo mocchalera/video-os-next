@@ -1,0 +1,33 @@
+<!-- Captions from a transcript: props { "t": {"$transcript": "narr"}, "offset": 0 } — offset = where the narrated clip
+     starts inside this graphic's local time. Words appear exactly when they are spoken. -->
+<style>
+.cap{position:absolute;left:0;right:0;bottom:90px;text-align:center;font-family:ZK,sans-serif;font-weight:700;font-size:54px;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.7)}
+.cap .w{opacity:.18;transition:none}
+.cap .w.on{opacity:1}
+</style>
+<div class="cap"></div>
+<script>
+vos.graphic(({ q, props, onFrame }) => {
+  const box = q(".cap");
+  const off = props.offset || 0;
+  const segs = props.t.segments;
+  let shown = -1;
+  let spans = [];
+  onFrame((t) => {
+    const ts = t - off;
+    const i = segs.findIndex((s) => ts >= s.start && ts < s.end + 0.4);
+    if (i !== shown) {
+      shown = i;
+      box.textContent = "";
+      spans = i < 0 ? [] : segs[i].words.map((w) => {
+        const el = document.createElement("span");
+        el.className = "w";
+        el.textContent = w.word;
+        box.appendChild(el);
+        return el;
+      });
+    }
+    if (i >= 0) segs[i].words.forEach((w, k) => spans[k].classList.toggle("on", ts >= w.start));
+  });
+});
+</script>

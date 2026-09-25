@@ -10,6 +10,7 @@ export interface MachineConfig {
   python?: string; // one interpreter for every model worker (Marlin, embeddings)
   marlin_python?: string; // legacy key, still honoured
   marlin_model?: string;
+  asr_python?: string; // interpreter with faster-whisper for `vos transcribe`
   gen_library?: string; // shared folder for generated clips (e.g. inside Google Drive for desktop)
 }
 

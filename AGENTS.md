@@ -17,6 +17,7 @@ There is no pipeline to follow; there is a project state to read and an edit doc
 | Finish generated footage (last step) | `vos gen upscale --dry-run` → `vos gen up --light --gpu T4 --budget-cu N` → `vos gen upscale` → `vos render` | aliases rebound; `generated/*.gen.json` (`vos.gen-upscale/1`) |
 | Models present? | `vos models` / `vos models pull visual\|audio` (network, ask the human first) | HF cache, `~/.cache/vos/models` |
 | Tempo of music | `vos beats <alias>` | `.vos/analysis/<id>/beats.json` |
+| What is said, and when | `vos transcribe <alias> [--lang ja] [--vocab "固有名詞, …"]` (local faster-whisper, cached models only) → captions via `{"$transcript": alias}` (see `examples/graphics/captions.html`) | `.vos/analysis/<id>/transcript.json` |
 | Edit | write `timeline.json` + `graphics/*.html` | those files (the only edit state) |
 | Build / render | `vos compile` / `vos render [--draft]` | `.vos/build/`, `out/*.receipt.json` |
 | Check | `vos inspect` → findings with times + frame sheets | `out/*.inspect.json` |
@@ -32,7 +33,7 @@ Every command takes `--json`. Errors carry a `hint` — read it before guessing.
 3. Graphics are declared clips. Footage shown inside a graphic goes through a `slot`
    (timeline clip with `"slot": "<graphicsClipId>/<name>"`), stills through
    `vos://asset/<alias>@<sec>`, and on-screen facts through bound props
-   (`{"$describe": alias}`, `{"$data": "data/x.json"}`, `{"$asset": alias}`, `{"$assets": true}`).
+   (`{"$describe": alias}`, `{"$transcript": alias}`, `{"$data": "data/x.json"}`, `{"$asset": alias}`, `{"$assets": true}`).
    Do not type facts into graphics that an artifact already knows.
 4. Deterministic graphics: no `Math.random`, `Date.now`, network. Per-frame logic goes in
    `onFrame(t => …)` with local time `t`.

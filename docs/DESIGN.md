@@ -229,6 +229,13 @@ FFmpeg は解析・抽出・検査・後処理に使う。
 - **速さの根拠は実測。** 既定値（cu130 の INT8 カーネル、Turbo LoRA 6 ステップ、sol-attn τ1.3）と測定値は
   `scripts/colab/spike/RESULTS.md`。生成後は `vos look` で画を見てから使う。
 
+## 10.55 文字起こし（transcribe）
+
+`vos transcribe` は手元の faster-whisper（`VOS_ASR_PYTHON` / config `asr_python` / リポジトリ venv / `python3` の順で
+import できるもの）とキャッシュ済みモデルだけで、区間と単語タイミングを `.vos/analysis/<id>/transcript.json` に残す
+（モデルのダウンロードはしない＝ネットワークは人間の判断）。`--vocab` で固有名詞に寄せる（small で「紙の船」が
+「髪の船」になった実例）。グラフィックには `{"$transcript": alias}` でバインドし、テロップを発話に同期させる。
+
 ## 10.6 音（最終ミックス）
 
 最終音声はブラウザ任せにせず vos が ffmpeg でタイムラインから組む（`src/render/mix.ts`）。ブラウザは音量 1 が上限で

@@ -13,6 +13,7 @@ import { status } from "./core/status.ts";
 import * as gen from "./gen/colab.ts";
 import { initLibrary, listLibrary } from "./gen/library.ts";
 import { renderPreviz } from "./gen/previz.ts";
+import { transcribe } from "./analyze/transcribe.ts";
 import { parseTime } from "./core/time.ts";
 import { loadTimeline, resolveTimeline, timelinePath } from "./core/timeline.ts";
 import { readJson, which, VosError, writeJson } from "./core/util.ts";
@@ -33,6 +34,7 @@ eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--w
          vos find "<event>" --asset alias           Marlin temporal find inside one clip
          vos models [pull <visual|audio>]           embedding models: status / download (network)
 ears     vos beats <alias> [--hint 120]
+         vos transcribe <alias…> [--model small] [--lang ja] [--vocab "紙の船, 路地"] [--force]   speech → segments + word times (local faster-whisper)
 make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait] [--light --gpu T4]   rent a guarded Colab GPU (costs money: ask the human for N)
          vos gen clip --prompt "…"|--prompt-file f.txt [--from alias@sec] [--to alias@sec] [--refs a@s,b] [--guides a@s=t,…] [--ref-size match|max] [--quality turbo|full] [--control depth_alias [--control-strength 1] [--control-end 1]] [--seconds 5] [--size 768p|draft|WxH] [--seed 1] [--dense] [--as alias]
          vos previz render <scene.py> [--as name] [--seconds 5] [--size 768p]   Blender layout → beauty + depth passes (for --control)
@@ -215,6 +217,19 @@ async function main() {
       if (rest[0] !== "render" || !rest[1]) throw new VosError("usage", "vos previz render <scene.py> [--as name] [--seconds 5] [--size 768p|draft|WxH] [--encoding disparity|log|linear]");
       const r = renderPreviz(proj(a), rest[1], { as: a.as, seconds: a.seconds ? Number(a.seconds) : undefined, size: a.size, encoding: a.encoding });
       out(r, () => console.log(`${r.cached ? "cached" : "rendered"}  ${r.name} (beauty) + ${r.name}_depth  ${r.size.join("x")} ${r.frames} frames  ${r.dir}`));
+      return;
+    }
+
+    case "transcribe": {
+      const p = proj(a);
+      if (!rest.length) throw new VosError("usage", "vos transcribe <alias…>");
+      const rs = rest.map((al) => transcribe(p, al, { model: a.model, lang: a.lang, vocab: a.vocab, force: !!a.force }));
+      out(rs.map((r) => ({ alias: r.alias, status: r.status, language: r.record.language, segments: r.record.segments })), () => {
+        for (const r of rs) {
+          console.log(`${r.status.padEnd(6)} ${r.alias}  ${r.record.language}  ${r.record.segments.length} segment(s)  ${r.record.provenance.model}`);
+          for (const s of r.record.segments) console.log(`  ${s.start.toFixed(2)}–${s.end.toFixed(2)}  ${s.text}`);
+        }
+      });
       return;
     }
 

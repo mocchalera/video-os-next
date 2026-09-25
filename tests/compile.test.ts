@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { compile, compileDigest } from "../src/compile/hyperframes.ts";
+import { lintBuild } from "../src/render/render.ts";
 import { loadProject } from "../src/core/project.ts";
 import { exportFcp7 } from "../src/export/fcp7.ts";
 import { fixtureProject, writeTimeline, baseTimeline } from "./helpers.ts";
@@ -75,4 +76,13 @@ test("three.js is bundled only into pages whose graphics use it", () => {
   assert.match(html, /<script src="\.\/three\.js"><\/script>/);
   assert.ok(fs.statSync(path.join(withThree.buildDir, "three.js")).size > 1_000_000);
   assert.match(html, /"width":320,"height":180/, "the runtime knows the canvas size for the renderer");
+});
+
+test("the real HyperFrames lint passes a plain page and a 3D page (regression: the runtime once tripped missing_three_script)", () => {
+  const p = fixtureProject();
+  writeTimeline(p, baseTimeline());
+  assert.deepEqual(lintBuild(compile(loadProject(p.root)).buildDir).errors, []);
+  fs.writeFileSync(path.join(p.root, "graphics", "title.html"),
+    `<div class="t" data-slot="win"></div><script>vos.graphic(({ three }) => { const g = three(); g.update = (t) => {}; });</script>`);
+  assert.deepEqual(lintBuild(compile(loadProject(p.root)).buildDir).errors, []);
 });
