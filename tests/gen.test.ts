@@ -1,0 +1,111 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { loadProject } from "../src/core/project.ts";
+import { buildRequest, clip, down, genPaths, parseSize, status, up } from "../src/gen/colab.ts";
+import { fixtureProject } from "./helpers.ts";
+
+const FAKE = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "fake-colab.mjs");
+fs.chmodSync(FAKE, 0o755);
+process.env.VOS_COLAB_GUARD = FAKE;
+process.env.VOS_COLAB_BIN = FAKE;
+
+function freshVm(): string {
+  const vm = fs.mkdtempSync(path.join(os.tmpdir(), "vos-fakevm-"));
+  const clipFile = path.join(vm, "fixture.mp4");
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24:duration=2", "-f", "lavfi", "-i", "sine=duration=2",
+    "-shortest", "-pix_fmt", "yuv420p", clipFile]);
+  process.env.FAKE_VM = vm;
+  process.env.FAKE_CLIP = clipFile;
+  delete process.env.FAKE_JOB_FAIL;
+  delete process.env.FAKE_BOOT_FAIL;
+  return vm;
+}
+const fakeState = (vm: string) => JSON.parse(fs.readFileSync(path.join(vm, "state.json"), "utf8"));
+
+test("request id is stable, content-addressed, and changes with anything that changes the pixels", () => {
+  const a = buildRequest({ prompt: "  a cyclist in the rain " });
+  assert.equal(a.id, buildRequest({ prompt: "a cyclist in the rain" }).id, "whitespace-trimmed");
+  assert.notEqual(a.id, buildRequest({ prompt: "a cyclist in the rain", seed: 2 }).id);
+  assert.notEqual(a.id, buildRequest({ prompt: "a cyclist in the rain", dense: true }).id);
+  assert.equal(a.sol_tau, 1.3);
+  assert.deepEqual([a.width, a.height, a.seconds, a.steps], [1344, 768, 5, 6]);
+  assert.deepEqual(parseSize("draft"), [864, 480]);
+  assert.deepEqual(parseSize("640x384"), [640, 384]);
+  assert.throws(() => parseSize("650x384"), /multiples of 32/);
+  assert.throws(() => buildRequest({ prompt: "" }), /--prompt/);
+  assert.throws(() => buildRequest({ prompt: "x", seconds: 30 }), /seconds/);
+});
+
+test("up refuses without a budget; clip refuses without a session", () => {
+  freshVm();
+  assert.throws(() => up({ budgetCu: NaN }), /--budget-cu/);
+  const p = fixtureProject();
+  assert.throws(() => clip(p, { prompt: "x" }), (e: any) => e.code === "gen_not_up" && /budget/.test(e.hint));
+});
+
+test("clip: generates on the VM, downloads, writes provenance, ingests; second call is a cache hit with no GPU", () => {
+  const vm = freshVm();
+  const r0 = up({ budgetCu: 8 });
+  assert.equal(r0.bootstrap, "started");
+  assert.ok(fakeState(vm).calls.some((c: string) => c.startsWith("start vos-gen --gpu A100 --budget-cu 8")));
+
+  const p = fixtureProject();
+  const r = clip(p, { prompt: "a cyclist in the rain", size: "draft", seconds: 2, as: "rain_insert" });
+  assert.equal(r.cached, false);
+  assert.equal(r.alias, "rain_insert");
+  assert.equal(r.status, "added");
+
+  const { media, sidecar } = genPaths(p, r.request_id);
+  assert.ok(fs.existsSync(media));
+  const gen = JSON.parse(fs.readFileSync(sidecar, "utf8"));
+  assert.equal(gen.format, "vos.gen/1");
+  assert.equal(gen.request.prompt, "a cyclist in the rain");
+  assert.equal(gen.ran.gpu, "NVIDIA A100-SXM4-40GB");
+  assert.equal(gen.ran.est_cu, 0.12);
+  assert.ok(!JSON.stringify(gen).includes(p.root), "no absolute local paths in the portable sidecar");
+
+  const reloaded = loadProject(p.root);
+  const rec = reloaded.assets.assets.rain_insert;
+  assert.equal(rec.kind, "video");
+  assert.match(rec.note ?? "", /generated \(minimax-h3\): a cyclist/);
+  assert.ok(!fs.readFileSync(path.join(p.root, "assets.json"), "utf8").includes(p.root), "assets.json stays portable");
+
+  const again = clip(reloaded, { prompt: "a cyclist in the rain", size: "draft", seconds: 2, as: "rain_insert" });
+  assert.equal(again.cached, true);
+  assert.equal(again.status, "unchanged");
+  assert.equal(fakeState(vm).submitted, 1, "cache hit must not touch the GPU");
+  down();
+});
+
+test("a failed job surfaces the VM error and ingests nothing", () => {
+  freshVm();
+  up({ budgetCu: 8 });
+  process.env.FAKE_JOB_FAIL = "1";
+  const p = fixtureProject();
+  assert.throws(() => clip(p, { prompt: "boom", as: "bad" }), (e: any) => e.code === "gen_failed" && /CUDA OOM/.test(e.hint));
+  assert.equal(loadProject(p.root).assets.assets.bad, undefined);
+  down();
+});
+
+test("a failed bootstrap is reported, not retried silently", () => {
+  freshVm();
+  process.env.FAKE_BOOT_FAIL = "1";
+  up({ budgetCu: 8 });
+  assert.throws(() => clip(fixtureProject(), { prompt: "x" }), (e: any) => e.code === "gen_boot_failed");
+  down();
+});
+
+test("status reports balance and the guarded session; down stops it", () => {
+  freshVm();
+  up({ budgetCu: 5 });
+  const s = status();
+  assert.equal(s.session.state, "running");
+  assert.equal(s.boot.state, "ready");
+  assert.equal(down().ok, true);
+  assert.equal(status().session.state, "stopped");
+});

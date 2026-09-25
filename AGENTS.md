@@ -12,6 +12,7 @@ There is no pipeline to follow; there is a project state to read and an edit doc
 | What happens in a clip | `vos describe <alias…>` / `--all` (Marlin-2B, local, one model load) | `.vos/analysis/<id>/describe.json` |
 | Make footage searchable | `vos index [--channels text,visual,audio]` | `.vos/analysis/<id>/embed.<channel>.{json,f32}` |
 | Find a moment | `vos find "<words>"` (text+visual+audio+lexical, rank-fused; ja/en) · `--image f.jpg` · `--asset a` (Marlin temporal find inside one clip) | same |
+| Missing footage → generate it | `vos gen up --budget-cu N` (N from the human) → `vos gen clip --prompt "…" --as a` → `vos look a` → `vos gen down` | `generated/*.gen.json`, `assets.json` |
 | Models present? | `vos models` / `vos models pull visual\|audio` (network, ask the human first) | HF cache, `~/.cache/vos/models` |
 | Tempo of music | `vos beats <alias>` | `.vos/analysis/<id>/beats.json` |
 | Edit | write `timeline.json` + `graphics/*.html` | those files (the only edit state) |
@@ -70,4 +71,6 @@ Graphic skeleton: see `examples/videoos-pv/graphics/wipe.html` (small) and `find
   `VOS_EMBED_MOCK=1` gives deterministic vectors for tests).
 - Search channels never mix vector spaces; `find` fuses ranks (RRF) and says which channels it
   could not use and why. A missing model is reported, never silently skipped.
+- `vos gen` spends money. Never start it without a budget from the human; always `vos gen down` when done
+  (the guard stops an unattended VM anyway, but that is the safety net, not the plan).
 - `docs/DESIGN.md` is the design; change it when you change a principle.

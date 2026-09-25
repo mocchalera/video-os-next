@@ -136,6 +136,7 @@ vos.graphic(({ tl, q, qa, props, b, onFrame }) => {
 | 手 | `vos render [--draft] [--graphics-only]` | MP4 / 透過 MOV + receipt |
 | 検証 | `vos inspect [render]` | 時刻付き findings JSON + カット点シート |
 | 返す | `vos export fcp7` | Premiere 用 XML（+ 透過グラフィック MOV） |
+| 作る | `vos gen up --budget-cu N` / `vos gen clip --prompt …` / `status` / `down` | Colab GPU 上の MiniMax-H3 で映像+音声を生成 → `generated/<id>.mp4` + `.gen.json` → ingest |
 | 移行 | `vos import vos2 <dir>` | 旧プロジェクトの Marlin 解析を provenance 付きで取り込み |
 
 全コマンド `--json` で機械可読。人間向け表示は既定。
@@ -187,10 +188,29 @@ FFmpeg は解析・抽出・検査・後処理に使う。
 - モデルが無いチャネルは `channels_unavailable` に理由付きで出る。黙って劣化しない。
 - モデルのダウンロード（`vos models pull`）だけがネットワークを使う。明示操作のみ。
 
+## 10.5 生成（gen）
+
+素材が足りないとき、モデルは生成で調達できる。ただし「ローカル実行・追加コストゼロ」の例外なので、次を守る。
+
+- **お金は人間が決める。** `vos gen up` は `--budget-cu` 必須。Colab の計算単位（CU）は課金対象なので、
+  エージェントは数値を人間から受け取る（`vos models pull` と同じく、勝手に使わない）。
+- **課金は必ずガード越し。** `scripts/colab/vos-colab` が VM を lease（dead-man switch）で持ち、更新が途絶えたら止める。
+  予算・期限・VM 消失でも止め、`colab stop` が効かなければ割り当てを直接解除し、解除を確認する。
+  vos は `colab new/stop` を直接呼ばない。
+- **生成物は普通の素材。** `generated/<request-id>.mp4` を ingest し、横に `vos.gen/1` の来歴
+  （プロンプト・seed・解像度・モデルと重みのリビジョン・実際に使ったカーネル/GPU・所要秒・推定 CU）を置く。
+  絶対パスは持たない。
+- **同じ依頼は同じファイル。** request id は依頼内容（プロンプト・seed・寸法・秒数・ステップ・モデル/重み/ComfyUI の版）
+  のハッシュ。既にあれば GPU を使わずに返す。拡散生成は GPU 間でビット一致しないので、
+  「決定論」ではなく「一度作ったものを再利用する」保証。
+- **速さの根拠は実測。** 既定値（cu130 の INT8 カーネル、Turbo LoRA 6 ステップ、sol-attn τ1.3）と測定値は
+  `scripts/colab/spike/RESULTS.md`。生成後は `vos look` で画を見てから使う。
+
 ## 11. ツールチェーン
 
 - `node_modules/`（HyperFrames）と `python/.venv`（torch / transformers / Marlin / Qwen3-VL / CLAP /
   onnxruntime）はリポジトリ所有。`~/.config/vos/config.json` と環境変数は上書き用途のみ。
+- `scripts/colab/`: Colab のガード（`vos-colab`）。`python/colab_gen_vm.py` は VM 側ワーカー（ComfyUI + 重み + 生成キュー）。
 - `scripts/setup.sh`: オンラインは lock ファイルから、`--offline-from <dir>` は既存インストールから
   依存閉包をコピーして組み立てる（Node の解決規則どおりに辿る / RECORD 単位で dist をコピー）。
 

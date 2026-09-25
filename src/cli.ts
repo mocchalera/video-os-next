@@ -10,6 +10,7 @@ import { importVos2Analysis } from "./core/import-vos2.ts";
 import { ffmpegVersion, probe } from "./core/media.ts";
 import { ingest, initProject, loadProject, P, requireOnline, resolveAsset, saveAssets, type Project } from "./core/project.ts";
 import { status } from "./core/status.ts";
+import * as gen from "./gen/colab.ts";
 import { parseTime } from "./core/time.ts";
 import { loadTimeline, resolveTimeline, timelinePath } from "./core/timeline.ts";
 import { readJson, which, VosError, writeJson } from "./core/util.ts";
@@ -30,6 +31,9 @@ eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--w
          vos find "<event>" --asset alias           Marlin temporal find inside one clip
          vos models [pull <visual|audio>]           embedding models: status / download (network)
 ears     vos beats <alias> [--hint 120]
+make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait]   rent a guarded Colab GPU (costs money: ask the human for N)
+         vos gen clip --prompt "…" [--seconds 5] [--size 768p|draft|WxH] [--seed 1] [--dense] [--as alias] [--note t]
+         vos gen status | down                      MiniMax-H3 text→video+audio; cached per request; ingested with provenance
 hands    vos compile [--timeline f]                  timeline + graphics → HyperFrames page
          vos render [--draft] [--graphics-only] [--out f]
 verify   vos inspect [render.mp4]                    evidence: findings with times + frame sheets
@@ -200,6 +204,38 @@ async function main() {
       }
       if (JSON_OUT) out(results);
       return;
+    }
+
+    case "gen": {
+      const sub = rest[0];
+      if (sub === "up") {
+        const r = gen.up({ budgetCu: Number(a["budget-cu"]), maxHours: a["max-hours"] ? Number(a["max-hours"]) : undefined, leaseMin: a["lease-min"] ? Number(a["lease-min"]) : undefined, gpu: a.gpu, wait: !!a.wait });
+        out(r, () => console.log(`${r.status ?? "up"}  ${gen.SESSION}${r.budget_cu ? `  budget ${r.budget_cu} CU` : ""}${r.bootstrap ? `  bootstrap ${r.boot ? r.boot.state : "started (vos gen status)"}` : ""}`));
+        return;
+      }
+      if (sub === "status") {
+        const r = gen.status();
+        out(r, () => {
+          console.log(`balance   ${r.balance} CU  (rate ${r.rate_cu_h}/h)${r.orphans?.length ? `  ⚠ orphans: ${r.orphans.join(", ")}` : ""}`);
+          if (!r.session) return console.log("session   none");
+          const s = r.session;
+          console.log(`session   ${s.name} ${s.state}${s.stop_reason ? ` (${s.stop_reason})` : ""}  spent ${s.spent_cu ?? "-"} / ${s.budget_cu} CU  lease ${s.lease_left_min} min  deadline ${s.deadline_left_min} min`);
+          if (r.boot) console.log(`boot      ${r.boot.state}${r.boot.sec ? ` in ${r.boot.sec}s` : ""}${r.boot.torch ? `  torch ${r.boot.torch}` : ""}`);
+        });
+        return;
+      }
+      if (sub === "down") {
+        const r = gen.down();
+        out(r, () => console.log(r.ok ? "stopped" : `NOT confirmed stopped (${r.state}) — run \`vos gen status\``));
+        return;
+      }
+      if (sub === "clip") {
+        const p = proj(a);
+        const r = gen.clip(p, { prompt: a.prompt, seconds: a.seconds ? Number(a.seconds) : undefined, size: a.size, seed: a.seed ? Number(a.seed) : undefined, steps: a.steps ? Number(a.steps) : undefined, dense: !!a.dense, as: a.as, note: a.note, replace: !!a.replace });
+        out(r, () => console.log(`${r.cached ? "cached" : `generated in ${r.sec}s`}  ${r.alias}  ${r.file}`));
+        return;
+      }
+      throw new VosError("usage", "vos gen up|clip|status|down", "see `vos help`");
     }
 
     case "models": {
