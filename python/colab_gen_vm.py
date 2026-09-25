@@ -114,10 +114,17 @@ def _bootstrap(light=False):
 
 
 def bootstrap(light=False):
-    for f in ("boot.json", "boot.done"):
+    if STATE.get("boot") and STATE["boot"]["state"] == "ready" and STATE["boot"].get("light") == light:
+        print(json.dumps({"ok": True, "bootstrap": "already ready"}))  # idempotent: a retried exec must not restart it
+        return
+    if any(t.name == "vosgen-boot" and t.is_alive() for t in threading.enumerate()):
+        print(json.dumps({"ok": True, "bootstrap": "running"}))
+        return
+    for f in ("boot.json", "boot.done", "boot.started"):
         if os.path.exists(f"{ROOT}/{f}"):
             os.remove(f"{ROOT}/{f}")
-    threading.Thread(target=_bootstrap, args=(light,), daemon=True).start()
+    open(f"{ROOT}/boot.started", "w").close()
+    threading.Thread(target=_bootstrap, args=(light,), name="vosgen-boot", daemon=True).start()
     print(json.dumps({"ok": True, "bootstrap": "started"}))
 
 

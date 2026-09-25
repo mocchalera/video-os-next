@@ -225,13 +225,18 @@ function guard(args: string[], timeoutMs = 120_000): any {
   }
 }
 
-function guardExec(code: string, timeoutSec = 120): void {
+function guardExec(code: string, timeoutSec = 120, attempts = 2): void {
   const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vosgen-")), "cmd.py");
   fs.writeFileSync(f, code);
-  const r = run(GUARD(), ["exec", SESSION, "-f", f, "--timeout", String(timeoutSec)], { timeout: (timeoutSec + 60) * 1000 });
-  if (r.status !== 0 && !/"ok": true/.test(r.stdout)) {
-    throw new VosError("colab_exec", `remote exec failed (exit ${r.status})`, (r.stdout + r.stderr).slice(-800));
+  let last = "";
+  for (let i = 0; i < attempts; i++) {
+    // every snippet vos sends is idempotent (worker load, bootstrap, submit of a content-addressed id), so a retry
+    // after a dropped connection is safe (live: "Connection was lost" right after allocation, 2026-09-25)
+    const r = run(GUARD(), ["exec", SESSION, "-f", f, "--timeout", String(timeoutSec)], { timeout: (timeoutSec + 60) * 1000 });
+    if (r.status === 0 || /"ok": true/.test(r.stdout)) return;
+    last = (r.stdout + r.stderr).slice(-800);
   }
+  throw new VosError("colab_exec", `remote exec failed after ${attempts} attempts`, last);
 }
 
 function waitRemote(remotePath: string, timeoutSec: number, what = remotePath): void {
@@ -282,15 +287,27 @@ export function up(o: UpOptions) {
   const s = guard(["start", SESSION, "--gpu", o.gpu ?? "A100", "--budget-cu", String(o.budgetCu),
     "--max-hours", String(o.maxHours ?? 2), "--lease-min", String(o.leaseMin ?? 20)], 900_000);
   if (!s.ok) throw new VosError("gen_up_failed", s.error ?? "could not start a guarded session", s.orphans ? "run `scripts/colab/vos-colab reap` after checking them" : undefined);
-  guardExec(fs.readFileSync(VM_WORKER, "utf8"));
-  guardExec(o.light ? "bootstrap(light=True)" : "bootstrap()");
-  const res: any = { ok: true, session: SESSION, endpoint: s.endpoint, budget_cu: o.budgetCu, bootstrap: "started", light: !!o.light };
-  if (o.wait) res.boot = waitBoot();
-  return res;
+  try {
+    guardExec(fs.readFileSync(VM_WORKER, "utf8"));
+    guardExec(o.light ? "bootstrap(light=True)" : "bootstrap()");
+    waitRemote(`${REMOTE}/boot.started`, 90, "the bootstrap to start");
+    const res: any = { ok: true, session: SESSION, endpoint: s.endpoint, budget_cu: o.budgetCu, bootstrap: "started", light: !!o.light };
+    if (o.wait) res.boot = waitBoot();
+    return res;
+  } catch (e) {
+    // never leave a paid VM behind a failed `up` (live: a VM idled 20 min to the budget stop, 2026-09-25)
+    try {
+      guard(["stop", SESSION], 300_000);
+    } catch {
+      /* the lease stops it anyway */
+    }
+    throw e;
+  }
 }
 
 function waitBoot(timeoutSec = 1500): any {
-  waitRemote(`${REMOTE}/boot.done`, timeoutSec);
+  waitRemote(`${REMOTE}/boot.started`, 90, "the bootstrap to start (was `vos gen up` interrupted?)");
+  waitRemote(`${REMOTE}/boot.done`, timeoutSec, "the bootstrap to finish");
   const boot = remoteJson(`${REMOTE}/boot.json`);
   if (boot.state !== "ready") throw new VosError("gen_boot_failed", "VM bootstrap failed", String(boot.error ?? "").slice(-800));
   return boot;

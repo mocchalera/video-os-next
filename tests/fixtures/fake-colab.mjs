@@ -34,9 +34,13 @@ switch (cmd) {
   case "exec": {
     const code = fs.readFileSync(args[args.indexOf("-f") + 1], "utf8");
     if (state.sessions[args[0]]?.state !== "running") { save(); process.exit(1); }
+    if (process.env.FAKE_EXEC_DROPS && (state.drops ?? 0) < Number(process.env.FAKE_EXEC_DROPS)) {
+      state.drops = (state.drops ?? 0) + 1; save(); console.error("RuntimeError: Connection was lost."); process.exit(124);
+    }
     if (/^bootstrap\(.*\)$/.test(code.trim())) {
-      put("/content/vosgen/boot.json", JSON.stringify({ state: process.env.FAKE_BOOT_FAIL ? "error" : "ready", error: "boom", torch: "2.11.0+cu130 13.0", sec: 1 }));
-      put("/content/vosgen/boot.done", "");
+      if (!process.env.FAKE_BOOT_NEVER) put("/content/vosgen/boot.started", "");
+      if (!process.env.FAKE_BOOT_NEVER) put("/content/vosgen/boot.json", JSON.stringify({ state: process.env.FAKE_BOOT_FAIL ? "error" : "ready", error: "boom", torch: "2.11.0+cu130 13.0", sec: 1 }));
+      if (!process.env.FAKE_BOOT_NEVER) put("/content/vosgen/boot.done", "");
     }
     const m = /^submit\((.*)\)\s*$/s.exec(code.trim());
     if (m) {

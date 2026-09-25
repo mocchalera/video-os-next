@@ -26,6 +26,8 @@ function freshVm(): string {
   delete process.env.FAKE_JOB_FAIL;
   delete process.env.FAKE_BOOT_FAIL;
   delete process.env.FAKE_NEVER_STARTS;
+  delete process.env.FAKE_EXEC_DROPS;
+  delete process.env.FAKE_BOOT_NEVER;
   return vm;
 }
 const fakeState = (vm: string) => JSON.parse(fs.readFileSync(path.join(vm, "state.json"), "utf8"));
@@ -328,4 +330,19 @@ scene.camera.keyframe_insert("location", frame=frames)
   };
   assert.ok(yavg(0.9) > yavg(0.0) + 5, "the cube gets closer → brighter in the depth pass (near = white)");
   assert.equal(renderPreviz(p, scene, { as: "boxpv", seconds: 1, size: "256x160" }).cached, true);
+});
+
+test("up: a dropped connection is retried once; a failed up stops the VM instead of leaving it to the budget", () => {
+  const vm = freshVm();
+  process.env.FAKE_EXEC_DROPS = "1";
+  assert.equal(up({ budgetCu: 2 }).bootstrap, "started", "one drop is retried");
+  down();
+  const vm2 = freshVm();
+  process.env.FAKE_EXEC_DROPS = "5";
+  assert.throws(() => up({ budgetCu: 2 }), /after 2 attempts/);
+  assert.equal(fakeState(vm2).sessions["vos-gen"].state, "stopped", "the VM is released right away");
+  freshVm();
+  process.env.FAKE_BOOT_NEVER = "1";
+  assert.throws(() => up({ budgetCu: 2 }), /bootstrap to start/);
+  void vm;
 });
