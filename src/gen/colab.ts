@@ -91,13 +91,56 @@ export function parseSize(s: string | undefined): [number, number] {
   return [w, h];
 }
 
+/** 24 fps snapped up to the model's 17k+5 grid (same formula as the VM worker and the stock template). */
+export function framesFor(seconds: number): number {
+  const n = Math.max(5, Math.round(seconds * 24));
+  return n + ((5 - (n % 17)) % 17 + 17) % 17;
+}
+
+const ALIGN_RE = /^(For the target video, at 0\.00 seconds|How the reference pictures align with the target video)/;
+
+/**
+ * The official H3 prompt format (MiniMax-H3 skills/h3-prompt-writing, base modes) opens image-anchored prompts with
+ * an alignment line, then a blank line, then the fields. vos writes that line itself from --from/--to, using the real
+ * last-frame time, so agents cannot get the mode or the timing wrong. A prompt that already has one is left alone.
+ */
+export function withAlignment(prompt: string, seconds: number, first: boolean, last: boolean): string {
+  if ((!first && !last) || ALIGN_RE.test(prompt)) return prompt;
+  const shots = [...prompt.matchAll(/\[Shot (\d+)\]/g)].map((m) => Number(m[1]));
+  const lastShot = shots.length ? Math.max(...shots) : 1;
+  const end = ((framesFor(seconds) - 1) / 24).toFixed(2);
+  let line: string;
+  if (first && last) {
+    line = `How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot ${lastShot}) aligns with the ${end}-second mark of the target video.`;
+  } else if (first) {
+    line = "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.";
+  } else {
+    line = `How the reference pictures align with the target video — <Picture 1> (from [Shot ${lastShot}]) aligns with the ${end}-second mark of the target video.`;
+  }
+  return `${line}\n\n${prompt}`;
+}
+
+/** Advice, not errors: the model accepts free text, but follows the official three-field format far better. */
+export function promptWarnings(prompt: string, seconds: number): string[] {
+  const w: string[] = [];
+  for (const f of ["integrated_multimodal_description:", "overall_soundscape:", "non_diegetic_music:"]) {
+    if (!prompt.includes(f)) w.push(`prompt has no "${f}" field — see skills/h3-prompt/SKILL.md`);
+  }
+  if (w.length === 3) return ["prompt is free text; H3 follows the official fields (integrated_multimodal_description / overall_soundscape / non_diegetic_music) much better — see skills/h3-prompt/SKILL.md"];
+  const times = [...prompt.matchAll(/At (\d{2}):(\d{2}\.\d{3})/g)].map((m) => Number(m[1]) * 60 + Number(m[2]));
+  const late = times.filter((t) => t >= seconds);
+  if (late.length) w.push(`shot cut at ${late[0].toFixed(3)}s is beyond the ${seconds}s clip`);
+  if (prompt.length > 7000) w.push(`prompt is ${prompt.length} characters; keep it under ~7000`);
+  return w;
+}
+
 export function buildRequest(o: ClipOptions): GenRequest {
   if (!o.prompt?.trim()) throw new VosError("usage", "vos gen clip needs --prompt");
   const seconds = o.seconds ?? 5;
   if (!(seconds > 0 && seconds <= 15)) throw new VosError("usage", "--seconds must be in (0, 15]", "the model's trained range is ~5-15 s");
   const [width, height] = parseSize(o.size);
   const body = {
-    model: H3.model, prompt: o.prompt.trim(), seconds, width, height, seed: o.seed ?? 1, steps: o.steps ?? H3.steps,
+    model: H3.model, prompt: withAlignment(o.prompt.trim(), seconds, !!o.firstFrame, !!o.lastFrame), seconds, width, height, seed: o.seed ?? 1, steps: o.steps ?? H3.steps,
     lora: H3.lora, sol_tau: o.dense ? null : H3.sol_tau, unet: H3.unet, text_encoder: H3.text_encoder,
     video_vae: H3.video_vae, audio_vae: H3.audio_vae, comfy_rev: H3.comfy_rev, weights_rev: H3.weights_rev,
     ...(o.firstFrame ? { first_frame: o.firstFrame } : {}),
@@ -220,6 +263,7 @@ export interface ClipResult extends IngestResult {
   file: string;
   sec?: number;
   library?: string | null; // where the take was published (null = no library configured)
+  warnings?: string[];
 }
 
 export interface ClipCall extends Omit<ClipOptions, "firstFrame" | "lastFrame"> {
@@ -270,7 +314,8 @@ export function clip(p: Project, o: ClipCall): ClipResult {
   const done = (cached: ClipResult["cached"], extra: Partial<ClipResult> = {}): ClipResult => {
     const r = ingest(p, media, alias, note, !!o.replace);
     saveAssets(p);
-    return { ...r, cached, request_id: req.id, file: path.relative(p.root, media), ...extra };
+    const warnings = promptWarnings(o.prompt, req.seconds);
+    return { ...r, cached, request_id: req.id, file: path.relative(p.root, media), ...(warnings.length ? { warnings } : {}), ...extra };
   };
   if (fs.existsSync(media) && fs.existsSync(sidecar)) return done("project");
   if (fetchFromLibrary(req.id, media, sidecar)) return done("library");

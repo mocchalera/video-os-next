@@ -71,6 +71,7 @@ Graphic skeleton: see `examples/videoos-pv/graphics/wipe.html` (small) and `find
   `VOS_EMBED_MOCK=1` gives deterministic vectors for tests).
 - Search channels never mix vector spaces; `find` fuses ranks (RRF) and says which channels it
   could not use and why. A missing model is reported, never silently skipped.
+- Before any `vos gen clip`, read `skills/h3-prompt/SKILL.md` (official H3 prompt format; vos adds the frame-alignment line).
 - Generated footage is 24 fps. A piece built mostly on it should use a 24 fps canvas (`vos init --fps 24`,
   or `"canvas": {"fps": 24}` in the timeline); the timeline warns about judder otherwise.
 - `vos gen` spends money. Never start it without a budget from the human; always `vos gen down` when done

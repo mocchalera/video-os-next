@@ -207,3 +207,19 @@ test("library: a take made in one project is reused by another with no GPU; pull
     process.env.VOS_GEN_LIBRARY = "";
   }
 });
+
+test("H3 prompt format: alignment line is written by vos from --from/--to, with the real last-frame time", async () => {
+  const { withAlignment, promptWarnings, framesFor } = await import("../src/gen/colab.ts");
+  assert.equal(framesFor(5), 124);
+  assert.equal(framesFor(2), 56);
+  const body = "integrated_multimodal_description: [Shot 1] a boat. [Shot 2] At 00:02.500, the camera cuts to a drain.\n\noverall_soundscape: rain.\n\nnon_diegetic_music: N/A";
+  assert.equal(withAlignment(body, 5, false, false), body, "text→video untouched");
+  assert.match(withAlignment(body, 5, true, false), /^For the target video, at 0\.00 seconds into the target video, <Picture 1> \(from \[Shot 1\]\) is fully referenced\.\n\nintegrated_multimodal_description:/);
+  assert.match(withAlignment(body, 5, true, true), /Picture 2 \(from Shot 2\) aligns with the 5\.13-second mark/);
+  assert.match(withAlignment(body, 5, false, true), /^How the reference pictures align .*<Picture 1> \(from \[Shot 2\]\) aligns with the 5\.13-second mark/);
+  const pre = withAlignment(body, 5, true, false);
+  assert.equal(withAlignment(pre, 5, true, false), pre, "an existing alignment line is kept, not doubled");
+  assert.deepEqual(promptWarnings(body, 5), []);
+  assert.match(promptWarnings("a boat in the rain", 5)[0], /free text/);
+  assert.match(promptWarnings(body, 2).join(), /beyond the 2s clip/);
+});
