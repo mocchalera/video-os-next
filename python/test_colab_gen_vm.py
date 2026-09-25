@@ -36,6 +36,13 @@ class GraphTests(unittest.TestCase):
         self.assertNotIn("sparse", g)
         self.assertEqual(g["guider"]["inputs"]["model"], ["lora", 0])
 
+    def test_image_to_video_wires_loadimage_into_first_and_last_frame(self):
+        g = vm.graph({**REQ, "first_image": "vosgen_abc_first.png", "last_image": "vosgen_abc_last.png"})
+        self.assertEqual(g["img_first"], {"class_type": "LoadImage", "inputs": {"image": "vosgen_abc_first.png"}})
+        self.assertEqual(g["cond"]["inputs"]["first_frame"], ["img_first", 0])
+        self.assertEqual(g["cond"]["inputs"]["last_frame"], ["img_last", 0])
+        self.assertNotIn("first_frame", vm.graph(REQ)["cond"]["inputs"])
+
     def test_frames_follow_the_17k_plus_5_grid(self):
         self.assertEqual(vm.frames_for(5), 124)
         self.assertEqual(vm.frames_for(2), 56)

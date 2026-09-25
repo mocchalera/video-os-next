@@ -63,6 +63,14 @@ switch (cmd) {
     console.log(JSON.stringify(found ? { ok: true, found: args[1] } : { ok: false, error: "wait timed out" }));
     process.exit(found ? 0 : 124);
   }
+  case "upload": {
+    const [, , src, remote] = args; // -s name local remote
+    fs.mkdirSync(path.dirname(local(remote)), { recursive: true });
+    fs.copyFileSync(src, local(remote));
+    (state.uploads ??= []).push(remote);
+    save();
+    break;
+  }
   case "download": {
     const [, , remote, dest] = args; // -s name remote dest
     save();

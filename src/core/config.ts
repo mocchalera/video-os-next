@@ -10,6 +10,7 @@ export interface MachineConfig {
   python?: string; // one interpreter for every model worker (Marlin, embeddings)
   marlin_python?: string; // legacy key, still honoured
   marlin_model?: string;
+  gen_library?: string; // shared folder for generated clips (e.g. inside Google Drive for desktop)
 }
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");

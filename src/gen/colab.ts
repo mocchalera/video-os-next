@@ -2,8 +2,9 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { REPO } from "../core/config.ts";
-import { sha256 } from "../core/hash.ts";
-import { ingest, saveAssets, type IngestResult, type Project } from "../core/project.ts";
+import { contentId, sha256 } from "../core/hash.ts";
+import { ingest, P, requireOnline, resolveAsset, saveAssets, type IngestResult, type Project } from "../core/project.ts";
+import { fetchFromLibrary, libraryDir, publish } from "./library.ts";
 import { readJson, run, stableStringify, VosError, writeJson } from "../core/util.ts";
 
 /**
@@ -59,6 +60,14 @@ export interface GenRequest {
   audio_vae: string;
   comfy_rev: string;
   weights_rev: string;
+  first_frame?: FrameRef; // image→video: absent for text→video (keeps t2v ids unchanged)
+  last_frame?: FrameRef;
+}
+
+/** A frame of a project asset, by content id — portable and stable across machines. */
+export interface FrameRef {
+  asset: string; // content id
+  at: number; // seconds into the asset (0 for stills)
 }
 
 export interface ClipOptions {
@@ -68,6 +77,8 @@ export interface ClipOptions {
   seed?: number;
   steps?: number;
   dense?: boolean; // disable sparse attention (exactness over speed)
+  firstFrame?: FrameRef;
+  lastFrame?: FrameRef;
 }
 
 export function parseSize(s: string | undefined): [number, number] {
@@ -89,6 +100,8 @@ export function buildRequest(o: ClipOptions): GenRequest {
     model: H3.model, prompt: o.prompt.trim(), seconds, width, height, seed: o.seed ?? 1, steps: o.steps ?? H3.steps,
     lora: H3.lora, sol_tau: o.dense ? null : H3.sol_tau, unet: H3.unet, text_encoder: H3.text_encoder,
     video_vae: H3.video_vae, audio_vae: H3.audio_vae, comfy_rev: H3.comfy_rev, weights_rev: H3.weights_rev,
+    ...(o.firstFrame ? { first_frame: o.firstFrame } : {}),
+    ...(o.lastFrame ? { last_frame: o.lastFrame } : {}),
   };
   return { id: sha256(stableStringify(body)).slice(0, 16), ...body };
 }
@@ -193,7 +206,7 @@ export function status() {
       boot = { state: "starting" };
     }
   }
-  return { balance: g.balance, rate_cu_h: g.rate_cu_h, orphans: g.orphans, session: s, boot };
+  return { balance: g.balance, rate_cu_h: g.rate_cu_h, orphans: g.orphans, session: s, boot, library: libraryDir() };
 }
 
 export function down() {
@@ -202,25 +215,79 @@ export function down() {
 }
 
 export interface ClipResult extends IngestResult {
-  cached: boolean;
+  cached: false | "project" | "library";
   request_id: string;
   file: string;
   sec?: number;
+  library?: string | null; // where the take was published (null = no library configured)
 }
 
-export function clip(p: Project, o: ClipOptions & { as?: string; note?: string; replace?: boolean; timeoutSec?: number }): ClipResult {
-  const req = buildRequest(o);
+export interface ClipCall extends Omit<ClipOptions, "firstFrame" | "lastFrame"> {
+  from?: string; // "<alias>[@sec]" — image→video start frame
+  to?: string; // "<alias>[@sec]" — end frame
+  as?: string;
+  note?: string;
+  replace?: boolean;
+  timeoutSec?: number;
+}
+
+/** "<alias>[@sec]" → the asset, its frame time, and a stable FrameRef. */
+export function resolveFrame(p: Project, spec: string): { ref: FrameRef; alias: string; file: string; kind: string; width?: number; height?: number } {
+  const m = /^(.+?)(?:@([\d.]+)s?)?$/.exec(spec);
+  if (!m) throw new VosError("usage", `bad frame reference "${spec}"`, "use <alias>@<seconds>, e.g. hero@2.5");
+  const a = resolveAsset(p, m[1]);
+  if (a.kind !== "video" && a.kind !== "image") throw new VosError("usage", `"${a.alias}" is ${a.kind}; image→video needs a video or image asset`);
+  const at = a.kind === "image" ? 0 : Number(m[2] ?? 0);
+  if (a.duration != null && a.kind === "video" && !(at >= 0 && at < a.duration)) {
+    throw new VosError("usage", `${a.alias}@${at} is outside the asset (0–${a.duration}s)`);
+  }
+  return { ref: { asset: a.id, at }, alias: a.alias, file: requireOnline(a), kind: a.kind, width: a.width, height: a.height };
+}
+
+/** Extract one frame, scaled + centre-cropped to exactly the generation size (no guessing by the model node). */
+export function extractFrame(file: string, at: number, width: number, height: number, out: string): string {
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  const r = run("ffmpeg", ["-v", "error", "-y", "-ss", String(at), "-i", file, "-frames:v", "1",
+    "-vf", `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`, out]);
+  if (r.status !== 0 || !fs.existsSync(out)) throw new VosError("frame_extract_failed", `could not extract a frame at ${at}s`, r.stderr.slice(-300));
+  return out;
+}
+
+function upload(local: string, remote: string): void {
+  const r = run(COLAB(), ["upload", "-s", SESSION, local, remote], { timeout: 300_000 });
+  if (r.status !== 0) throw new VosError("colab_upload", `could not upload ${path.basename(local)}`, r.stderr.slice(-400));
+}
+
+export function clip(p: Project, o: ClipCall): ClipResult {
+  const first = o.from ? resolveFrame(p, o.from) : null;
+  const last = o.to ? resolveFrame(p, o.to) : null;
+  // image→video with no explicit size: follow the source's orientation
+  const size = o.size ?? (first && first.width && first.height && first.height > first.width ? "768p-portrait" : undefined);
+  const req = buildRequest({ ...o, size, firstFrame: first?.ref, lastFrame: last?.ref });
   const { media, sidecar } = genPaths(p, req.id);
   const alias = o.as;
-  const note = o.note ?? `generated (${req.model}): ${req.prompt.slice(0, 80)}${req.prompt.length > 80 ? "…" : ""}`;
-  if (fs.existsSync(media) && fs.existsSync(sidecar)) {
+  const note = o.note ?? `generated (${req.model}${first ? `, from ${first.alias}@${first.ref.at}` : ""}): ${req.prompt.slice(0, 80)}${req.prompt.length > 80 ? "…" : ""}`;
+  const done = (cached: ClipResult["cached"], extra: Partial<ClipResult> = {}): ClipResult => {
     const r = ingest(p, media, alias, note, !!o.replace);
     saveAssets(p);
-    return { ...r, cached: true, request_id: req.id, file: path.relative(p.root, media) };
-  }
+    return { ...r, cached, request_id: req.id, file: path.relative(p.root, media), ...extra };
+  };
+  if (fs.existsSync(media) && fs.existsSync(sidecar)) return done("project");
+  if (fetchFromLibrary(req.id, media, sidecar)) return done("library");
+
   const sess = requireSession();
   const boot = waitBoot();
-  guardExec(`submit(${JSON.stringify({ ...req, timeout: o.timeoutSec ?? 1800 })})`);
+  const remoteReq: any = { ...req, timeout: o.timeoutSec ?? 1800 };
+  const frames: Record<string, { sha256: string }> = {};
+  for (const [key, f] of [["first", first], ["last", last]] as const) {
+    if (!f) continue;
+    const png = extractFrame(f.file, f.ref.at, req.width, req.height, path.join(P.cache(p.root), "gen", `${req.id}_${key}.png`));
+    const name = `vosgen_${req.id}_${key}.png`;
+    upload(png, `/content/ComfyUI/input/${name}`);
+    remoteReq[`${key}_image`] = name;
+    frames[key] = { sha256: sha256(fs.readFileSync(png)) };
+  }
+  guardExec(`submit(${JSON.stringify(remoteReq)})`);
   // a job the VM never picks up must fail fast, not burn the budget (live e2e, 2026-09-25)
   waitRemote(`${REMOTE}/jobs/${req.id}.started`, 180, "the VM to start the job");
   waitRemote(`${REMOTE}/jobs/${req.id}.done`, (o.timeoutSec ?? 1800) + 60, "the generation to finish");
@@ -231,12 +298,31 @@ export function clip(p: Project, o: ClipOptions & { as?: string; note?: string; 
   writeJson(sidecar, {
     format: "vos.gen/1",
     request: req,
+    ...(Object.keys(frames).length ? { frames } : {}),
+    file: { bytes: fs.statSync(media).size, content_id: contentId(media) },
     ran: { gpu: job.gpu, torch: job.torch, flags: job.flags, comfy_rev: job.comfy_rev, weights_rev: job.weights_rev,
       boot_torch: boot.torch, sec: job.sec, s_per_it: job.s_per_it, est_cu: rate ? Math.round((job.sec * rate) / 36) / 100 : null },
     at: new Date().toISOString(),
     session: { name: SESSION, endpoint: sess.endpoint },
   });
-  const r = ingest(p, media, alias, note, !!o.replace);
+  let library: string | null = null;
+  try {
+    library = publish(req.id, media, sidecar);
+  } catch (e: any) {
+    library = null; // the take is safe in the project; a Drive hiccup must not lose it
+    process.stderr.write(`vos: could not publish to the library: ${e.message}\n`);
+  }
+  return done(false, { sec: job.sec, library });
+}
+
+/** Copy a library take into this project and ingest it (no GPU). */
+export function pull(p: Project, id: string, o: { as?: string; note?: string; replace?: boolean }): ClipResult {
+  const { media, sidecar } = genPaths(p, id);
+  if (!fs.existsSync(media) && !fetchFromLibrary(id, media, sidecar)) {
+    throw new VosError("not_in_library", `no ready take ${id} in the library`, "`vos gen library` lists takes; a take still syncing is not ready yet");
+  }
+  const g = readJson(sidecar);
+  const r = ingest(p, media, o.as, o.note ?? `generated (${g.request?.model}): ${String(g.request?.prompt ?? "").slice(0, 80)}`, !!o.replace);
   saveAssets(p);
-  return { ...r, cached: false, request_id: req.id, file: path.relative(p.root, media), sec: job.sec };
+  return { ...r, cached: "library", request_id: id, file: path.relative(p.root, media) };
 }

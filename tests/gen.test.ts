@@ -6,13 +6,15 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadProject } from "../src/core/project.ts";
-import { buildRequest, clip, down, genPaths, parseSize, status, up } from "../src/gen/colab.ts";
+import { buildRequest, clip, down, genPaths, parseSize, pull, status, up } from "../src/gen/colab.ts";
+import { listLibrary } from "../src/gen/library.ts";
 import { fixtureProject } from "./helpers.ts";
 
 const FAKE = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "fake-colab.mjs");
 fs.chmodSync(FAKE, 0o755);
 process.env.VOS_COLAB_GUARD = FAKE;
 process.env.VOS_COLAB_BIN = FAKE;
+process.env.VOS_GEN_LIBRARY = ""; // never touch the real (Drive) library from tests
 
 function freshVm(): string {
   const vm = fs.mkdtempSync(path.join(os.tmpdir(), "vos-fakevm-"));
@@ -58,6 +60,7 @@ test("clip: generates on the VM, downloads, writes provenance, ingests; second c
   const p = fixtureProject();
   const r = clip(p, { prompt: "a cyclist in the rain", size: "draft", seconds: 2, as: "rain_insert" });
   assert.equal(r.cached, false);
+  assert.equal(r.library, null, "no library configured in tests unless asked");
   assert.equal(r.alias, "rain_insert");
   assert.equal(r.status, "added");
 
@@ -77,7 +80,7 @@ test("clip: generates on the VM, downloads, writes provenance, ingests; second c
   assert.ok(!fs.readFileSync(path.join(p.root, "assets.json"), "utf8").includes(p.root), "assets.json stays portable");
 
   const again = clip(reloaded, { prompt: "a cyclist in the rain", size: "draft", seconds: 2, as: "rain_insert" });
-  assert.equal(again.cached, true);
+  assert.equal(again.cached, "project");
   assert.equal(again.status, "unchanged");
   assert.equal(fakeState(vm).submitted, 1, "cache hit must not touch the GPU");
   down();
@@ -142,4 +145,65 @@ test("status reports balance and the guarded session; down stops it", () => {
   assert.equal(s.boot.state, "ready");
   assert.equal(down().ok, true);
   assert.equal(status().session.state, "stopped");
+});
+
+const probeWH = (f: string) => execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", f]).toString().trim();
+
+test("image→video: the frame is cut at the asked time, cropped to the exact size, uploaded, and part of the request", () => {
+  const vm = freshVm();
+  up({ budgetCu: 8 });
+  const p = fixtureProject();
+  const r = clip(p, { prompt: "the pattern comes alive", from: "clip@1.5", seconds: 2, size: "draft", as: "alive" });
+  const st = fakeState(vm);
+  assert.equal(st.last.first_image, `vosgen_${r.request_id}_first.png`);
+  assert.deepEqual(st.last.first_frame, { asset: p.assets.assets.clip.id, at: 1.5 });
+  assert.equal(probeWH(path.join(vm, "content/ComfyUI/input", st.last.first_image)), "864,480");
+  const g = JSON.parse(fs.readFileSync(genPaths(p, r.request_id).sidecar, "utf8"));
+  assert.match(g.frames.first.sha256, /^[0-9a-f]{64}$/);
+  assert.match(loadProject(p.root).assets.assets.alive.note ?? "", /from clip@1.5/);
+  // text→video requests carry no frame keys, so their ids are unchanged by this feature
+  assert.equal("first_frame" in buildRequest({ prompt: "x" }), false);
+  assert.notEqual(r.request_id, buildRequest({ prompt: "the pattern comes alive", seconds: 2, size: "draft" }).id);
+  assert.throws(() => clip(p, { prompt: "x", from: "clip@99" }), /outside the asset/);
+  assert.throws(() => clip(p, { prompt: "x", from: "tone" }), /needs a video or image/);
+  down();
+});
+
+test("library: a take made in one project is reused by another with no GPU; pull by id; half-synced files are ignored", () => {
+  const vm = freshVm();
+  const lib = fs.mkdtempSync(path.join(os.tmpdir(), "vos-lib-"));
+  process.env.VOS_GEN_LIBRARY = lib;
+  try {
+    up({ budgetCu: 8 });
+    const a = fixtureProject();
+    const r = clip(a, { prompt: "shared take", size: "draft", seconds: 2, as: "take" });
+    assert.equal(r.library, path.join(lib, `${r.request_id}.mp4`));
+    const side = JSON.parse(fs.readFileSync(path.join(lib, `${r.request_id}.gen.json`), "utf8"));
+    assert.equal(side.file.bytes, fs.statSync(path.join(lib, `${r.request_id}.mp4`)).size);
+
+    const b = fixtureProject();
+    const rb = clip(b, { prompt: "shared take", size: "draft", seconds: 2, as: "same_take" });
+    assert.equal(rb.cached, "library");
+    assert.equal(fakeState(vm).submitted, 1, "library hit must not touch the GPU");
+    assert.equal(loadProject(b.root).assets.assets.same_take.id, loadProject(a.root).assets.assets.take.id);
+
+    const listed = listLibrary({ search: "SHARED" });
+    assert.equal(listed.entries.length, 1);
+    assert.equal(listed.entries[0].id, r.request_id);
+    assert.equal(listLibrary({ search: "nothing like this" }).entries.length, 0);
+
+    const c = fixtureProject();
+    assert.equal(pull(c, r.request_id, { as: "pulled" }).alias, "pulled");
+
+    // Drive still syncing: truncated media must not be taken as the take
+    fs.truncateSync(path.join(lib, `${r.request_id}.mp4`), 100);
+    const d = fixtureProject();
+    assert.throws(() => pull(d, r.request_id, {}), /no ready take/);
+    const rd = clip(d, { prompt: "shared take", size: "draft", seconds: 2 });
+    assert.equal(rd.cached, false, "falls back to generating");
+    assert.equal(fakeState(vm).submitted, 2);
+    down();
+  } finally {
+    process.env.VOS_GEN_LIBRARY = "";
+  }
 });

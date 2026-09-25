@@ -11,6 +11,7 @@ import { ffmpegVersion, probe } from "./core/media.ts";
 import { ingest, initProject, loadProject, P, requireOnline, resolveAsset, saveAssets, type Project } from "./core/project.ts";
 import { status } from "./core/status.ts";
 import * as gen from "./gen/colab.ts";
+import { initLibrary, listLibrary } from "./gen/library.ts";
 import { parseTime } from "./core/time.ts";
 import { loadTimeline, resolveTimeline, timelinePath } from "./core/timeline.ts";
 import { readJson, which, VosError, writeJson } from "./core/util.ts";
@@ -32,8 +33,9 @@ eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--w
          vos models [pull <visual|audio>]           embedding models: status / download (network)
 ears     vos beats <alias> [--hint 120]
 make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait]   rent a guarded Colab GPU (costs money: ask the human for N)
-         vos gen clip --prompt "…" [--seconds 5] [--size 768p|draft|WxH] [--seed 1] [--dense] [--as alias] [--note t]
-         vos gen status | down                      MiniMax-H3 text→video+audio; cached per request; ingested with provenance
+         vos gen clip --prompt "…" [--from alias@sec] [--to alias@sec] [--seconds 5] [--size 768p|draft|WxH] [--seed 1] [--dense] [--as alias]
+         vos gen status | down                      MiniMax-H3 text/image→video+audio; cached per request; ingested with provenance
+         vos gen library [--search words] [--init <dir>] · vos gen pull <id> [--as alias]   shared takes (e.g. Google Drive)
 hands    vos compile [--timeline f]                  timeline + graphics → HyperFrames page
          vos render [--draft] [--graphics-only] [--out f]
 verify   vos inspect [render.mp4]                    evidence: findings with times + frame sheets
@@ -217,6 +219,7 @@ async function main() {
         const r = gen.status();
         out(r, () => {
           console.log(`balance   ${r.balance} CU  (rate ${r.rate_cu_h}/h)${r.orphans?.length ? `  ⚠ orphans: ${r.orphans.join(", ")}` : ""}`);
+          console.log(`library   ${r.library ?? "none (vos gen library --init <dir>)"}`);
           if (!r.session) return console.log("session   none");
           const s = r.session;
           console.log(`session   ${s.name} ${s.state}${s.stop_reason ? ` (${s.stop_reason})` : ""}  spent ${s.spent_cu ?? "-"} / ${s.budget_cu} CU  lease ${s.lease_left_min} min  deadline ${s.deadline_left_min} min`);
@@ -231,11 +234,30 @@ async function main() {
       }
       if (sub === "clip") {
         const p = proj(a);
-        const r = gen.clip(p, { prompt: a.prompt, seconds: a.seconds ? Number(a.seconds) : undefined, size: a.size, seed: a.seed ? Number(a.seed) : undefined, steps: a.steps ? Number(a.steps) : undefined, dense: !!a.dense, as: a.as, note: a.note, replace: !!a.replace });
-        out(r, () => console.log(`${r.cached ? "cached" : `generated in ${r.sec}s`}  ${r.alias}  ${r.file}`));
+        const r = gen.clip(p, { prompt: a.prompt, from: a.from, to: a.to, seconds: a.seconds ? Number(a.seconds) : undefined, size: a.size, seed: a.seed ? Number(a.seed) : undefined, steps: a.steps ? Number(a.steps) : undefined, dense: !!a.dense, as: a.as, note: a.note, replace: !!a.replace });
+        out(r, () => console.log(`${r.cached ? `cached (${r.cached})` : `generated in ${r.sec}s`}  ${r.alias}  ${r.file}${r.library ? "  → library" : ""}`));
         return;
       }
-      throw new VosError("usage", "vos gen up|clip|status|down", "see `vos help`");
+      if (sub === "library") {
+        if (a.init) {
+          const dir = initLibrary(String(a.init));
+          out({ ok: true, library: dir }, () => console.log(`library ${dir}`));
+          return;
+        }
+        const r = listLibrary({ search: a.search, limit: a.limit ? Number(a.limit) : undefined });
+        out(r, () => {
+          console.log(`library ${r.dir}  (${r.entries.length} shown)`);
+          for (const e of r.entries) console.log(`${e.id}  ${e.size} ${e.seconds}s seed ${e.seed}${e.from ? ` from ${e.from}` : ""}${e.ready ? "" : "  (syncing)"}\n    ${String(e.prompt).slice(0, 110)}`);
+        });
+        return;
+      }
+      if (sub === "pull") {
+        if (!rest[1]) throw new VosError("usage", "vos gen pull <id> [--as alias]");
+        const r = gen.pull(proj(a), rest[1], { as: a.as, note: a.note, replace: !!a.replace });
+        out(r, () => console.log(`pulled  ${r.alias}  ${r.file}`));
+        return;
+      }
+      throw new VosError("usage", "vos gen up|clip|status|down|library|pull", "see `vos help`");
     }
 
     case "models": {

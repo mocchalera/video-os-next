@@ -173,8 +173,12 @@ def graph(r):
     clip = node("clip", "CLIPLoader", clip_name=r["text_encoder"], type="minimax", device="default")
     vvae = node("vvae", "VAELoader", vae_name=r["video_vae"])
     avae = node("avae", "VAELoader", vae_name=r["audio_vae"])
+    frames = {}
+    for key in ("first", "last"):  # image→video: frames uploaded to ComfyUI/input, already at exact size
+        if r.get(f"{key}_image"):
+            frames[f"{key}_frame"] = node(f"img_{key}", "LoadImage", image=r[f"{key}_image"])
     node("cond", "MiniMaxH3ImageToVideo", clip=clip, vae=vvae, prompt=r["prompt"],
-         width=r["width"], height=r["height"], length=frames_for(r["seconds"]))
+         width=r["width"], height=r["height"], length=frames_for(r["seconds"]), **frames)
     guider = node("guider", "BasicGuider", model=model, conditioning=["cond", 0])
     sigmas = node("sched", "BasicScheduler", model=model, scheduler="simple", steps=r["steps"], denoise=1.0)
     noise = node("noise", "RandomNoise", noise_seed=r["seed"])
