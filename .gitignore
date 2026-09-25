@@ -4,3 +4,4 @@ out/
 projects/
 .DS_Store
 python/.venv/
+__pycache__/

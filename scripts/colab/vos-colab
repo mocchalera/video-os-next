@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Guarded Colab sessions. Runs guard.py with the colab CLI's own interpreter (it needs colab_cli).
+set -euo pipefail
+COLAB_BIN="$(command -v colab || true)"
+[ -n "$COLAB_BIN" ] || { echo '{"ok":false,"error":"colab CLI not found; uv tool install google-colab-cli"}'; exit 2; }
+PY="$(dirname "$(readlink -f "$COLAB_BIN")")/python"
+[ -x "$PY" ] || { echo '{"ok":false,"error":"cannot locate the colab CLI interpreter"}'; exit 2; }
+exec "$PY" "$(dirname "$(readlink -f "$0")")/guard.py" "$@"
