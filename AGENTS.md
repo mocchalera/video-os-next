@@ -13,6 +13,7 @@ There is no pipeline to follow; there is a project state to read and an edit doc
 | Make footage searchable | `vos index [--channels text,visual,audio]` | `.vos/analysis/<id>/embed.<channel>.{json,f32}` |
 | Find a moment | `vos find "<words>"` (text+visual+audio+lexical, rank-fused; ja/en) · `--image f.jpg` · `--asset a` (Marlin temporal find inside one clip) | same |
 | Missing footage → generate it | `vos gen library --search "…"` first (free) → else `vos gen up --budget-cu N` (N from the human) → `vos gen clip --prompt "…" [--from hero@2.5] --as a` → `vos look a` → `vos gen down` | `generated/*.gen.json`, `assets.json`, shared library |
+| Finish generated footage (last step) | `vos gen upscale --dry-run` → `vos gen up --light --gpu T4 --budget-cu N` → `vos gen upscale` → `vos render` | aliases rebound; `generated/*.gen.json` (`vos.gen-upscale/1`) |
 | Models present? | `vos models` / `vos models pull visual\|audio` (network, ask the human first) | HF cache, `~/.cache/vos/models` |
 | Tempo of music | `vos beats <alias>` | `.vos/analysis/<id>/beats.json` |
 | Edit | write `timeline.json` + `graphics/*.html` | those files (the only edit state) |

@@ -215,22 +215,55 @@ def _ensure_upscaler(key):
     return name
 
 
-def graph_upscale(r):
-    """Whole clip: decode → model upscale → exact target size → re-mux with the original audio and fps."""
-    g = {}
+def _probe(path):
+    out = _sh(f"ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,nb_frames "
+              f"-of json '{path}'")
+    st = json.loads(out)["streams"][0]
+    num, den = st["r_frame_rate"].split("/")
+    return int(st["width"]), int(st["height"]), f"{num}/{den}", int(st.get("nb_frames") or 0)
 
-    def node(nid, cls, **inputs):
-        g[nid] = {"class_type": cls, "inputs": inputs}
-        return [nid, 0]
 
-    vid = node("load", "LoadVideo", file=r["src_image"])
-    g["parts"] = {"class_type": "GetVideoComponents", "inputs": {"video": vid}}
-    model = node("umodel", "UpscaleModelLoader", model_name=r["model_file"])
-    up = node("up", "ImageUpscaleWithModel", upscale_model=model, image=["parts", 0])
-    sized = node("size", "ImageScale", image=up, upscale_method="lanczos", width=r["width"], height=r["height"], crop="disabled")
-    out = node("video", "CreateVideo", images=sized, audio=["parts", 1], fps=["parts", 2])
-    node("save", "SaveVideo", video=out, filename_prefix=f"vosgen/{r['id']}", format="auto", codec="auto")
-    return g
+def _run_upscale(r, rep):
+    """Stream frames through the model: decode → upscale → resize → encode, constant memory for any length.
+    (A ComfyUI graph holds the whole clip in RAM; that OOM-killed the server on a 13 GB T4 VM.)"""
+    import numpy as np
+    import torch
+    import torch.nn.functional as F
+    from spandrel import ModelLoader
+
+    src = f"{COMFY}/input/{r['src_image']}"
+    out = f"{ROOT}/out/{r['id']}.mp4"
+    w, h, fps, n = _probe(src)
+    W, H = r["width"], r["height"]
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    model = ModelLoader().load_from_file(f"{COMFY}/models/upscale_models/{r['model_file']}").model.to(dev).eval()
+    half = dev == "cuda"
+    if half:
+        model = model.half()
+    dec = subprocess.Popen(["ffmpeg", "-v", "error", "-i", src, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                           stdout=subprocess.PIPE)
+    enc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
+                            "-r", fps, "-i", "-", "-i", src, "-map", "0:v", "-map", "1:a?", "-c:v", "libx264",
+                            "-preset", "slow", "-crf", "14", "-pix_fmt", "yuv420p", "-c:a", "copy", "-shortest", out],
+                           stdin=subprocess.PIPE)
+    frames = 0
+    with torch.inference_mode():
+        while True:
+            buf = dec.stdout.read(w * h * 3)
+            if len(buf) < w * h * 3:
+                break
+            x = torch.from_numpy(np.frombuffer(buf, np.uint8).reshape(h, w, 3).copy()).to(dev)
+            x = x.permute(2, 0, 1)[None].float().div(255)
+            y = model(x.half() if half else x).float()
+            y = F.interpolate(y, size=(H, W), mode="bicubic", antialias=True, align_corners=False).clamp(0, 1)
+            enc.stdin.write(y[0].permute(1, 2, 0).mul(255).round().byte().cpu().numpy().tobytes())
+            frames += 1
+    enc.stdin.close()
+    if enc.wait() != 0 or dec.wait() != 0:
+        raise RuntimeError("ffmpeg failed while streaming the upscale")
+    if n and frames != n:
+        raise RuntimeError(f"decoded {frames} frames, source has {n}")
+    rep.update(state="ok", output=out, frames=frames, upscaler={"model": r["model"], "file": r["model_file"]})
 
 
 def _run_job(r):
@@ -246,11 +279,11 @@ def _run_job(r):
             raise RuntimeError("this session was started with --light (no H3 weights): `vos gen down`, then `vos gen up` without --light")
         log_mark = os.path.getsize(f"{ROOT}/server.log")
         if r.get("kind") == "upscale":
-            r = {**r, "model_file": _ensure_upscaler(r["model"])}
-            g = graph_upscale(r)
-        else:
-            g = graph(r)
-        pid = _post("/prompt", {"prompt": g, "client_id": str(uuid.uuid4())})["prompt_id"]
+            _run_upscale({**r, "model_file": _ensure_upscaler(r["model"])}, rep)
+            rep["sec"] = round(time.time() - t0, 1)
+            _write(f"{ROOT}/jobs/{jid}.json", rep, f"{ROOT}/jobs/{jid}.done")
+            return
+        pid = _post("/prompt", {"prompt": graph(r), "client_id": str(uuid.uuid4())})["prompt_id"]
         while True:
             h = json.load(urllib.request.urlopen(f"{URL}/history/{pid}"))
             st = h.get(pid, {}).get("status", {})
@@ -268,8 +301,6 @@ def _run_job(r):
                  for o in k if isinstance(o, dict) and o.get("filename", "").endswith(".mp4")]
         src = os.path.join(COMFY, "output", files[0].get("subfolder", ""), files[0]["filename"])
         shutil.move(src, f"{ROOT}/out/{jid}.mp4")
-        if r.get("kind") == "upscale":
-            rep["upscaler"] = {"model": r["model"], "file": r["model_file"]}
         with open(f"{ROOT}/server.log") as f:
             f.seek(log_mark)
             its = re.findall(r"(\d+)/\1 \[[0-9:]+<00:00, +([0-9.]+)s/it", f.read())
