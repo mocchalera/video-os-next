@@ -1,0 +1,34 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+.sec{margin-top:36px}
+.sh{font-size:26px;font-weight:900;color:var(--sub)}
+.row{display:grid;grid-template-columns:300px 1fr;align-items:center;gap:18px;margin-top:16px}
+.rl{font-size:25px;line-height:1.3}
+.rl span{display:block;font-size:21px;color:var(--dim)}
+.track{position:relative;height:56px}
+.bar{height:56px;border-radius:8px;display:flex;align-items:center;justify-content:flex-end;padding-right:14px;font-size:36px;color:#0e141c;min-width:120px}
+.bar small{font-family:"ZKG";font-size:22px;font-weight:900;margin-left:4px}
+.g{background:#4a5b70;color:var(--ink)} .m{background:var(--cool)} .h{background:var(--hot)}
+.outside{position:absolute;top:0;height:56px;display:flex;align-items:center;font-size:36px;padding-left:14px}
+.outside small{font-family:"ZKG";font-size:22px;font-weight:900;margin-left:4px}
+.result{margin-top:38px;border-radius:16px;background:#20171a;border:2px solid #6b3a2a;padding:22px 26px;display:flex;align-items:center;gap:28px}
+.result .k{font-size:25px;font-weight:900;color:var(--sub);line-height:1.4}
+.result .v{font-size:64px;color:var(--hot);line-height:1}
+.result .v small{font-family:"ZKG";font-size:28px;font-weight:900;margin-left:4px}
+.result .v2{font-size:30px;font-weight:900;color:var(--ink)}
+</style></head><body><div class="fig">
+<div class="kicker">図3　速く・安くする（A100 で実測）</div>
+<h1>生成は約 9 倍速、ダウンロードは約 13 倍速に</h1>
+<div class="sec">
+  <div class="sh">試し撮りサイズ（864×480・2秒）1本の生成時間</div>
+  <div class="row"><div class="rl">高速化なし<span>20ステップ</span></div><div class="track"><div class="bar g num" style="width:100%">115<small>秒</small></div></div></div>
+  <div class="row"><div class="rl">手順を減らす<span>Turbo LoRA・6ステップ</span></div><div class="track"><div class="bar m num" style="width:34.8%">40<small>秒</small></div></div></div>
+  <div class="row"><div class="rl">＋計算ソフトの版を上げる<span>PyTorch cu130</span></div><div class="track"><div class="bar h num" style="width:10.6%;min-width:0"></div><div class="outside num" style="left:10.6%">12.2<small>秒</small></div></div></div>
+</div>
+<div class="sec">
+  <div class="sh">モデル一式（58GB）のダウンロード</div>
+  <div class="row"><div class="rl">最初</div><div class="track"><div class="bar g num" style="width:100%">39<small>分</small></div></div></div>
+  <div class="row"><div class="rl">並列で取得</div><div class="track"><div class="bar h num" style="width:8%;min-width:0"></div><div class="outside num" style="left:8%">3<small>分</small></div></div></div>
+</div>
+<div class="result"><div class="k">本番画質<br>1344×768・5秒・音声付き</div><div><div class="v num">81<small>秒</small></div></div><div class="v2">1本 約 0.12 CU</div></div>
+</div></body></html>

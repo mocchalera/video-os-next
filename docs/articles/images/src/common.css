@@ -1,0 +1,13 @@
+@font-face{font-family:"ZKG";src:url(../../../../examples/videoos-pv/design/fonts/ZenKakuGothicNew-Medium.ttf);font-weight:500}
+@font-face{font-family:"ZKG";src:url(../../../../examples/videoos-pv/design/fonts/ZenKakuGothicNew-Bold.ttf);font-weight:700}
+@font-face{font-family:"ZKG";src:url(../../../../examples/videoos-pv/design/fonts/ZenKakuGothicNew-Black.ttf);font-weight:900}
+@font-face{font-family:"Barlow";src:url(../../../../examples/videoos-pv/design/fonts/BarlowCondensed-Bold.ttf);font-weight:700}
+:root{--bg:#0e141c;--panel:#161f2b;--line:#2a3747;--ink:#eef2f6;--sub:#9fb0c3;--dim:#6b7c90;--hot:#ff7a45;--cool:#7fb2e5;--ok:#5fd3a1}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:"ZKG",sans-serif;font-weight:500;-webkit-font-smoothing:antialiased;font-feature-settings:"palt"}
+.num{font-family:"Barlow",sans-serif;font-weight:700;letter-spacing:.01em}
+.fig{width:1200px;padding:56px 56px 44px;position:relative}
+.kicker{font-size:24px;color:var(--hot);font-weight:700;letter-spacing:.12em}
+h1{font-size:44px;font-weight:900;margin-top:10px;line-height:1.35}
+.lead{font-size:24px;color:var(--sub);margin-top:12px;line-height:1.6}
+.foot{margin-top:30px;font-size:21px;color:var(--dim);display:flex;justify-content:space-between}

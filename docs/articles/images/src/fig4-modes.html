@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:34px}
+.m{background:var(--panel);border:2px solid var(--line);border-radius:16px;overflow:hidden}
+.pics{display:flex;gap:4px;background:#0b1118;height:300px}
+.pics .p{flex:1;position:relative}
+.pics img{display:block;width:100%;height:100%;object-fit:cover}
+.pics .p span{position:absolute;left:8px;bottom:8px;font-size:18px;font-weight:700;background:rgba(11,17,24,.82);padding:3px 10px;border-radius:5px}
+.pics .p span.in{color:var(--cool)} .pics .p span.out{color:var(--hot)}
+.tx{padding:14px 18px 16px}
+.mt{font-size:29px;font-weight:900}
+.md{font-size:22px;color:var(--sub);margin-top:4px;line-height:1.45}
+</style></head><body><div class="fig">
+<div class="kicker">図4　生成の4つの使い方（すべて実際の出力）</div>
+<h1>文章・フレーム・参照画像・プリビズから作れる</h1>
+<div class="grid">
+  <div class="m"><div class="pics"><div class="p"><img src="frames/t2v.jpg"><span class="out">生成</span></div></div>
+    <div class="tx"><div class="mt">① 文章から</div><div class="md">「雨の側溝を紙の船が流れてくる」</div></div></div>
+  <div class="m"><div class="pics"><div class="p"><img src="frames/i2v_start.jpg"><span class="in">起点</span></div><div class="p"><img src="frames/i2v_end.jpg"><span class="out">続き</span></div></div>
+    <div class="tx"><div class="mt">② フレームから続きを</div><div class="md">①の 4.5 秒目から生成。カットが自然につながる</div></div></div>
+  <div class="m"><div class="pics"><div class="p"><img src="frames/ref.jpg"><span class="out">生成</span></div></div>
+    <div class="tx"><div class="mt">③ 参照画像から</div><div class="md">紙の船を参照して、晴れた窓辺に置いた</div></div></div>
+  <div class="m"><div class="pics"><div class="p"><img src="frames/pv_clay.jpg"><span class="in">プリビズ</span></div><div class="p"><img src="frames/pv_gen.jpg"><span class="out">生成</span></div></div>
+    <div class="tx"><div class="mt">④ プリビズで構図を固定</div><div class="md">Blender で組んだ路地とカメラの動きに沿わせる</div></div></div>
+</div>
+</div></body></html>

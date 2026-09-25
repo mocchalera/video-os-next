@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+.tl{margin-top:40px;position:relative;height:250px}
+.axis{position:absolute;left:0;right:0;top:150px;height:4px;background:var(--line)}
+.lease{position:absolute;top:118px;height:30px;border-radius:6px;background:rgba(127,178,229,.28);border:2px solid var(--cool)}
+.lease.last{background:rgba(255,122,69,.18);border-color:var(--hot);border-style:dashed}
+.tick{position:absolute;top:96px;width:4px;height:62px;background:var(--cool);border-radius:2px}
+.tl .t{position:absolute;font-size:23px;color:var(--sub);line-height:1.35;text-align:center;transform:translateX(-50%)}
+.stop{position:absolute;left:1030px;top:92px;width:72px;height:72px;border-radius:50%;background:var(--hot);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:#0e141c;transform:translateX(-50%)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:22px}
+.box{border-radius:16px;padding:22px 24px;background:var(--panel);border:2px solid var(--line)}
+.box.bad{border-color:#5a2f2a;background:#20161a}
+.box.good{border-color:#245a45;background:#13221d}
+.bh{font-size:25px;font-weight:900;color:var(--sub)}
+.big{font-size:64px;margin-top:6px;line-height:1}
+.bad .big{color:#ff8b7a} .good .big{color:var(--ok)}
+.big small{font-family:"ZKG";font-size:28px;font-weight:900;margin-left:6px}
+.bd{font-size:24px;color:var(--sub);margin-top:10px;line-height:1.45}
+.chips{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+.chip{font-size:24px;font-weight:700;padding:10px 18px;border-radius:999px;background:#1d2835;border:2px solid var(--line)}
+.chip b{color:var(--hot)}
+</style></head><body><div class="fig">
+<div class="kicker">図2　見張り番（リース）</div>
+<h1>握り続けないと止まるレバー</h1>
+<div class="lead">エージェントが命令するたびに期限（既定15分）が延びる。<br>止まって期限が切れたら、手元の見張り番が GPU を止める。</div>
+<div class="tl">
+  <div class="axis"></div>
+  <div class="lease" style="left:0;width:250px"></div>
+  <div class="lease" style="left:230px;width:250px"></div>
+  <div class="lease" style="left:460px;width:250px"></div>
+  <div class="lease last" style="left:690px;width:340px"></div>
+  <div class="tick" style="left:0"></div><div class="tick" style="left:230px"></div><div class="tick" style="left:460px"></div><div class="tick" style="left:690px"></div>
+  <div class="t" style="left:120px;top:20px">借りる</div>
+  <div class="t" style="left:460px;top:20px;color:var(--cool);font-weight:700">命令するたびに期限を延長</div>
+  <div class="t" style="left:860px;top:20px;color:var(--hot);font-weight:700">応答が止まる</div>
+  <div class="stop">止</div>
+  <div class="t" style="left:1030px;top:180px;color:var(--ink);font-weight:700;white-space:nowrap;transform:translateX(-78%)">期限切れで自動停止</div>
+  <div class="t" style="left:350px;top:180px">生成中</div>
+</div>
+<div class="cmp">
+  <div class="box bad"><div class="bh">以前（見張りは警告だけ）</div><div class="big num">6<small>時間</small> 33<small>CU</small></div><div class="bd">応答しないまま放置され、<br>何もしない GPU に課金が続いた</div></div>
+  <div class="box good"><div class="bh">見張り番を入れた後</div><div class="big num">1.5<small>CU で停止</small></div><div class="bd">同じような事故でも、<br>決めた予算の上限で自動で止まった</div></div>
+</div>
+<div class="chips"><span class="chip">止める条件：</span><span class="chip"><b>期限切れ</b></span><span class="chip"><b>予算の上限</b></span><span class="chip"><b>最大時間</b></span><span class="chip"><b>マシン消失</b></span></div>
+</div></body></html>

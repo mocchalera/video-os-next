@@ -45,6 +45,21 @@ $EDITOR timeline.json graphics/*.html
 - BGM は AAC 化でトゥルーピークが -1 dBTP を超えていた（inspect で検出 → timeline で -1 dB）
 - 意図していない 0.33 秒の黒味（inspect で検出 → 意図として宣言）
 
+## 映像を生成する（Colab の GPU × MiniMax H3）
+
+足りない素材は、エージェントが Google Colab の GPU を借りて ComfyUI（MiniMax H3）で生成できる。
+課金中の VM は必ず見張り番（リース・予算上限・最大時間）の下で動き、放置されれば自動で止まる。
+
+```bash
+bin/vos gen library --search "boat"             # 共有ライブラリを探す（無料）
+bin/vos gen up --budget-cu 2 --wait             # A100 を借りる（予算は人間が決める）
+bin/vos gen clip --prompt-file shot.txt --as a  # 生成 → 取り込み → 来歴 .gen.json
+bin/vos look a && bin/vos gen down              # 目で確かめて、返す
+```
+
+仕組みの解説（非エンジニア向け）: [docs/articles/colab-comfyui-for-agents.md](docs/articles/colab-comfyui-for-agents.md)
+／ 実測と失敗の記録: [scripts/colab/spike/RESULTS.md](scripts/colab/spike/RESULTS.md)
+
 ## 構成
 
 ```
