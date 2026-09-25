@@ -1,7 +1,9 @@
 """Derive data/*.json for the PV graphics from the video-os-v2 project of 回っているよ.
 Everything on screen in BUILD / REFINE comes from these files (bound via props {"$data": ...})."""
 import hashlib, json, sys, yaml, pathlib
-src = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "/Users/mocchalera/Dev/video-os-v2-spec/projects/mawatteiru-yo-20260902")
+if len(sys.argv) != 2:
+    sys.exit("usage: extract_vos2_data.py <video-os-v2 project dir, e.g. …/projects/mawatteiru-yo-20260902>")
+src = pathlib.Path(sys.argv[1])
 tl_path = src / "05_timeline/timeline.json"
 tl = json.loads(tl_path.read_text())
 fps = tl["sequence"]["fps_num"] / tl["sequence"]["fps_den"]
