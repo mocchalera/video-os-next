@@ -91,8 +91,11 @@ Two voices at once: `(S1,S2)`. Keep the same ID for the same person in every sho
 - **refs** keep their own framing (identity / style / prop sheets). `--ref-size max` keeps up to a 2048 px short edge:
   stronger identity, slower. **guides** are cut to the output size and pinned to an output second (`src=out`,
   e.g. `layout@2=1.5`): the frame at 1.5 s will match that still. A guide at `=0` is the opening frame.
-- `--quality turbo` (default, 4 steps with the ref2v turbo LoRA v0.1) is fast; the stock template notes it is lower
-  quality. `--quality full` = 20 steps. Draft with turbo, finish with full.
+- `--quality full` (default, 20 steps, ~240 s per 5 s 768p clip on A100) is clean. `--quality turbo` (4 steps, ref2v
+  turbo LoRA v0.1) is for quick layout tests only: in our A/B it added red smears and flare-like artifacts.
+- Identity: in our test a stylised object (a pyramid-shaped paper boat) drifted toward a *generic* paper boat. Give
+  references with clear, distinctive features, describe them precisely in `subject_definitions`, and try
+  `--ref-size max` when identity matters.
 - `--from/--to` do not mix with references; use a guide at 0 / at the end instead.
 
 The prompt uses **six fields**, in this order:

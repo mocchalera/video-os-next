@@ -91,7 +91,7 @@ export interface ClipOptions {
   refs?: FrameRef[];
   guides?: GuideRef[];
   refSize?: "match" | "max";
-  quality?: "turbo" | "full"; // reference mode only: 4-step turbo LoRA vs 20 full steps
+  quality?: "turbo" | "full"; // reference mode only: 20 full steps (default) vs 4-step turbo LoRA (drafts)
 }
 
 /** Reference-to-video (stock templates video_minimax_h3_r2v / multiframe_reference). */
@@ -176,7 +176,7 @@ export function buildRequest(o: ClipOptions): GenRequest {
     const n = (o.refs?.length ?? 0) + (o.guides?.length ?? 0);
     if (n > H3_REF.max_images) throw new VosError("usage", `${n} reference images; the model takes at most ${H3_REF.max_images}`);
     for (const g of o.guides ?? []) if (!(g.to >= 0 && g.to < seconds)) throw new VosError("usage", `guide pinned at ${g.to}s is outside the ${seconds}s clip`);
-    const full = o.quality === "full";
+    const full = o.quality !== "turbo"; // live A/B: turbo v0.1 shows smears/flare artifacts; full is clean
     const body = {
       model: H3.model, mode: "ref2va" as const, prompt: o.prompt.trim(), seconds, width, height, seed: o.seed ?? 1,
       steps: o.steps ?? (full ? H3_REF.full_steps : H3_REF.turbo_steps), lora: full ? "" : H3_REF.lora,

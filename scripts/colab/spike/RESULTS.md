@@ -70,3 +70,12 @@ Findings
 `start <name> --budget-cu N [--lease-min 15] [--max-hours 2]` · `exec <name> -f x.py --timeout S` · `wait <name> <vm-path>` ·
 `renew` · `stop` · `status` · `reap [--dry-run]`. Ledger + supervisor log in `~/.config/vos/colab/`.
 Offline tests: `python3 scripts/colab/test_guard.py` (fake backend; includes a real hung-process kill test).
+
+## vos gen live checks (2026-09-25)
+
+| what | GPU | result |
+|---|---|---|
+| t2v 1344x768 5 s | A100 | 82.4 s warm (~0.12 CU); first clip after boot +~70 s (TE load) |
+| i2v `--from` 768p 5 s | A100 | 269.8 s incl. cold TE; first frame matches the source frame |
+| upscale 1344x768→1920x1098, 5 s | T4 (`--light`) | ~200 s/clip (~0.06 CU) streamed; ComfyUI graph version OOM-killed the server (13 GB RAM VM) |
+| ref2va `--refs` 768p 5 s, full 20 steps | A100 | 239.5 s; clean. turbo 4 steps: smears / flare artifacts. Shape of a stylised ref object drifted to a generic one |

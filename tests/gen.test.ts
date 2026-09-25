@@ -264,7 +264,7 @@ test("reference mode: refs keep native framing, guides are cut to the output siz
   const r = clip(p, { prompt: refPrompt, refs: "still", guides: "clip@1=1.5", size: "draft", seconds: 2, as: "refd" });
   const st = fakeState(vm);
   assert.equal(st.last.mode, "ref2va");
-  assert.equal(st.last.steps, 4);
+  assert.equal(st.last.steps, 20, "full quality by default in reference mode");
   assert.deepEqual(st.last.ref_images, [`vosgen_${r.request_id}_ref0.png`]);
   assert.deepEqual(st.last.guide_images, [{ image: `vosgen_${r.request_id}_guide0.png`, at: 1.5 }]);
   assert.equal(probeWH(path.join(vm, "content/ComfyUI/input", st.last.ref_images[0])), "64,64", "reference keeps its own framing");
@@ -280,6 +280,6 @@ test("reference mode: refs keep native framing, guides are cut to the output siz
   assert.throws(() => clip(p, { prompt: "x", refs: "still", from: "clip@1" }), /cannot be combined/);
   assert.throws(() => clip(p, { prompt: "x", guides: "clip@1=3", seconds: 2 }), /outside the 2s clip/);
   assert.throws(() => clip(p, { prompt: "x", refs: Array(10).fill("still").join(",") }), /at most 9/);
-  assert.equal(buildRequest({ prompt: "x", refs: [{ asset: "a", at: 0 }], quality: "full" }).steps, 20);
+  assert.equal(buildRequest({ prompt: "x", refs: [{ asset: "a", at: 0 }], quality: "turbo" }).steps, 4);
   down();
 });
