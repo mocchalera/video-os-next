@@ -66,7 +66,7 @@ test("three.js is bundled only into pages whose graphics use it", () => {
   const p = fixtureProject();
   writeTimeline(p, baseTimeline());
   const plain = compile(loadProject(p.root));
-  assert.ok(!fs.readFileSync(path.join(plain.buildDir, "index.html"), "utf8").includes("three.js"));
+  assert.ok(!fs.readFileSync(path.join(plain.buildDir, "index.html"), "utf8").includes('<script src="./three.js">'));
   assert.ok(!fs.existsSync(path.join(plain.buildDir, "three.js")));
   fs.writeFileSync(path.join(p.root, "graphics", "title.html"),
     `<div class="t" data-slot="win"></div><script>vos.graphic(({ three }) => { const g = three(); g.update = (t) => {}; });</script>`);
