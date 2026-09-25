@@ -70,6 +70,14 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(g["sparse"]["inputs"]["model"], ["control", 0])
         self.assertEqual(g["ctl_patch"]["inputs"]["name"], "minimax_h3_fun_controlnet_union_pruned_int8_convrot.safetensors")
 
+    def test_output_pick_ignores_loader_inputs(self):
+        entry = {"outputs": {
+            "ctl_load": {"images": [{"filename": "vosgen_abc_control.mp4", "subfolder": "", "type": "input"}]},
+            "save": {"images": [{"filename": "abc_00001_.mp4", "subfolder": "vosgen", "type": "output"}]}}}
+        self.assertTrue(vm._pick_output(entry, "abc").endswith("output/vosgen/abc_00001_.mp4"))
+        with self.assertRaises(RuntimeError):
+            vm._pick_output({"outputs": {"ctl_load": entry["outputs"]["ctl_load"]}}, "abc")
+
     def test_frames_follow_the_17k_plus_5_grid(self):
         self.assertEqual(vm.frames_for(5), 124)
         self.assertEqual(vm.frames_for(2), 56)

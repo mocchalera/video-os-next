@@ -319,6 +319,17 @@ def _run_upscale(r, rep):
     rep.update(state="ok", output=out, frames=frames, upscaler={"model": r["model"], "file": r["model_file"]})
 
 
+def _pick_output(entry, jid):
+    """The saved video of this job. Loader nodes also report files (LoadVideo lists its *input* control video),
+    so only type=output files carrying this job's prefix count (live, 2026-09-25)."""
+    files = [o for n in entry.get("outputs", {}).values() for k in n.values() if isinstance(k, list)
+             for o in k if isinstance(o, dict) and o.get("filename", "").endswith(".mp4")
+             and o.get("type", "output") == "output" and o["filename"].startswith(jid)]
+    if not files:
+        raise RuntimeError(f"no saved video for {jid} in the ComfyUI history: {json.dumps(entry.get('outputs'))[:800]}")
+    return os.path.join(COMFY, "output", files[0].get("subfolder", ""), files[0]["filename"])
+
+
 def _run_job(r):
     jid = r["id"]
     rep = {"id": jid, "state": "running", "flags": STATE["flags"], "torch": STATE["torch"],
@@ -354,9 +365,7 @@ def _run_job(r):
         entry = h[pid]
         if entry["status"].get("status_str") != "success":
             raise RuntimeError(json.dumps(entry["status"].get("messages", []))[-2000:])
-        files = [o for n in entry["outputs"].values() for k in n.values() if isinstance(k, list)
-                 for o in k if isinstance(o, dict) and o.get("filename", "").endswith(".mp4")]
-        src = os.path.join(COMFY, "output", files[0].get("subfolder", ""), files[0]["filename"])
+        src = _pick_output(entry, jid)
         shutil.move(src, f"{ROOT}/out/{jid}.mp4")
         with open(f"{ROOT}/server.log") as f:
             f.seek(log_mark)
