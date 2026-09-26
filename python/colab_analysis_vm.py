@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import queue
+import shutil
 import signal
 import subprocess
 import sys
@@ -114,11 +115,21 @@ def _bootstrap(req):
     try:
         prof = PROFILES[req["profile"]]
         if not os.environ.get("VOSANA_PYTHON"):
-            if not os.path.exists(f"{ROOT}/venv/bin/python"):
-                # system site packages: reuse the image's CUDA torch instead of downloading another 2.5 GB
-                _sh(f"{sys.executable} -m venv --system-site-packages {ROOT}/venv")
-            _sh(f"{ROOT}/venv/bin/python -m pip install -q " + " ".join(f"'{x}'" for x in prof["pip"]))
-            STATE["python"] = f"{ROOT}/venv/bin/python"
+            venv = f"{ROOT}/venv"
+            want = " ".join(f"'{x}'" for x in prof["pip"])
+            marker = f"{venv}/.vos-ready"
+            if not (os.path.exists(marker) and open(marker).read() == want):
+                # A venv only counts once its pins are installed: a half-made one (live: the first attempt died in
+                # ensurepip and left a venv without system site packages) is rebuilt, not reused.
+                shutil.rmtree(venv, ignore_errors=True)
+                # system site packages: reuse the image's CUDA torch instead of downloading another 2.5 GB.
+                # --without-pip: Colab's python has no ensurepip; the image's pip (/usr/local/.../dist-packages) is
+                # visible through the system site packages and installs into the venv when run by its python.
+                _sh(f"{sys.executable} -m venv --system-site-packages --without-pip {venv}")
+                _sh(f"{venv}/bin/python -m pip install -q {want}")
+                with open(marker, "w") as f:
+                    f.write(want)
+            STATE["python"] = f"{venv}/bin/python"
         if req.get("model"):
             os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
             dest = f"{ROOT}/models/{req['model'].replace('/', '--')}@{req['revision']}"

@@ -167,3 +167,17 @@ test("a session booted for another model revision is refused; a failed up releas
   assert.throws(() => remote.up({ budgetCu: 3 }), /after 2 attempts/);
   assert.equal(fakeState(vm).sessions["vos-analysis"].state, "stopped", "released right away");
 });
+
+test("up on a session whose bootstrap failed retries the bootstrap in place instead of reporting already_up", () => {
+  const vm = freshVm();
+  process.env.FAKE_BOOT_FAIL = "1";
+  remote.up({ budgetCu: 3 });
+  assert.throws(() => remote.waitBoot(remote.analysisColab(), "marlin"), (e: any) => e.code === "remote_boot_failed");
+  delete process.env.FAKE_BOOT_FAIL;
+  const r = remote.up({ budgetCu: 3 });
+  assert.equal(r.status, "rebooting");
+  assert.equal(fakeState(vm).analysisBoots.length, 2);
+  assert.equal(remote.waitBoot(remote.analysisColab(), "marlin").state, "ready");
+  assert.equal(remote.up({ budgetCu: 3 }).status, "already_up", "a healthy session is left alone");
+  remote.down();
+});

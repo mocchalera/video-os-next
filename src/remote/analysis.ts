@@ -49,7 +49,21 @@ export function up(o: RemoteUpOptions) {
   const c = analysisColab(o.session);
   const profile = profileOf(o.profile);
   if (!(o.budgetCu > 0)) throw new VosError("usage", "vos remote up needs --budget-cu <N>", "compute units cost money: get the number from the human");
-  if (rc.running(c)) return { ok: true, session: c.session, status: "already_up" };
+  if (rc.running(c)) {
+    // a session whose bootstrap failed is retried in place (reloading the worker keeps its queue), not left broken
+    let boot: any = null;
+    try {
+      boot = rc.remoteJson(c, `${REMOTE_ROOT}/boot.json`);
+    } catch {
+      /* still booting, or never started */
+    }
+    if (boot?.state !== "error") return { ok: true, session: c.session, status: "already_up" };
+    rc.exec(c, fs.readFileSync(VM_WORKER, "utf8"));
+    rc.exec(c, rc.pyCall("analysis_bootstrap", { profile, model: PROFILES[profile].model, revision: PROFILES[profile].revision }));
+    const res: any = { ok: true, session: c.session, status: "rebooting", profile, bootstrap: "started", previous_error: String(boot.error ?? "").slice(-300) };
+    if (o.wait) res.boot = waitBoot(c, profile);
+    return res;
+  }
   const prof = PROFILES[profile];
   const s = rc.start(c, { gpu: o.gpu ?? prof.gpu, budgetCu: o.budgetCu, maxHours: o.maxHours ?? 2, leaseMin: o.leaseMin ?? 20 });
   try {
