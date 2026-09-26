@@ -6,6 +6,7 @@ import { sha256 } from "../core/hash.ts";
 import { P, requireOnline, resolveAsset, type Project } from "../core/project.ts";
 import { readJsonIf, round, run, runOk, VosError, writeJson } from "../core/util.ts";
 import { readDescribe, searchDescriptions } from "./marlin.ts";
+import { analysisColab, inputOf, PROFILES, rowsOf, runJob, type RemoteInput } from "../remote/analysis.ts";
 
 /**
  * Three independent retrieval channels. Vector spaces are never mixed: each channel ranks on
@@ -77,8 +78,27 @@ export interface IndexMeta {
   dim: number;
   key: string; // what the index was built from; rebuild when it changes
   windows: { start: number; end: number; text?: string; scope?: "clip" | "moment" }[];
-  provenance: { at: string };
+  /** embedding space: model + revision + query instruction. A query is only compared with indexes of its space. */
+  space?: string;
+  provenance: { at: string; ran?: Record<string, unknown> };
 }
+
+/** HF snapshot revision of a model on this machine, or null. */
+function localRevision(id: string): string | null {
+  const ref = path.join(HF_HUB, `models--${id.replace("/", "--")}`, "refs", "main");
+  return fs.existsSync(ref) ? fs.readFileSync(ref, "utf8").trim() : null;
+}
+
+/** The space an embedding lives in. Only the visual channel runs in two places, so only it carries one. */
+export function spaceOf(ch: Channel, where: "local" | "colab"): string | undefined {
+  if (ch !== "visual") return undefined;
+  if (process.env.VOS_EMBED_MOCK === "1" && where === "local") return "mock";
+  const rev = where === "colab" ? PROFILES.visual.revision : (localRevision(MODEL_INFO.visual.id) ?? "unknown");
+  return `${MODEL_INFO.visual.id}@${rev.slice(0, 12)}#${sha256("Retrieve images or text relevant to the user's query.").slice(0, 8)}`;
+}
+
+/** An index written before spaces were recorded was built here, with this machine's snapshot. */
+const indexSpace = (m: IndexMeta) => m.space ?? spaceOf(m.channel, "local");
 
 const metaPath = (p: Project, id: string, ch: Channel) => path.join(P.analysis(p.root, id), `embed.${ch}.json`);
 const vecPath = (p: Project, id: string, ch: Channel) => path.join(P.analysis(p.root, id), `embed.${ch}.f32`);
@@ -104,6 +124,9 @@ export interface IndexOptions {
   step?: number; // visual: seconds between sampled frames
   window?: number; // audio window seconds
   force?: boolean;
+  on?: "local" | "colab"; // colab: visual channel only, on the `vos remote` session
+  session?: string;
+  timeoutSec?: number;
 }
 
 export type IndexOutcome = { alias: string; channel: Channel; status: "built" | "fresh" | "skipped"; windows?: number; reason?: string };
@@ -175,7 +198,8 @@ function prepare(p: Project, alias: string, ch: Channel, opts: IndexOptions): Pr
   }
   const prev = readJsonIf<IndexMeta | null>(metaPath(p, a.id, ch), null);
   const modelId = process.env.VOS_EMBED_MOCK === "1" ? "mock" : MODEL_INFO[ch].id;
-  if (!opts.force && prev && prev.key === key && (prev.model === modelId || prev.model.startsWith(modelId.split(" ")[0])) && fs.existsSync(vecPath(p, a.id, ch))) {
+  const sameSpace = !prev || indexSpace(prev) === spaceOf(ch, opts.on ?? "local");
+  if (!opts.force && prev && sameSpace && prev.key === key && (prev.model === modelId || prev.model.startsWith(modelId.split(" ")[0])) && fs.existsSync(vecPath(p, a.id, ch))) {
     return { outcome: { alias: a.alias, channel: ch, status: "fresh", windows: prev.windows.length }, alias: a.alias, id: a.id, sig: key, windows: prev.windows, items: [] };
   }
   if (!items.length) return skip("nothing to index");
@@ -186,17 +210,96 @@ function prepare(p: Project, alias: string, ch: Channel, opts: IndexOptions): Pr
 export function indexChannel(p: Project, aliases: string[], ch: Channel, opts: IndexOptions = {}): IndexOutcome[] {
   const preps = aliases.map((al) => prepare(p, al, ch, opts));
   const todo = preps.filter((x) => !x.outcome);
-  if (todo.length) {
+  if (todo.length && opts.on === "colab") {
+    indexRemote(p, ch, todo, opts);
+  } else if (todo.length) {
     const r = embed(ch, todo.flatMap((x) => x.items));
     let k = 0;
     for (const x of todo) {
       const rows = r.rows.slice(k, k + x.items.length);
       k += x.items.length;
-      writeIndex(p, { format: "vos.embed/1", channel: ch, asset: x.id, model: r.model, dim: r.dim, key: x.sig, windows: x.windows, provenance: { at: new Date().toISOString() } }, rows);
+      writeIndex(p, { format: "vos.embed/1", channel: ch, asset: x.id, model: r.model, dim: r.dim, key: x.sig, windows: x.windows, space: spaceOf(ch, "local"), provenance: { at: new Date().toISOString() } }, rows);
       x.outcome = { alias: x.alias, channel: ch, status: "built", windows: x.windows.length };
     }
   }
   return preps.map((x) => x.outcome!);
+}
+
+// ---------------- remote (vos remote session) ----------------
+
+/**
+ * One frames archive per video (built once next to the extracted frames, so its hash is stable and the VM keeps
+ * it across runs); a still image goes as itself. Only the pixels the local index would have used travel.
+ */
+function framesArchive(dir: string): string {
+  const tar = `${dir}.tar`;
+  if (!fs.existsSync(`${tar}.done`)) {
+    const frames = fs.readdirSync(dir).filter((f) => f.endsWith(".jpg")).sort();
+    fs.rmSync(tar, { force: true });
+    // COPYFILE_DISABLE: no macOS ._ metadata members (the VM refuses anything but flat frame names)
+    runOk("tar", ["-cf", tar, "-C", dir, ...frames], { env: { ...process.env, COPYFILE_DISABLE: "1" } });
+    fs.writeFileSync(`${tar}.done`, "");
+  }
+  return tar;
+}
+
+type RemoteItem = { kind: "image"; input: string; member?: string } | { kind: "text"; text: string; role: "query" | "passage" };
+
+/** Map local worker items to remote ones: frames → (archive, member), stills → themselves, text → text. */
+function remoteItems(items: WorkerItem[]): { inputs: RemoteInput[]; items: RemoteItem[] } {
+  const inputs = new Map<string, RemoteInput>();
+  const byDir = new Map<string, RemoteInput>();
+  const out: RemoteItem[] = [];
+  for (const it of items) {
+    if (it.kind === "text") {
+      out.push({ kind: "text", text: it.text!, role: it.role ?? "query" });
+      continue;
+    }
+    if (it.kind !== "image") throw new VosError("usage", "only the visual channel runs remotely");
+    const dir = path.dirname(it.path!);
+    if (fs.existsSync(path.join(dir, ".done")) && path.basename(path.dirname(dir)) === "frames") {
+      let tar = byDir.get(dir);
+      if (!tar) {
+        tar = inputOf(framesArchive(dir));
+        byDir.set(dir, tar);
+        inputs.set(tar.sha256, tar);
+      }
+      out.push({ kind: "image", input: tar.sha256, member: path.basename(it.path!) });
+    } else {
+      const img = inputOf(it.path!);
+      inputs.set(img.sha256, img);
+      out.push({ kind: "image", input: img.sha256 });
+    }
+  }
+  return { inputs: [...inputs.values()], items: out };
+}
+
+/** Embed on the VM; rows come back checked (count, size, finite) in item order. */
+export function embedRemote(ch: Channel, items: WorkerItem[], o: { session?: string; timeoutSec?: number } = {}) {
+  if (ch !== "visual") throw new VosError("usage", `the ${ch} channel runs locally only`, "--on colab applies to the visual channel");
+  const { inputs, items: ritems } = remoteItems(items);
+  const prof = PROFILES.visual;
+  const c = analysisColab(o.session);
+  const r = runJob(c, "visual", {
+    kind: "embed", inputs, worker: WORKER, files: ["f32"], extra: { channel: ch, items: ritems },
+    key: { channel: ch, model: prof.model, revision: prof.revision },
+  }, o.timeoutSec ?? 3600);
+  const rows = rowsOf(r.files.f32, ritems.length, Number(r.job.dim));
+  const ran = { backend: "colab", session: c.session, job: r.id, gpu: r.job.versions?.gpu ?? null, device: r.job.device ?? null, versions: r.job.versions ?? null,
+    revision: prof.revision, worker_sha256: r.worker_sha256, sec: r.job.sec ?? null, uploaded_bytes: r.transfer.bytes };
+  return { rows, dim: Number(r.job.dim), model: prof.model, space: spaceOf(ch, "colab")!, ran };
+}
+
+function indexRemote(p: Project, ch: Channel, todo: Prepared[], opts: IndexOptions): void {
+  const r = embedRemote(ch, todo.flatMap((x) => x.items), { session: opts.session, timeoutSec: opts.timeoutSec });
+  let k = 0;
+  for (const x of todo) {
+    const rows = r.rows.slice(k, k + x.items.length);
+    k += x.items.length;
+    writeIndex(p, { format: "vos.embed/1", channel: ch, asset: x.id, model: r.model, dim: r.dim, key: x.sig, windows: x.windows, space: r.space,
+      provenance: { at: new Date().toISOString(), ran: r.ran } }, rows);
+    x.outcome = { alias: x.alias, channel: ch, status: "built", windows: x.windows.length };
+  }
 }
 
 export function indexAsset(p: Project, alias: string, ch: Channel, opts: IndexOptions = {}): IndexOutcome {
@@ -229,7 +332,7 @@ const dot = (a: Float32Array, b: Float32Array) => {
 
 type RankedHit = { alias: string; start: number; end: number; sim: number; text?: string; scope: "clip" | "moment" };
 
-export function find(p: Project, query: string, opts: { channels?: Channel[]; limit?: number; image?: string; perChannel?: number } = {}): FindResult {
+export function find(p: Project, query: string, opts: { channels?: Channel[]; limit?: number; image?: string; perChannel?: number; on?: "local" | "colab"; session?: string } = {}): FindResult {
   // CLAP embeds *sound*. It joins by default only when the query is about sound; otherwise its
   // lukewarm similarities just add noise to visual queries. Explicit --channels always wins.
   const auditory = /\b(sound|noise|music|song|voice|voices|speech|beat|drum|drums|bell|ring|rain sound|crackl|applause|silence|ambience|ambient)\b|音|声|曲|鳴|響|ＢＧＭ|BGM|拍手|足音|雨音|静寂/i.test(query);
@@ -243,19 +346,29 @@ export function find(p: Project, query: string, opts: { channels?: Channel[]; li
   for (const ch of want) {
     if (opts.image && ch !== "visual") continue;
     const indexed = Object.entries(p.assets.assets).map(([alias, a]) => ({ alias, idx: readIndex(p, a.id, ch) })).filter((x) => x.idx);
+    // the query is embedded where the user asked (the VM spares this machine the 8 GB visual model)
+    const remoteQuery = opts.on === "colab" && ch === "visual";
     if (!indexed.length) {
-      unavailable.push({ channel: ch, reason: modelPresent(ch) ? "no index yet (run `vos index`)" : `model missing (vos models pull ${ch})` });
+      unavailable.push({ channel: ch, reason: remoteQuery || modelPresent(ch) ? "no index yet (run `vos index`)" : `model missing (vos models pull ${ch}, or --on colab)` });
       continue;
     }
     let q: Float32Array;
+    const qSpace = spaceOf(ch, remoteQuery ? "colab" : "local");
     try {
-      q = embed(ch, [opts.image ? { kind: "image", path: path.resolve(opts.image) } : { kind: "text", role: "query", text: query }]).rows[0];
+      const item: WorkerItem = opts.image ? { kind: "image", path: path.resolve(opts.image) } : { kind: "text", role: "query", text: query };
+      q = remoteQuery ? embedRemote(ch, [item], { session: opts.session }).rows[0] : embed(ch, [item]).rows[0];
     } catch (e: any) {
       unavailable.push({ channel: ch, reason: e.message });
       continue;
     }
     const hits: RankedHit[] = [];
     for (const { alias, idx } of indexed) {
+      const iSpace = indexSpace(idx!.meta);
+      if (qSpace && iSpace !== qSpace) {
+        // vectors from different spaces are not comparable: say so rather than rank noise
+        unavailable.push({ channel: ch, reason: `index for ${alias} is in ${iSpace}, the query in ${qSpace} (vos index --force${remoteQuery ? " --on colab" : ""}, or find ${remoteQuery ? "without" : "with"} --on colab)` });
+        continue;
+      }
       if (idx!.meta.dim !== q.length) {
         unavailable.push({ channel: ch, reason: `index for ${alias} has dim ${idx!.meta.dim} ≠ query ${q.length} (rebuild with vos index --force)` });
         continue;

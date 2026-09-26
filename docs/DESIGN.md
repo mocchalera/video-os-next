@@ -232,7 +232,9 @@ FFmpeg は解析・抽出・検査・後処理に使う。
 
 ## 10.52 解析を預ける（remote）
 
-手元が重い解析は、人間が予算を決めたときだけ Colab GPU で回せる。既定はローカルのまま。今は `describe`（Marlin-2B）だけ。
+手元が重い解析は、人間が予算を決めたときだけ Colab GPU で回せる。既定はローカルのまま。今は `describe`（Marlin-2B）と
+visual 索引・visual 検索のクエリ（Qwen3-VL-Embedding-2B）。1 セッションに複数のプロファイルを載せられる
+（`vos remote up --profile marlin,visual`、動いているセッションには足すだけ）。
 
 - **生成とは別の VM。** `vos remote up` は `vos-analysis` セッションを guard 越しに立てる（`vos-gen` は使わない:
   生成の bootstrap は torch を差し替え ComfyUI を入れるため）。解析コマンドが VM を勝手に起動することはない。
@@ -254,8 +256,14 @@ FFmpeg は解析・抽出・検査・後処理に使う。
 - **実測（2026-09-27, L4, 5.2 s + 7.3 s の 2 クリップ）。** VM 起動 26 s、bootstrap 48 s（venv + 固定版の依存 + 5.1 GB の重み）、
   describe 64 s（VM 上のジョブ 40 s、モデルロード込み）。同じ 2 本を手元（Apple Silicon）で 133 s。イベント区間は一致、
   語の選び方だけ違う（pastry / donut）。2 本では起動込みでほぼ同じ時間なので、効くのは本数が多いときと手元を空けたいとき。
-- **次の候補**（未実装）: visual 索引（抽出フレームだけを送る。`find` はクエリ埋め込みに同じモデルを使うので、
-  クエリも VM で埋め込む経路が要る）、transcribe（今は CPU/int8 なので CUDA 化とバッチ化が先）、CLAP（バッチの RAM 上限が先）。
+- **visual 索引は抽出フレームだけを送る。** `vos index --channels visual --on colab` は手元で抽出した 448px フレームを
+  素材ごとに 1 つの tar にまとめ（抽出と同じ場所に 1 度だけ作るのでハッシュが安定し、VM 側で再利用される）、静止画はそのまま送る。
+  窓は手元のビルドと同じ。VM はフラットなフレーム名以外を含む tar を拒否する。
+- **埋め込み空間を混ぜない。** 索引は `space`（モデル + リビジョン + クエリ指示文）を持ち、`find` は空間の違う索引をクエリと
+  比べずに理由を返す。手元のスナップショットと VM の固定リビジョンが同じなら空間も同じ（精度は手元 fp16 / VM fp32 で違いうる）。
+  `vos find --on colab` は visual のクエリを VM で埋め込むので、手元に 8 GB のモデルが無くても検索できる（1 回ごとにモデルを
+  ロードするので数十秒かかる）。text（129 MB の ONNX）と audio は手元のまま。
+- **次の候補**（未実装）: transcribe（今は CPU/int8 なので CUDA 化とバッチ化が先）、CLAP（バッチの RAM 上限が先）。
   previz は EEVEE 固定で後回し。render はローカルに残す。
 
 ## 10.55 文字起こし（transcribe）

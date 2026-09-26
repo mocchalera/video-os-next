@@ -21,7 +21,7 @@ const TOKEN_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vos-hf-")), 
 fs.writeFileSync(TOKEN_FILE, "hf_dummy_for_tests\n");
 process.env.VOS_HF_TOKEN_FILE = TOKEN_FILE;
 const ENV = ["FAKE_EXEC_DROPS", "FAKE_EXEC_DROPS_AFTER", "FAKE_BOOT_FAIL", "FAKE_CORRUPT_UPLOAD", "FAKE_ANALYSIS_ITEM_FAIL", "FAKE_ANALYSIS_STRAY",
-  "FAKE_ANALYSIS_BAD_SUM", "FAKE_ANALYSIS_WRONG_ID", "FAKE_ANALYSIS_REV", "FAKE_NEVER_FINISHES"];
+  "FAKE_ANALYSIS_BAD_SUM", "FAKE_ANALYSIS_WRONG_ID", "FAKE_ANALYSIS_REV", "FAKE_NEVER_FINISHES", "FAKE_EMBED_NAN", "FAKE_EMBED_SHORT"];
 
 function freshVm(): string {
   const vm = fs.mkdtempSync(path.join(os.tmpdir(), "vos-fakeana-"));
@@ -201,5 +201,101 @@ test("gated model: no token file refuses before any VM exists; the token travels
   assert.ok(st.uploads.includes("/content/vosana/.hf_token"), "uploaded as a file");
   assert.equal(st.analysisBoots[0].token_file, "/content/vosana/.hf_token");
   assert.ok(!JSON.stringify(st).includes("hf_dummy_for_tests"), "the token is in no snippet or call the VM side saw as code");
+  remote.down();
+});
+
+// ---------------- visual index on the VM ----------------
+
+import { find, indexChannel, readIndex, spaceOf } from "../src/analyze/embed.ts";
+
+test("index --on colab (visual): frames go as one archive per video, rows come back per window with their space", () => {
+  const vm = freshVm();
+  const p = project();
+  remote.up({ budgetCu: 3, profile: "visual" });
+  const r = indexChannel(p, ["clip", "b", "still", "tone"], "visual", { on: "colab" });
+  assert.deepEqual(r.map((x) => [x.alias, x.status]), [["clip", "built"], ["b", "built"], ["still", "built"], ["tone", "skipped"]]);
+  const st = fakeState(vm);
+  assert.equal(st.embedItems.length, 1, "one job, one model load");
+  const tars = st.uploads.filter((u: string) => u.endsWith(".tar"));
+  assert.equal(tars.length, 2, "one archive per video");
+  assert.ok(st.uploads.some((u: string) => u.endsWith(".png")), "the still travels as itself");
+  const tarFile = path.join(vm, tars[0]);
+  const members = execFileSync("tar", ["-tf", tarFile]).toString().trim().split("\n");
+  assert.ok(members.every((m) => /^\d{5}\.jpg$/.test(m)), `flat frame names only, no ._ metadata: ${members.slice(0, 3)}`);
+
+  const idx = readIndex(p, resolveAsset(p, "clip").id, "visual")!;
+  assert.equal(idx.meta.windows.length, 4, "4 s at 1 frame/s, same windows as a local build");
+  assert.equal(idx.rows.length, 4);
+  assert.equal(idx.meta.model, "Qwen/Qwen3-VL-Embedding-2B");
+  assert.equal(idx.meta.space, spaceOf("visual", "colab"));
+  assert.equal((idx.meta.provenance.ran as any).backend, "colab");
+
+  const again = indexChannel(p, ["clip", "b", "still"], "visual", { on: "colab" });
+  assert.deepEqual(again.map((x) => x.status), ["fresh", "fresh", "fresh"]);
+  assert.equal(fakeState(vm).embedItems.length, 1, "fresh costs no remote call");
+  remote.down();
+});
+
+test("find --on colab embeds the query on the VM; a local query does not rank against a remote space", () => {
+  const vm = freshVm();
+  const p = project();
+  remote.up({ budgetCu: 3, profile: "visual" });
+  indexChannel(p, ["clip", "b"], "visual", { on: "colab" });
+  const r = find(p, "a test pattern", { channels: ["visual"], on: "colab" });
+  assert.deepEqual(r.channels_used, ["visual"]);
+  assert.equal(r.channels_unavailable.length, 0);
+  const q = fakeState(vm).embedItems.at(-1);
+  assert.deepEqual(q, [{ kind: "text", text: "a test pattern", role: "query" }]);
+
+  process.env.VOS_EMBED_MOCK = "1"; // a local query (mock space) against the colab-built index
+  try {
+    const l = find(p, "a test pattern", { channels: ["visual"] });
+    assert.deepEqual(l.channels_used, ["visual"], "the query itself worked");
+    assert.ok(l.channels_unavailable.some((u) => /is in .*, the query in mock/.test(u.reason)), JSON.stringify(l.channels_unavailable));
+    assert.equal(l.hits.filter((h) => h.channels.visual !== undefined).length, 0, "no cross-space ranking");
+    // and a local rebuild is not fooled into "fresh" by the remote index
+    const rebuilt = indexChannel(p, ["clip"], "visual", {});
+    assert.equal(rebuilt[0].status, "built");
+    assert.equal(readIndex(p, resolveAsset(p, "clip").id, "visual")!.meta.space, "mock");
+  } finally {
+    delete process.env.VOS_EMBED_MOCK;
+  }
+  remote.down();
+});
+
+test("remote embeddings that do not verify are rejected and nothing is written", () => {
+  for (const env of ["FAKE_EMBED_NAN", "FAKE_EMBED_SHORT", "FAKE_ANALYSIS_BAD_SUM"]) {
+    freshVm();
+    const p = project();
+    remote.up({ budgetCu: 3, profile: "visual" });
+    process.env[env] = "1";
+    assert.throws(() => indexChannel(p, ["clip"], "visual", { on: "colab" }), (e: any) => e.code === "remote_bad_result", env);
+    assert.equal(readIndex(p, resolveAsset(p, "clip").id, "visual"), null, `${env}: nothing written`);
+    remote.down();
+  }
+});
+
+test("a session without the visual profile says how to add it; up --profile adds it to the running session", () => {
+  const vm = freshVm();
+  const p = project();
+  remote.up({ budgetCu: 3, profile: "marlin" });
+  assert.throws(() => indexChannel(p, ["clip"], "visual", { on: "colab" }), (e: any) => e.code === "remote_wrong_profile" && /--profile visual/.test(e.hint));
+  const r = remote.up({ budgetCu: 3, profile: "visual" });
+  assert.equal(r.status, "extending");
+  assert.deepEqual(r.profiles, ["marlin", "visual"], "keeps what it had");
+  const boots = fakeState(vm).analysisBoots;
+  assert.deepEqual(boots.at(-1).profiles.map((x: any) => x.name), ["marlin", "visual"]);
+  assert.equal(boots.at(-1).token_file, undefined, "marlin is already there: no token sent again");
+  assert.equal(indexChannel(p, ["clip"], "visual", { on: "colab" })[0].status, "built");
+  assert.equal(remote.up({ budgetCu: 3, profile: "marlin,visual" }).status, "already_up");
+  assert.equal(fakeState(vm).sessions["vos-analysis"].budget_cu, 3, "one session, one budget");
+  remote.down();
+});
+
+test("only the visual channel runs remotely", () => {
+  freshVm();
+  const p = project();
+  remote.up({ budgetCu: 3, profile: "visual" });
+  assert.throws(() => indexChannel(p, ["tone"], "audio", { on: "colab", window: 2 }), (e: any) => e.code === "usage");
   remote.down();
 });

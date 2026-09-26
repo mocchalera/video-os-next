@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import sys
+import tarfile
 import tempfile
 import textwrap
 import threading
@@ -42,8 +43,9 @@ class Kernel:
         os.environ["VOSANA_PYTHON"] = sys.executable
         self.ns = {"__name__": "vosana_kernel"}
         exec(SRC, self.ns)
-        self.ns["STATE"]["boot"] = {"state": "ready", "profile": "marlin", "model": "NemoStation/Marlin-2B", "revision": "r1",
-                                    "versions": {"torch": "x"}}
+        self.ns["STATE"]["boot"] = {"state": "ready", "versions": {"torch": "x"}, "profiles": {
+            "marlin": {"model": "NemoStation/Marlin-2B", "revision": "r1", "dir": "/models/marlin"},
+            "visual": {"model": "Qwen/Qwen3-VL-Embedding-2B", "revision": "v1", "dir": "/models/visual"}}}
 
     def put(self, data: bytes, ext: str):
         item = {"sha256": sha(data), "size": len(data), "ext": ext}
@@ -84,11 +86,11 @@ class DescribeJobTests(unittest.TestCase):
         rep = k.wait_done("j1")
         self.assertEqual(rep["state"], "ok", rep.get("error"))
         body = Path(k.root, "jobs", "j1.jsonl").read_bytes()
-        self.assertEqual(rep["lines_sha256"], hashlib.sha256(body).hexdigest())
+        self.assertEqual(rep["files"]["jsonl"]["sha256"], hashlib.sha256(body).hexdigest())
         lines = [json.loads(x) for x in body.decode().splitlines()]
         self.assertEqual(sorted(x["sha256"] for x in lines), sorted([a["sha256"], b["sha256"]]))
         self.assertTrue(all("video" not in x for x in lines), "VM paths never leak into results")
-        self.assertEqual(rep["revision"], "r1")
+        self.assertEqual(rep["profiles"]["marlin"]["revision"], "r1")
 
     def test_missing_or_corrupt_input_fails_the_job_and_names_it(self):
         k = Kernel()
@@ -145,6 +147,90 @@ class DescribeJobTests(unittest.TestCase):
         self.assertIn("worker", rep["error"])
 
 
+FAKE_EMBED = textwrap.dedent("""
+    import hashlib, json, os, struct, sys
+    ch, req, out = sys.argv[1:]
+    items = json.load(open(req))["items"]
+    if os.environ.get("FAKE_SHORT"):
+        items = items[:-1]
+    rows = []
+    for it in items:
+        key = it["text"] if it["kind"] == "text" else open(it["path"], "rb").read().decode()
+        h = hashlib.sha256(key.encode()).digest()
+        rows.append([b / 255.0 for b in h[:8]])
+    with open(out, "wb") as f:
+        for r in rows:
+            f.write(struct.pack("<8f", *r))
+    print(json.dumps({"ok": True, "dim": 8, "n": len(rows), "model": os.environ.get("VOS_VISUAL_MODEL"), "device": "cpu"}))
+""")
+
+
+def frames_tar(k, frames):
+    import io
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as t:
+        for name, data in frames.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            t.addfile(info, io.BytesIO(data))
+    return k.put(buf.getvalue(), "tar")
+
+
+class EmbedJobTests(unittest.TestCase):
+    def test_frames_travel_as_one_tarball_and_rows_come_back_in_item_order(self):
+        k = Kernel()
+        tar = frames_tar(k, {"00001.jpg": b"frame-1", "00002.jpg": b"frame-2"})
+        img = k.put(b"a still", "png")
+        w = k.put(FAKE_EMBED.encode(), "py")
+        items = [{"kind": "image", "input": tar["sha256"], "member": "00002.jpg"}, {"kind": "image", "input": tar["sha256"], "member": "00001.jpg"},
+                 {"kind": "image", "input": img["sha256"]}, {"kind": "text", "text": "a query", "role": "query"}]
+        k.ns["analysis_submit"]({"id": "e1", "token": "e1", "kind": "embed", "channel": "visual", "inputs": [tar, img], "items": items, "worker": w})
+        rep = k.wait_done("e1")
+        self.assertEqual(rep["state"], "ok", rep.get("error"))
+        self.assertEqual((rep["n"], rep["dim"]), (4, 8))
+        self.assertEqual(rep["worker_model"], "/models/visual", "the snapshot the boot downloaded")
+        data = Path(rep["files"]["f32"]["path"]).read_bytes()
+        self.assertEqual(rep["files"]["f32"]["sha256"], hashlib.sha256(data).hexdigest())
+        import struct
+        rows = [struct.unpack("<8f", data[i * 32:(i + 1) * 32]) for i in range(4)]
+        expect = lambda key: tuple(b / 255.0 for b in hashlib.sha256(key.encode()).digest()[:8])
+        for got, key in zip(rows, ["frame-2", "frame-1", "a still", "a query"]):
+            self.assertEqual([round(x, 5) for x in got], [round(x, 5) for x in expect(key)])
+
+    def test_an_archive_with_a_path_member_is_refused(self):
+        k = Kernel()
+        tar = frames_tar(k, {"../evil.jpg": b"x"})
+        w = k.put(FAKE_EMBED.encode(), "py")
+        k.ns["analysis_submit"]({"id": "e2", "token": "e2", "kind": "embed", "channel": "visual", "inputs": [tar],
+                                 "items": [{"kind": "image", "input": tar["sha256"], "member": "../evil.jpg"}], "worker": w})
+        rep = k.wait_done("e2")
+        self.assertEqual(rep["state"], "error")
+        self.assertIn("unexpected member", rep["error"])
+
+    def test_short_output_and_unknown_inputs_are_errors(self):
+        k = Kernel()
+        img = k.put(b"a still", "png")
+        w = k.put(FAKE_EMBED.encode(), "py")
+        k.ns["analysis_submit"]({"id": "e3", "token": "e3", "kind": "embed", "channel": "visual", "inputs": [img],
+                                 "items": [{"kind": "image", "input": "f" * 64}], "worker": w})
+        self.assertIn("not sent", k.wait_done("e3")["error"])
+        os.environ["FAKE_SHORT"] = "1"
+        try:
+            k.ns["analysis_submit"]({"id": "e4", "token": "e4", "kind": "embed", "channel": "visual", "inputs": [img],
+                                     "items": [{"kind": "image", "input": img["sha256"]}, {"kind": "text", "text": "q"}], "worker": w})
+            self.assertIn("1 of 2", k.wait_done("e4")["error"])
+        finally:
+            del os.environ["FAKE_SHORT"]
+
+    def test_a_session_without_the_profile_says_how_to_get_it(self):
+        k = Kernel()
+        del k.ns["STATE"]["boot"]["profiles"]["visual"]
+        img = k.put(b"a still", "png")
+        k.ns["analysis_submit"]({"id": "e5", "token": "e5", "kind": "embed", "channel": "visual", "inputs": [img],
+                                 "items": [{"kind": "image", "input": img["sha256"]}], "worker": k.put(FAKE_EMBED.encode(), "py")})
+        self.assertIn("--profile", k.wait_done("e5")["error"])
+
+
 class TokenTests(unittest.TestCase):
     def _boot(self, fail):
         import types
@@ -161,7 +247,7 @@ class TokenTests(unittest.TestCase):
         tok = Path(k.root, ".hf_token")
         tok.write_text("hf_secret_value\n")
         try:
-            k.ns["_bootstrap"]({"profile": "marlin", "model": "NemoStation/Marlin-2B", "revision": "r1", "token_file": str(tok)})
+            k.ns["_bootstrap"]({"profiles": [{"name": "marlin", "model": "NemoStation/Marlin-2B", "revision": "r1"}], "token_file": str(tok)})
         finally:
             del sys.modules["huggingface_hub"]
         return k, tok, seen

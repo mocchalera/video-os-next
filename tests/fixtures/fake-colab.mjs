@@ -41,8 +41,9 @@ function analysis(code) {
   let r;
   if ((r = call("analysis_bootstrap", code))) {
     put(`${ANA}/boot.started`, "");
-    put(`${ANA}/boot.json`, JSON.stringify({ state: process.env.FAKE_BOOT_FAIL ? "error" : "ready", error: "boom", profile: r.profile, model: r.model,
-      revision: process.env.FAKE_ANALYSIS_REV ?? r.revision, versions: { gpu: "NVIDIA L4", bf16: true, torch: "2.9.0+cu126", transformers: "5.12.1" }, sec: 1 }));
+    const profiles = Object.fromEntries(r.profiles.map((x) => [x.name, { model: x.model, revision: process.env.FAKE_ANALYSIS_REV ?? x.revision, dir: `${ANA}/models/${x.name}` }]));
+    put(`${ANA}/boot.json`, JSON.stringify({ state: process.env.FAKE_BOOT_FAIL ? "error" : "ready", error: "boom", profiles,
+      versions: { gpu: "NVIDIA L4", bf16: true, torch: "2.9.0+cu126", transformers: "5.12.1" }, sec: 1 }));
     put(`${ANA}/boot.done`, "");
     (state.analysisBoots ??= []).push(r);
   } else if ((r = call("analysis_have", code))) {
@@ -56,16 +57,36 @@ function analysis(code) {
     put(`${ANA}/jobs/${r.id}.started`, "");
     if (process.env.FAKE_NEVER_FINISHES) return;
     const bad = [r.worker, ...r.inputs].filter((x) => !check(x)).map((x) => x.sha256);
-    const rep = { id: process.env.FAKE_ANALYSIS_WRONG_ID ? "someoneelse" : r.id, kind: r.kind, state: "ok", model: "NemoStation/Marlin-2B", versions: { gpu: "NVIDIA L4", bf16: true, torch: "2.9.0+cu126" }, sec: 3.5 };
+    const rep = { id: process.env.FAKE_ANALYSIS_WRONG_ID ? "someoneelse" : r.id, kind: r.kind, state: "ok", versions: { gpu: "NVIDIA L4", bf16: true, torch: "2.9.0+cu126" }, sec: 3.5 };
+    const publish = (name, buf) => {
+      put(`${ANA}/jobs/${r.id}.${name}`, buf);
+      (rep.files ??= {})[name] = { path: `${ANA}/jobs/${r.id}.${name}`, bytes: buf.length,
+        sha256: process.env.FAKE_ANALYSIS_BAD_SUM ? "0".repeat(64) : createHash("sha256").update(buf).digest("hex") };
+    };
     if (bad.length) Object.assign(rep, { state: "error", error: `${bad.length} input(s) missing or corrupt on the VM`, missing_inputs: bad });
-    else {
+    else if (r.kind === "embed") {
+      // deterministic 8-d vectors; a text shares components with an image whose member name holds the same words
+      const vec = (key) => { const h = createHash("sha256").update(key).digest(); return Array.from({ length: 8 }, (_, i) => h[i] / 255 - 0.5); };
+      const known = new Set(r.inputs.map((x) => x.sha256));
+      const rows = r.items.map((it) => {
+        if (it.kind === "text") return vec(`text:${it.text}`);
+        if (!known.has(it.input)) throw new Error("item for an input not sent");
+        return vec(`image:${it.input}:${it.member ?? ""}`);
+      });
+      if (process.env.FAKE_EMBED_NAN) rows[0][0] = NaN;
+      if (process.env.FAKE_EMBED_SHORT) rows.pop();
+      const buf = Buffer.alloc(rows.length * 8 * 4);
+      rows.flat().forEach((v, i) => buf.writeFloatLE(v, i * 4));
+      publish("f32", buf);
+      Object.assign(rep, { n: rows.length, dim: 8, device: "cuda" });
+      (state.embedItems ??= []).push(r.items);
+    } else {
       const lines = r.inputs.map((x, i) => (process.env.FAKE_ANALYSIS_ITEM_FAIL && i === 0)
         ? { sha256: x.sha256, ok: false, error: "decode failed" }
         : { sha256: x.sha256, ok: true, model: "/content/vosana/models/m", result: { scene: `fake scene ${x.sha256.slice(0, 8)}`, events: [{ start: 0, end: 1, description: "a fake event" }] } });
       if (process.env.FAKE_ANALYSIS_STRAY) lines.push({ sha256: "f".repeat(64), ok: true, result: {} });
-      const body = lines.map((l) => JSON.stringify(l)).join("\n") + "\n";
-      put(`${ANA}/jobs/${r.id}.jsonl`, body);
-      Object.assign(rep, { n: lines.length, lines_sha256: process.env.FAKE_ANALYSIS_BAD_SUM ? "0".repeat(64) : createHash("sha256").update(body).digest("hex") });
+      publish("jsonl", Buffer.from(lines.map((l) => JSON.stringify(l)).join("\n") + "\n"));
+      rep.n = lines.length;
     }
     put(`${ANA}/jobs/${r.id}.json`, JSON.stringify(rep));
     put(`${ANA}/jobs/${r.id}.done`, "");

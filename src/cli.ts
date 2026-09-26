@@ -30,8 +30,8 @@ memory   vos init <dir> [--name n] [--fps 30 --width 1920 --height 1080]
          vos status
 eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--width 480] [--out f.png]
          vos describe <alias…> | --all [--force] [--on colab]   Marlin-2B scene + events (local by default; one model load)
-         vos index [aliases…] [--channels text,visual,audio] [--step 1] [--force] [--verbose]   one model load per channel
-         vos find "<query>" [--channels …] [--image f.jpg] [--limit 10]   fused text/visual/audio + lexical search
+         vos index [aliases…] [--channels text,visual,audio] [--step 1] [--force] [--verbose] [--on colab]   one model load per channel (--on colab: visual on the VM)
+         vos find "<query>" [--channels …] [--image f.jpg] [--limit 10] [--on colab]   fused text/visual/audio + lexical search
          vos find "<event>" --asset alias           Marlin temporal find inside one clip
          vos models [pull <visual|audio>]           embedding models: status / download (network)
 ears     vos beats <alias> [--hint 120]
@@ -42,8 +42,8 @@ make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait] [--l
          vos gen status | down                      MiniMax-H3 text/image→video+audio; cached per request; ingested with provenance
          vos gen upscale [--dry-run] [--model realesrgan-x2|x4] [--only a,b]   finishing pass: upscale the generated clips the timeline uses
          vos gen library [--search words] [--init <dir>] · vos gen pull <id> [--as alias]   shared takes (e.g. Google Drive)
-offload  vos remote up --budget-cu N [--profile marlin] [--gpu L4] [--max-hours 2] [--wait]   guarded analysis VM (costs money: ask the human for N)
-         vos remote status | down                   then e.g. \`vos describe --all --on colab\`; results carry where they ran
+offload  vos remote up --budget-cu N [--profile marlin|visual|marlin,visual] [--gpu L4] [--max-hours 2] [--wait]   guarded analysis VM (costs money: ask the human for N)
+         vos remote status | down                   then \`vos describe --all --on colab\` / \`vos index --channels visual --on colab\`; results carry where they ran
 hands    vos compile [--timeline f]                  timeline + graphics → HyperFrames page
          vos render [--draft] [--graphics-only] [--out f]
 verify   vos inspect [render.mp4]                    evidence: findings with times + frame sheets
@@ -79,6 +79,13 @@ let JSON_OUT = false;
 function out(data: unknown, human?: () => void) {
   if (JSON_OUT || !human) console.log(JSON.stringify(data, null, 2));
   else human();
+}
+
+/** Where an analysis runs: local (default) or colab (the `vos remote` session). */
+function onOf(a: Args): "local" | "colab" {
+  const on = a.on === undefined ? "local" : String(a.on);
+  if (on !== "local" && on !== "colab") throw new VosError("usage", `--on ${on}: use local (default) or colab`);
+  return on;
 }
 
 function proj(a: Args): Project {
@@ -157,9 +164,7 @@ async function main() {
 
     case "describe": {
       const p = proj(a);
-      const on = a.on === undefined ? "local" : String(a.on);
-      if (on !== "local" && on !== "colab") throw new VosError("usage", `--on ${on}: use local (default) or colab`);
-      if (on === "colab") {
+      if (onOf(a) === "colab") {
         const targets = a.all ? Object.entries(p.assets.assets).filter(([, x]) => x.kind === "video").map(([al]) => al) : rest;
         if (!targets.length) throw new VosError("usage", "vos describe <alias…> | --all --on colab");
         const res = describeRemote(p, targets, { session: a.session, force: !!a.force, timeoutSec: a.timeout ? Number(a.timeout) : undefined });
@@ -191,7 +196,7 @@ async function main() {
         return;
       }
       const channels = a.channels ? (String(a.channels).split(",") as Channel[]) : undefined;
-      const r = findAll(p, q, { channels, limit: Number(a.limit ?? 10), image: a.image });
+      const r = findAll(p, q, { channels, limit: Number(a.limit ?? 10), image: a.image, on: onOf(a), session: a.session });
       out(r, () => {
         console.log(`channels: ${r.channels_used.join(", ") || "none"}${r.channels_unavailable.length ? `   (unavailable: ${r.channels_unavailable.map((u) => `${u.channel} — ${u.reason}`).join("; ")})` : ""}`);
         for (const h of r.hits) {
@@ -209,7 +214,9 @@ async function main() {
       const results = [];
       for (const ch of channels) {
         try {
-          for (const r of indexChannel(p, aliases, ch, { step: a.step ? Number(a.step) : undefined, force: !!a.force })) {
+          // --on colab moves the visual channel to the analysis VM; text (tiny ONNX) and audio stay here
+          const on = onOf(a) === "colab" && ch === "visual" ? "colab" : "local";
+          for (const r of indexChannel(p, aliases, ch, { step: a.step ? Number(a.step) : undefined, force: !!a.force, on, session: a.session, timeoutSec: a.timeout ? Number(a.timeout) : undefined })) {
             results.push(r);
             if (!JSON_OUT && (r.status !== "skipped" || a.verbose)) console.log(`${ch.padEnd(6)} ${r.status.padEnd(7)} ${r.alias}${r.windows ? `  (${r.windows} windows)` : ""}${r.reason ? `  — ${r.reason}` : ""}`);
           }
@@ -249,7 +256,7 @@ async function main() {
       const sub = rest[0];
       if (sub === "up") {
         const r = remote.up({ budgetCu: Number(a["budget-cu"]), profile: a.profile, gpu: a.gpu, maxHours: a["max-hours"] ? Number(a["max-hours"]) : undefined, leaseMin: a["lease-min"] ? Number(a["lease-min"]) : undefined, wait: !!a.wait, session: a.session });
-        out(r, () => console.log(`${r.status ?? "up"}  ${r.session}${r.budget_cu ? `  budget ${r.budget_cu} CU  profile ${r.profile}` : ""}${r.bootstrap ? `  bootstrap ${r.boot ? `${r.boot.state} in ${r.boot.sec}s` : "started (vos remote status)"}` : ""}`));
+        out(r, () => console.log(`${r.status ?? "up"}  ${r.session}${r.budget_cu ? `  budget ${r.budget_cu} CU  profiles ${r.profiles?.join(",")}` : ""}${r.bootstrap ? `  bootstrap ${r.boot ? `${r.boot.state} in ${r.boot.sec}s` : "started (vos remote status)"}` : ""}`));
         return;
       }
       if (sub === "status") {
@@ -259,7 +266,7 @@ async function main() {
           if (!r.session) return console.log("session   none");
           const s = r.session;
           console.log(`session   ${s.name} ${s.state}${s.stop_reason ? ` (${s.stop_reason})` : ""}  spent ${s.spent_cu ?? "-"} / ${s.budget_cu} CU  lease ${s.lease_left_min} min  deadline ${s.deadline_left_min} min`);
-          if (r.boot) console.log(`boot      ${r.boot.state}${r.boot.profile ? ` ${r.boot.profile}` : ""}${r.boot.sec ? ` in ${r.boot.sec}s` : ""}${r.boot.versions?.gpu ? `  ${r.boot.versions.gpu}` : ""}`);
+          if (r.boot) console.log(`boot      ${r.boot.state}${r.boot.profiles ? ` ${Object.keys(r.boot.profiles).join(",")}` : ""}${r.boot.sec ? ` in ${r.boot.sec}s` : ""}${r.boot.versions?.gpu ? `  ${r.boot.versions.gpu}` : ""}`);
         });
         return;
       }

@@ -4,7 +4,7 @@ import { MARLIN_WORKER, marlinPython } from "../core/config.ts";
 import { sha256 } from "../core/hash.ts";
 import { P, requireOnline, resolveAsset, type Project } from "../core/project.ts";
 import { readJsonIf, run, stableStringify, VosError, writeJson } from "../core/util.ts";
-import { analysisColab, inputOf, PROFILES, runJob } from "../remote/analysis.ts";
+import { analysisColab, inputOf, oneLinePerInput, PROFILES, runJob } from "../remote/analysis.ts";
 
 export interface MarlinEvent {
   start: number;
@@ -125,9 +125,9 @@ export function describeRemote(p: Project, aliases: string[], o: RemoteDescribeO
   if (!todo.length) return out;
   const c = analysisColab(o.session);
   const inputs = [...new Map(todo.map((t) => [t.input.sha256, t.input])).values()];
-  const r = runJob(c, "marlin", { kind: "describe", inputs, worker: MARLIN_WORKER, env: { VOS_MARLIN_MAX_TOKENS: settings.max_tokens }, key: settings }, o.timeoutSec ?? 3600);
+  const r = runJob(c, "marlin", { kind: "describe", inputs, worker: MARLIN_WORKER, files: ["jsonl"], env: { VOS_MARLIN_MAX_TOKENS: settings.max_tokens }, key: settings }, o.timeoutSec ?? 3600);
   if (r.worker_sha256 !== workerSha) throw new VosError("remote_bad_result", "the Marlin worker changed while the job ran; run again");
-  const bySha = new Map(r.lines.map((l) => [l.sha256, l]));
+  const bySha = new Map(oneLinePerInput(r.files.jsonl, inputs).map((l) => [l.sha256, l]));
   const versions = r.job.versions ?? null;
   for (const t of todo) {
     const l = bySha.get(t.input.sha256)!;
