@@ -145,6 +145,43 @@ class DescribeJobTests(unittest.TestCase):
         self.assertIn("worker", rep["error"])
 
 
+class TokenTests(unittest.TestCase):
+    def _boot(self, fail):
+        import types
+        k = Kernel()
+        seen = {}
+
+        def snapshot_download(repo, revision, local_dir, token=None):
+            seen["token"] = token
+            if fail:
+                raise RuntimeError("401 gated")
+            os.makedirs(local_dir, exist_ok=True)
+
+        sys.modules["huggingface_hub"] = types.SimpleNamespace(snapshot_download=snapshot_download)
+        tok = Path(k.root, ".hf_token")
+        tok.write_text("hf_secret_value\n")
+        try:
+            k.ns["_bootstrap"]({"profile": "marlin", "model": "NemoStation/Marlin-2B", "revision": "r1", "token_file": str(tok)})
+        finally:
+            del sys.modules["huggingface_hub"]
+        return k, tok, seen
+
+    def test_token_is_used_for_the_download_then_deleted_and_never_recorded(self):
+        k, tok, seen = self._boot(fail=False)
+        self.assertEqual(seen["token"], "hf_secret_value")
+        self.assertFalse(tok.exists())
+        boot = Path(k.root, "boot.json").read_text()
+        self.assertEqual(json.loads(boot)["state"], "ready")
+        self.assertNotIn("hf_secret_value", boot)
+
+    def test_token_is_deleted_even_when_the_download_fails(self):
+        k, tok, _ = self._boot(fail=True)
+        self.assertFalse(tok.exists())
+        boot = Path(k.root, "boot.json").read_text()
+        self.assertEqual(json.loads(boot)["state"], "error")
+        self.assertNotIn("hf_secret_value", boot)
+
+
 class ReloadTests(unittest.TestCase):
     def test_reloading_keeps_one_worker_and_the_token_memory(self):
         k = Kernel()

@@ -16,6 +16,10 @@ const FAKE = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures",
 fs.chmodSync(FAKE, 0o755);
 process.env.VOS_COLAB_GUARD = FAKE;
 process.env.VOS_COLAB_BIN = FAKE;
+// a dummy token file (the real one is the human's; tests never touch it)
+const TOKEN_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vos-hf-")), "hf_token");
+fs.writeFileSync(TOKEN_FILE, "hf_dummy_for_tests\n");
+process.env.VOS_HF_TOKEN_FILE = TOKEN_FILE;
 const ENV = ["FAKE_EXEC_DROPS", "FAKE_EXEC_DROPS_AFTER", "FAKE_BOOT_FAIL", "FAKE_CORRUPT_UPLOAD", "FAKE_ANALYSIS_ITEM_FAIL", "FAKE_ANALYSIS_STRAY",
   "FAKE_ANALYSIS_BAD_SUM", "FAKE_ANALYSIS_WRONG_ID", "FAKE_ANALYSIS_REV", "FAKE_NEVER_FINISHES"];
 
@@ -179,5 +183,23 @@ test("up on a session whose bootstrap failed retries the bootstrap in place inst
   assert.equal(fakeState(vm).analysisBoots.length, 2);
   assert.equal(remote.waitBoot(remote.analysisColab(), "marlin").state, "ready");
   assert.equal(remote.up({ budgetCu: 3 }).status, "already_up", "a healthy session is left alone");
+  remote.down();
+});
+
+test("gated model: no token file refuses before any VM exists; the token travels only by upload", () => {
+  let vm = freshVm();
+  process.env.VOS_HF_TOKEN_FILE = path.join(os.tmpdir(), "vos-no-such-token");
+  try {
+    assert.throws(() => remote.up({ budgetCu: 3 }), (e: any) => e.code === "hf_token_missing" && /no VM was started/.test(e.hint));
+    assert.ok(!fs.existsSync(path.join(vm, "state.json")) || !fakeState(vm).sessions?.["vos-analysis"], "nothing was started");
+  } finally {
+    process.env.VOS_HF_TOKEN_FILE = TOKEN_FILE;
+  }
+  vm = freshVm();
+  remote.up({ budgetCu: 3 });
+  const st = fakeState(vm);
+  assert.ok(st.uploads.includes("/content/vosana/.hf_token"), "uploaded as a file");
+  assert.equal(st.analysisBoots[0].token_file, "/content/vosana/.hf_token");
+  assert.ok(!JSON.stringify(st).includes("hf_dummy_for_tests"), "the token is in no snippet or call the VM side saw as code");
   remote.down();
 });

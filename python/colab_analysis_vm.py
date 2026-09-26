@@ -109,6 +109,22 @@ def _versions(py):
         return {"error": r.stderr[-500:]}
 
 
+def _token(req):
+    """The uploaded Hugging Face token for a gated model, or None. Never logged, never written into boot.json."""
+    f = req.get("token_file")
+    if not f or not os.path.exists(f):
+        return None
+    os.chmod(f, 0o600)
+    with open(f) as fh:
+        return fh.read().strip() or None
+
+
+def _forget_token(req):
+    f = req.get("token_file")
+    if f and os.path.exists(f):
+        os.remove(f)
+
+
 def _bootstrap(req):
     rep = {"state": "running", "profile": req["profile"], "model": req.get("model"), "revision": req.get("revision")}
     t0 = time.time()
@@ -135,7 +151,7 @@ def _bootstrap(req):
             dest = f"{ROOT}/models/{req['model'].replace('/', '--')}@{req['revision']}"
             if not os.path.exists(f"{dest}/.done"):
                 from huggingface_hub import snapshot_download
-                snapshot_download(req["model"], revision=req["revision"], local_dir=dest)
+                snapshot_download(req["model"], revision=req["revision"], local_dir=dest, token=_token(req))
                 open(f"{dest}/.done", "w").close()
             rep["model_dir"] = dest
         rep["versions"] = _versions(_python())
@@ -143,6 +159,8 @@ def _bootstrap(req):
     except Exception:
         rep["state"] = "error"
         rep["error"] = traceback.format_exc()[-2500:]
+    finally:
+        _forget_token(req)
     rep["sec"] = round(time.time() - t0, 1)
     STATE["boot"] = rep
     _write(f"{ROOT}/boot.json", rep, f"{ROOT}/boot.done")

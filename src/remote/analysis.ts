@@ -21,8 +21,39 @@ const VM_WORKER = path.join(REPO, "python", "colab_analysis_vm.py");
 
 /** What a profile needs on the VM. Pinned: changing any of these changes the cache keys of its results. */
 export const PROFILES = {
-  marlin: { model: "NemoStation/Marlin-2B", revision: "fd111fca4fc7897876fb0d7e9df22ca5ac8ab965", gpu: "L4" },
+  // gated on Hugging Face: the VM needs the human's token to download it (live 401, 2026-09-27)
+  marlin: { model: "NemoStation/Marlin-2B", revision: "fd111fca4fc7897876fb0d7e9df22ca5ac8ab965", gpu: "L4", gated: true },
 } as const;
+
+const REMOTE_TOKEN = `${REMOTE_ROOT}/.hf_token`;
+
+/**
+ * The Hugging Face token file for gated models: VOS_HF_TOKEN_FILE, else ~/.config/vos/hf_token. vos never reads
+ * the token itself: the file goes to the VM with `colab upload` (so it is in no command line, snippet, or log),
+ * the VM reads it for the download and deletes it right after, success or not.
+ */
+export function hfTokenFile(): string | null {
+  const f = process.env.VOS_HF_TOKEN_FILE || path.join(os.homedir(), ".config", "vos", "hf_token");
+  return fs.existsSync(f) && fs.statSync(f).size > 0 ? f : null;
+}
+
+function needToken(profile: Profile): string | null {
+  if (!PROFILES[profile].gated) return null;
+  const f = hfTokenFile();
+  if (!f) {
+    throw new VosError("hf_token_missing", `${PROFILES[profile].model} is gated on Hugging Face; the VM needs a token to download it`,
+      "put a read-only Hugging Face token (with access to that repo) in ~/.config/vos/hf_token (chmod 600) or point VOS_HF_TOKEN_FILE at one; no VM was started");
+  }
+  return f;
+}
+
+/** Load the worker and start its bootstrap; a gated model's token file travels by upload, never in the snippet. */
+function bootstrapOn(c: Colab, profile: Profile, tokenFile: string | null): void {
+  const prof = PROFILES[profile];
+  rc.exec(c, fs.readFileSync(VM_WORKER, "utf8"));
+  if (tokenFile) rc.upload(c, tokenFile, REMOTE_TOKEN, 60_000);
+  rc.exec(c, rc.pyCall("analysis_bootstrap", { profile, model: prof.model, revision: prof.revision, ...(tokenFile ? { token_file: REMOTE_TOKEN } : {}) }));
+}
 export type Profile = keyof typeof PROFILES;
 
 export function analysisColab(session?: string): Colab {
@@ -49,6 +80,7 @@ export function up(o: RemoteUpOptions) {
   const c = analysisColab(o.session);
   const profile = profileOf(o.profile);
   if (!(o.budgetCu > 0)) throw new VosError("usage", "vos remote up needs --budget-cu <N>", "compute units cost money: get the number from the human");
+  const tokenFile = needToken(profile); // before any VM exists: a missing token must cost nothing
   if (rc.running(c)) {
     // a session whose bootstrap failed is retried in place (reloading the worker keeps its queue), not left broken
     let boot: any = null;
@@ -58,8 +90,7 @@ export function up(o: RemoteUpOptions) {
       /* still booting, or never started */
     }
     if (boot?.state !== "error") return { ok: true, session: c.session, status: "already_up" };
-    rc.exec(c, fs.readFileSync(VM_WORKER, "utf8"));
-    rc.exec(c, rc.pyCall("analysis_bootstrap", { profile, model: PROFILES[profile].model, revision: PROFILES[profile].revision }));
+    bootstrapOn(c, profile, tokenFile);
     const res: any = { ok: true, session: c.session, status: "rebooting", profile, bootstrap: "started", previous_error: String(boot.error ?? "").slice(-300) };
     if (o.wait) res.boot = waitBoot(c, profile);
     return res;
@@ -67,8 +98,7 @@ export function up(o: RemoteUpOptions) {
   const prof = PROFILES[profile];
   const s = rc.start(c, { gpu: o.gpu ?? prof.gpu, budgetCu: o.budgetCu, maxHours: o.maxHours ?? 2, leaseMin: o.leaseMin ?? 20 });
   try {
-    rc.exec(c, fs.readFileSync(VM_WORKER, "utf8"));
-    rc.exec(c, rc.pyCall("analysis_bootstrap", { profile, model: prof.model, revision: prof.revision }));
+    bootstrapOn(c, profile, tokenFile);
     rc.wait(c, `${REMOTE_ROOT}/boot.started`, 90, "the bootstrap to start");
     const res: any = { ok: true, session: c.session, endpoint: s.endpoint, budget_cu: o.budgetCu, profile, bootstrap: "started" };
     if (o.wait) res.boot = waitBoot(c, profile);
