@@ -247,6 +247,15 @@ import できるもの）とキャッシュ済みモデルだけで、区間と�
 - マスター: 2 パスの EBU R128 loudnorm で `master.loudness`（既定 -14 LUFS）/ `master.true_peak`（既定 -1 dBTP）へ。
 - 映像ストリームはコピーのまま音声だけ差し替え、receipt の `audio` にミックス内容（ソース数・ダック・正規化前の実測）を残す。
 
+## 10.7 映像の書き出し経路
+
+- タイムラインの絵が「全尺を覆う 1 本の動画（キャンバスと同じ解像度・fps、fx/フェード/slot なし）」でグラフィックが無いときは、
+  ブラウザを通さず ffmpeg で映像をそのまま使う（`in` が 0 の h264/yuv420p はストリームコピー＝無劣化、それ以外は再エンコード）。
+  外部ツールで絵を作り切った作品で、HyperFrames が全フレームをスクリーンショットし直すのは遅く、劣化し、長尺でメモリを使い切るため。
+  receipt の `settings.engine` に `ffmpeg-passthrough` / `hyperframes` を残す。`VOS_RENDER_ENGINE=hyperframes` で常にブラウザ経路。
+- HyperFrames 経路では Node のヒープを RAM の半分（4〜16 GB）に上げて渡す（`VOS_RENDER_HEAP_MB` で上書き）。
+  stderr は `.vos/build/<name>/render.log` にも残し、失敗時はスタックトレースではなく原因行（ヒープ不足など）を示す。
+
 ## 11. ツールチェーン
 
 - `node_modules/`（HyperFrames）と `python/.venv`（torch / transformers / Marlin / Qwen3-VL / CLAP /
