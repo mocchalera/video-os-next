@@ -15,7 +15,7 @@
 |---|---|
 | Artifact が正（隠れた状態を持たない） | 10 ゲート・固定ステージ順の強制 |
 | 同じ入力 → 同じ出力（決定論的コンパイル） | 45 スキーマで思考を型に押し込むこと |
-| ローカル実行・追加 API コストゼロ（Marlin はローカル） | fail-open で黙って劣化すること |
+| ローカル実行・追加 API コストゼロ（Marlin はローカル。GPU を借りるのは人間が予算を決めたときだけ: §10.5, §10.52） | fail-open で黙って劣化すること |
 | Marlin = 目、LLM = 脳 | 単一スコア（score:100）による合否 |
 | 最後の一手は人間へ（NLE ハンドオフ） | 「隠れた第二タイムライン」禁止による表現の制限 |
 
@@ -137,6 +137,7 @@ vos.graphic(({ tl, q, qa, props, b, onFrame }) => {
 | 検証 | `vos inspect [render]` | 時刻付き findings JSON + カット点シート |
 | 返す | `vos export fcp7` | Premiere 用 XML（+ 透過グラフィック MOV） |
 | 作る | `vos gen up --budget-cu N` / `vos gen clip --prompt …` / `status` / `down` | Colab GPU 上の MiniMax-H3 で映像+音声を生成 → `generated/<id>.mp4` + `.gen.json` → ingest |
+| 預ける | `vos remote up --budget-cu N` / `status` / `down`, `vos describe … --on colab` | 解析だけを別の guarded Colab VM で実行 → 同じ `describe.json`（来歴に実行場所） |
 | 移行 | `vos import vos2 <dir>` | 旧プロジェクトの Marlin 解析を provenance 付きで取り込み |
 
 全コマンド `--json` で機械可読。人間向け表示は既定。
@@ -229,6 +230,28 @@ FFmpeg は解析・抽出・検査・後処理に使う。
 - **速さの根拠は実測。** 既定値（cu130 の INT8 カーネル、Turbo LoRA 6 ステップ、sol-attn τ1.3）と測定値は
   `scripts/colab/spike/RESULTS.md`。生成後は `vos look` で画を見てから使う。
 
+## 10.52 解析を預ける（remote）
+
+手元が重い解析は、人間が予算を決めたときだけ Colab GPU で回せる。既定はローカルのまま。今は `describe`（Marlin-2B）だけ。
+
+- **生成とは別の VM。** `vos remote up` は `vos-analysis` セッションを guard 越しに立てる（`vos-gen` は使わない:
+  生成の bootstrap は torch を差し替え ComfyUI を入れるため）。解析コマンドが VM を勝手に起動することはない。
+  guard・転送・待機は `src/remote/colab.ts` を生成と共有する。
+- **解析ロジックは複製しない。** VM 側（`python/colab_analysis_vm.py`）は、リポジトリの `python/marlin_worker.py` を
+  アップロードして実行するだけ。結果は手元の同じコードが `vos.describe/1` として書く。
+- **送るのは必要な入力だけ、全体 SHA-256 で。** `contentId`（先頭と末尾のサンプル）ではなく全内容のハッシュで
+  `in/<sha256>.<ext>` に置き、VM が既に持つものは送らない。サイズかハッシュが合わないファイルは VM が消してジョブを失敗させ、
+  次の呼び出しで送り直す。長い転送の前には lease を延長する。
+- **一度だけ実行、検証してから書く。** submit はクライアント token で重複を捨てる（受理直後に接続が切れた再試行でも 1 回）。
+  結果はジョブ ID・チェックサム・入力 1 件につき 1 答を確かめてから書き、合わなければ書かずにエラー。
+  手元の待機がタイムアウトしたら VM 側のサブプロセスも止める（クライアントのタイムアウトは VM の停止ではない）。
+- **再利用のキーと実行場所を分ける。** `provenance.key` = 入力の全体ハッシュ + モデルのリビジョン + ワーカーのハッシュ + 設定。
+  同じなら VM を呼ばない。GPU・dtype・ライブラリ版・所要秒は `provenance.ran` に残すがキーには入れない
+  （GPU 間でビット一致は約束しない）。モデルのリビジョンが違うセッションは使わない。
+- **次の候補**（未実装）: visual 索引（抽出フレームだけを送る。`find` はクエリ埋め込みに同じモデルを使うので、
+  クエリも VM で埋め込む経路が要る）、transcribe（今は CPU/int8 なので CUDA 化とバッチ化が先）、CLAP（バッチの RAM 上限が先）。
+  previz は EEVEE 固定で後回し。render はローカルに残す。
+
 ## 10.55 文字起こし（transcribe）
 
 `vos transcribe` は手元の faster-whisper（`VOS_ASR_PYTHON` / config `asr_python` / リポジトリ venv / `python3` の順で
@@ -260,7 +283,8 @@ import できるもの）とキャッシュ済みモデルだけで、区間と�
 
 - `node_modules/`（HyperFrames）と `python/.venv`（torch / transformers / Marlin / Qwen3-VL / CLAP /
   onnxruntime）はリポジトリ所有。`~/.config/vos/config.json` と環境変数は上書き用途のみ。
-- `scripts/colab/`: Colab のガード（`vos-colab`）。`python/colab_gen_vm.py` は VM 側ワーカー（ComfyUI + 重み + 生成キュー）。
+- `scripts/colab/`: Colab のガード（`vos-colab`）。`python/colab_gen_vm.py` は VM 側ワーカー（ComfyUI + 重み + 生成キュー）、
+  `python/colab_analysis_vm.py` は解析用（venv + 固定版の依存 + モデル snapshot + ジョブキュー）。`src/remote/` が手元側。
 - `scripts/setup.sh`: オンラインは lock ファイルから、`--offline-from <dir>` は既存インストールから
   依存閉包をコピーして組み立てる（Node の解決規則どおりに辿る / RECORD 単位で dist をコピー）。
 

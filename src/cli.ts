@@ -2,7 +2,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { analyzeBeats } from "./analyze/beats.ts";
-import { describe, describeMany, findInAsset, readDescribe } from "./analyze/marlin.ts";
+import { describe, describeMany, describeRemote, findInAsset, readDescribe } from "./analyze/marlin.ts";
 import { CHANNELS, find as findAll, indexChannel, modelStatus, pullModel, type Channel } from "./analyze/embed.ts";
 import { compile, compileDigest } from "./compile/hyperframes.ts";
 import { CONFIG_PATH, hyperframesBin, loadConfig, marlinPython, saveConfig } from "./core/config.ts";
@@ -11,6 +11,7 @@ import { ffmpegVersion, probe } from "./core/media.ts";
 import { ingest, initProject, loadProject, P, requireOnline, resolveAsset, saveAssets, type Project } from "./core/project.ts";
 import { status } from "./core/status.ts";
 import * as gen from "./gen/colab.ts";
+import * as remote from "./remote/analysis.ts";
 import { initLibrary, listLibrary } from "./gen/library.ts";
 import { renderPreviz } from "./gen/previz.ts";
 import { transcribe } from "./analyze/transcribe.ts";
@@ -28,7 +29,7 @@ memory   vos init <dir> [--name n] [--fps 30 --width 1920 --height 1080]
          vos ingest <files…> [--as alias] [--note text] [--replace]
          vos status
 eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--width 480] [--out f.png]
-         vos describe <alias…> | --all [--force]     Marlin-2B scene + events (local; one model load)
+         vos describe <alias…> | --all [--force] [--on colab]   Marlin-2B scene + events (local by default; one model load)
          vos index [aliases…] [--channels text,visual,audio] [--step 1] [--force] [--verbose]   one model load per channel
          vos find "<query>" [--channels …] [--image f.jpg] [--limit 10]   fused text/visual/audio + lexical search
          vos find "<event>" --asset alias           Marlin temporal find inside one clip
@@ -41,6 +42,8 @@ make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait] [--l
          vos gen status | down                      MiniMax-H3 text/image→video+audio; cached per request; ingested with provenance
          vos gen upscale [--dry-run] [--model realesrgan-x2|x4] [--only a,b]   finishing pass: upscale the generated clips the timeline uses
          vos gen library [--search words] [--init <dir>] · vos gen pull <id> [--as alias]   shared takes (e.g. Google Drive)
+offload  vos remote up --budget-cu N [--profile marlin] [--gpu L4] [--max-hours 2] [--wait]   guarded analysis VM (costs money: ask the human for N)
+         vos remote status | down                   then e.g. \`vos describe --all --on colab\`; results carry where they ran
 hands    vos compile [--timeline f]                  timeline + graphics → HyperFrames page
          vos render [--draft] [--graphics-only] [--out f]
 verify   vos inspect [render.mp4]                    evidence: findings with times + frame sheets
@@ -154,6 +157,15 @@ async function main() {
 
     case "describe": {
       const p = proj(a);
+      const on = a.on === undefined ? "local" : String(a.on);
+      if (on !== "local" && on !== "colab") throw new VosError("usage", `--on ${on}: use local (default) or colab`);
+      if (on === "colab") {
+        const targets = a.all ? Object.entries(p.assets.assets).filter(([, x]) => x.kind === "video").map(([al]) => al) : rest;
+        if (!targets.length) throw new VosError("usage", "vos describe <alias…> | --all --on colab");
+        const res = describeRemote(p, targets, { session: a.session, force: !!a.force, timeoutSec: a.timeout ? Number(a.timeout) : undefined });
+        out(res, () => res.forEach((r) => console.log(`${r.status === "failed" ? "FAILED   " : r.status === "fresh" ? "fresh    " : "described"} ${r.alias}${r.error ? "  " + r.error : ""}`)));
+        return;
+      }
       if (rest.length > 1 || a.all) {
         const targets = a.all ? Object.entries(p.assets.assets).filter(([al, x]) => x.kind === "video" && (a.force || !readDescribe(p, x.id))).map(([al]) => al) : rest;
         const res = describeMany(p, targets);
@@ -231,6 +243,32 @@ async function main() {
         }
       });
       return;
+    }
+
+    case "remote": {
+      const sub = rest[0];
+      if (sub === "up") {
+        const r = remote.up({ budgetCu: Number(a["budget-cu"]), profile: a.profile, gpu: a.gpu, maxHours: a["max-hours"] ? Number(a["max-hours"]) : undefined, leaseMin: a["lease-min"] ? Number(a["lease-min"]) : undefined, wait: !!a.wait, session: a.session });
+        out(r, () => console.log(`${r.status ?? "up"}  ${r.session}${r.budget_cu ? `  budget ${r.budget_cu} CU  profile ${r.profile}` : ""}${r.bootstrap ? `  bootstrap ${r.boot ? `${r.boot.state} in ${r.boot.sec}s` : "started (vos remote status)"}` : ""}`));
+        return;
+      }
+      if (sub === "status") {
+        const r = remote.status(a.session);
+        out(r, () => {
+          console.log(`balance   ${r.balance} CU  (rate ${r.rate_cu_h}/h)${r.orphans?.length ? `  ⚠ orphans: ${r.orphans.join(", ")}` : ""}`);
+          if (!r.session) return console.log("session   none");
+          const s = r.session;
+          console.log(`session   ${s.name} ${s.state}${s.stop_reason ? ` (${s.stop_reason})` : ""}  spent ${s.spent_cu ?? "-"} / ${s.budget_cu} CU  lease ${s.lease_left_min} min  deadline ${s.deadline_left_min} min`);
+          if (r.boot) console.log(`boot      ${r.boot.state}${r.boot.profile ? ` ${r.boot.profile}` : ""}${r.boot.sec ? ` in ${r.boot.sec}s` : ""}${r.boot.versions?.gpu ? `  ${r.boot.versions.gpu}` : ""}`);
+        });
+        return;
+      }
+      if (sub === "down") {
+        const r = remote.down(a.session);
+        out(r, () => console.log(r.ok ? "stopped" : `NOT confirmed stopped (${r.state}) — run \`vos remote status\``));
+        return;
+      }
+      throw new VosError("usage", "vos remote up --budget-cu N | status | down");
     }
 
     case "gen": {

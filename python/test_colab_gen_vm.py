@@ -106,5 +106,32 @@ class ReloadTests(unittest.TestCase):
         self.assertIs(ns["_WORKER"], first, "re-load must reuse the live worker, not start another")
 
 
+    def test_a_retried_submit_with_the_same_token_runs_the_job_once(self):
+        """A connection lost after the VM accepted a submit is retried by the local side with the same token."""
+        import threading
+        import time
+        src = (HERE / "colab_gen_vm.py").read_text()
+        ns = {"__name__": "vosgen_kernel"}
+        exec(src, ns)
+        gate, ran = threading.Event(), []
+        ns["_run_job"] = lambda r: (ran.append(r["id"]), gate.wait(2))
+        ns["submit"]({"id": "once", "token": "t1"})
+        ns["submit"]({"id": "once", "token": "t1"})  # the retry
+        ns["submit"]({"id": "once", "token": "t2"})  # another caller while it is still running
+        gate.set()
+        for _ in range(50):
+            if "once" not in ns["_ACTIVE"]:
+                break
+            time.sleep(0.05)
+        self.assertEqual(ran, ["once"])
+        ns["_run_job"] = lambda r: ran.append(r["id"])
+        ns["submit"]({"id": "once", "token": "t3"})  # a new call after it finished may run it again (e.g. after an error)
+        for _ in range(50):
+            if len(ran) == 2:
+                break
+            time.sleep(0.05)
+        self.assertEqual(ran, ["once", "once"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

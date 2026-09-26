@@ -1,5 +1,5 @@
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { REPO } from "../core/config.ts";
 import { contentId, sha256 } from "../core/hash.ts";
@@ -7,6 +7,8 @@ import { ingest, P, requireOnline, resolveAsset, saveAssets, type IngestResult, 
 import { fetchFromLibrary, libraryDir, publish } from "./library.ts";
 import { readJson, run, stableStringify, VosError, writeJson } from "../core/util.ts";
 import { loadTimeline, resolveTimeline, timelinePath } from "../core/timeline.ts";
+import * as rc from "../remote/colab.ts";
+import type { Colab } from "../remote/colab.ts";
 
 /**
  * vos gen — footage generation on a rented Colab GPU (MiniMax-H3 via ComfyUI).
@@ -19,8 +21,6 @@ import { loadTimeline, resolveTimeline, timelinePath } from "../core/timeline.ts
 
 export const SESSION = "vos-gen";
 const REMOTE = "/content/vosgen";
-const GUARD = () => process.env.VOS_COLAB_GUARD ?? path.join(REPO, "scripts", "colab", "vos-colab");
-const COLAB = () => process.env.VOS_COLAB_BIN ?? "colab";
 const VM_WORKER = path.join(REPO, "python", "colab_gen_vm.py");
 
 /** Measured defaults (scripts/colab/spike/RESULTS.md). Changing any of these changes the request id. */
@@ -211,64 +211,17 @@ export const genPaths = (p: Project, id: string) => ({
   sidecar: path.join(p.root, "generated", `${id}.gen.json`),
 });
 
-// ------------------------------------------------------------------ guard / colab plumbing
+// ------------------------------------------------------------------ guard / colab plumbing (shared: src/remote/colab.ts)
 
-function guard(args: string[], timeoutMs = 120_000): any {
-  const r = run(GUARD(), args, { timeout: timeoutMs });
-  const line = r.stdout.trim().split("\n").filter((l) => l.startsWith("{") || l.startsWith("[")).pop();
-  if (r.status !== 0 && !line) throw new VosError("colab_guard", `vos-colab ${args[0]} failed (exit ${r.status})`, r.stderr.slice(-600));
-  try {
-    return line ? JSON.parse(line) : { ok: r.status === 0 };
-  } catch {
-    // status prints indented JSON across lines
-    return JSON.parse(r.stdout);
-  }
-}
-
-function guardExec(code: string, timeoutSec = 120, attempts = 2): void {
-  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vosgen-")), "cmd.py");
-  fs.writeFileSync(f, code);
-  let last = "";
-  for (let i = 0; i < attempts; i++) {
-    // every snippet vos sends is idempotent (worker load, bootstrap, submit of a content-addressed id), so a retry
-    // after a dropped connection is safe (live: "Connection was lost" right after allocation, 2026-09-25)
-    const r = run(GUARD(), ["exec", SESSION, "-f", f, "--timeout", String(timeoutSec)], { timeout: (timeoutSec + 60) * 1000 });
-    if (r.status === 0 || /"ok": true/.test(r.stdout)) return;
-    last = (r.stdout + r.stderr).slice(-800);
-  }
-  throw new VosError("colab_exec", `remote exec failed after ${attempts} attempts`, last);
-}
-
-function waitRemote(remotePath: string, timeoutSec: number, what = remotePath): void {
-  const r = run(GUARD(), ["wait", SESSION, remotePath, "--timeout", String(timeoutSec), "--every", "15"], { timeout: (timeoutSec + 120) * 1000 });
-  if (r.status === 0) return;
-  const s = (guard(["status", SESSION]).sessions ?? []).find((x: any) => x.name === SESSION);
-  if (s && s.state !== "running") throw new VosError("gen_stopped", `the guard stopped the session (${s.stop_reason}) while waiting for ${what}`, "check `vos gen status`; start again with a budget from the human");
-  throw new VosError("colab_wait", `timed out after ${timeoutSec}s waiting for ${what}`, "the VM is still leased; `vos gen status`, or `vos gen down` to stop paying");
-}
-
-function download(remotePath: string, local: string): void {
-  fs.mkdirSync(path.dirname(local), { recursive: true });
-  const r = run(COLAB(), ["download", "-s", SESSION, remotePath, local], { timeout: 600_000 });
-  if (r.status !== 0 || !fs.existsSync(local)) throw new VosError("colab_download", `could not download ${remotePath}`, r.stderr.slice(-400));
-}
-
-function remoteJson(remotePath: string): any {
-  const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vosgen-")), path.basename(remotePath));
-  download(remotePath, tmp);
-  return readJson(tmp);
-}
-
-function session(): any | null {
-  const s = guard(["status", SESSION]);
-  return (s.sessions ?? []).find((x: any) => x.name === SESSION && x.state === "running") ?? null;
-}
-
-function requireSession(): any {
-  const s = session();
-  if (!s) throw new VosError("gen_not_up", "no running generation session", "ask the human for a compute budget, then `vos gen up --budget-cu <N>`");
-  return s;
-}
+export const GEN: Colab = { session: SESSION, cli: "vos gen", notUp: "gen_not_up", stopped: "gen_stopped" };
+const guard = rc.guard;
+const guardExec = (code: string, timeoutSec = 120, attempts = 2) => rc.exec(GEN, code, timeoutSec, attempts);
+const waitRemote = (remotePath: string, timeoutSec: number, what = remotePath) => rc.wait(GEN, remotePath, timeoutSec, what);
+const download = (remotePath: string, local: string) => rc.download(GEN, remotePath, local);
+const remoteJson = (remotePath: string) => rc.remoteJson(GEN, remotePath);
+const upload = (local: string, remote: string) => rc.upload(GEN, local, remote);
+const session = () => rc.running(GEN);
+const requireSession = () => rc.requireRunning(GEN);
 
 // ------------------------------------------------------------------ commands
 
@@ -284,9 +237,7 @@ export interface UpOptions {
 export function up(o: UpOptions) {
   if (!(o.budgetCu > 0)) throw new VosError("usage", "vos gen up needs --budget-cu <N>", "compute units cost money: get the number from the human");
   if (session()) return { ok: true, session: SESSION, status: "already_up" };
-  const s = guard(["start", SESSION, "--gpu", o.gpu ?? "A100", "--budget-cu", String(o.budgetCu),
-    "--max-hours", String(o.maxHours ?? 2), "--lease-min", String(o.leaseMin ?? 20)], 900_000);
-  if (!s.ok) throw new VosError("gen_up_failed", s.error ?? "could not start a guarded session", s.orphans ? "run `scripts/colab/vos-colab reap` after checking them" : undefined);
+  const s = rc.start(GEN, { gpu: o.gpu ?? "A100", budgetCu: o.budgetCu, maxHours: o.maxHours ?? 2, leaseMin: o.leaseMin ?? 20 });
   try {
     guardExec(fs.readFileSync(VM_WORKER, "utf8"));
     guardExec(o.light ? "bootstrap(light=True)" : "bootstrap()");
@@ -296,11 +247,7 @@ export function up(o: UpOptions) {
     return res;
   } catch (e) {
     // never leave a paid VM behind a failed `up` (live: a VM idled 20 min to the budget stop, 2026-09-25)
-    try {
-      guard(["stop", SESSION], 300_000);
-    } catch {
-      /* the lease stops it anyway */
-    }
+    rc.stopQuietly(GEN);
     throw e;
   }
 }
@@ -328,8 +275,7 @@ export function status() {
 }
 
 export function down() {
-  const s = guard(["stop", SESSION], 300_000);
-  return { ok: !!s.ok, state: s.state };
+  return rc.stop(GEN);
 }
 
 export interface ClipResult extends IngestResult {
@@ -377,14 +323,10 @@ export function extractFrame(file: string, at: number, width: number, height: nu
   return out;
 }
 
-function upload(local: string, remote: string): void {
-  const r = run(COLAB(), ["upload", "-s", SESSION, local, remote], { timeout: 300_000 });
-  if (r.status !== 0) throw new VosError("colab_upload", `could not upload ${path.basename(local)}`, r.stderr.slice(-400));
-}
-
 /** Queue one job on the VM and wait for it; a job the VM never picks up fails fast instead of burning the budget. */
 function runRemote(remoteReq: { id: string; [k: string]: unknown }, timeoutSec: number): any {
-  guardExec(`submit(${JSON.stringify({ ...remoteReq, timeout: timeoutSec })})`);
+  // the token makes a retried exec (dropped connection after the VM accepted it) a no-op instead of a second run
+  guardExec(rc.pyCall("submit", { ...remoteReq, timeout: timeoutSec, token: randomUUID() }));
   waitRemote(`${REMOTE}/jobs/${remoteReq.id}.started`, 180, "the VM to start the job");
   waitRemote(`${REMOTE}/jobs/${remoteReq.id}.done`, timeoutSec + 60, "the job to finish");
   const job = remoteJson(`${REMOTE}/jobs/${remoteReq.id}.json`);

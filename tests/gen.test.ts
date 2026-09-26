@@ -28,6 +28,7 @@ function freshVm(): string {
   delete process.env.FAKE_NEVER_STARTS;
   delete process.env.FAKE_EXEC_DROPS;
   delete process.env.FAKE_BOOT_NEVER;
+  delete process.env.FAKE_EXEC_DROPS_AFTER;
   return vm;
 }
 const fakeState = (vm: string) => JSON.parse(fs.readFileSync(path.join(vm, "state.json"), "utf8"));
@@ -345,4 +346,17 @@ test("up: a dropped connection is retried once; a failed up stops the VM instead
   process.env.FAKE_BOOT_NEVER = "1";
   assert.throws(() => up({ budgetCu: 2 }), /bootstrap to start/);
   void vm;
+});
+
+test("clip: a connection lost after the VM accepted the job retries without running it twice; null fields reach the VM as JSON", () => {
+  const vm = freshVm();
+  const p = fixtureProject();
+  up({ budgetCu: 2 });
+  process.env.FAKE_EXEC_DROPS_AFTER = "1";
+  const r = clip(p, { prompt: "a dense take", dense: true, as: "dense" });
+  assert.equal(r.cached, false);
+  const st = fakeState(vm);
+  assert.equal(st.submitted, 1, "the retried submit carried the same token and was not queued again");
+  assert.equal(st.last.sol_tau, null, "null survives the trip (json.loads, not a Python literal)");
+  down();
 });

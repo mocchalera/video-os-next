@@ -1,0 +1,169 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describeRemote, readDescribe, searchDescriptions } from "../src/analyze/marlin.ts";
+import { ingest, saveAssets, resolveAsset } from "../src/core/project.ts";
+import { sha256File } from "../src/core/hash.ts";
+import * as remote from "../src/remote/analysis.ts";
+import { parsePyCall, pyCall } from "../src/remote/colab.ts";
+import { fixtureProject } from "./helpers.ts";
+
+const FAKE = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "fake-colab.mjs");
+fs.chmodSync(FAKE, 0o755);
+process.env.VOS_COLAB_GUARD = FAKE;
+process.env.VOS_COLAB_BIN = FAKE;
+const ENV = ["FAKE_EXEC_DROPS", "FAKE_EXEC_DROPS_AFTER", "FAKE_BOOT_FAIL", "FAKE_CORRUPT_UPLOAD", "FAKE_ANALYSIS_ITEM_FAIL", "FAKE_ANALYSIS_STRAY",
+  "FAKE_ANALYSIS_BAD_SUM", "FAKE_ANALYSIS_WRONG_ID", "FAKE_ANALYSIS_REV", "FAKE_NEVER_FINISHES"];
+
+function freshVm(): string {
+  const vm = fs.mkdtempSync(path.join(os.tmpdir(), "vos-fakeana-"));
+  process.env.FAKE_VM = vm;
+  for (const k of ENV) delete process.env[k];
+  return vm;
+}
+const fakeState = (vm: string) => JSON.parse(fs.readFileSync(path.join(vm, "state.json"), "utf8"));
+
+/** fixture project + a second video, so batching is visible */
+function project() {
+  const p = fixtureProject();
+  const f = path.join(p.root, "media", "b.mp4");
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=24:duration=2", "-pix_fmt", "yuv420p", f]);
+  ingest(p, f, "b");
+  saveAssets(p);
+  return p;
+}
+
+test("pyCall: JSON null/true/false and quotes reach Python through json.loads, and round-trip", () => {
+  const arg = { a: null, b: true, c: false, s: `it's "quoted" \\ ${"$"}HOME 日本語\n` };
+  const code = pyCall("submit", arg);
+  assert.match(code, /^submit\(__import__\("json"\)\.loads\(/);
+  assert.deepEqual(parsePyCall("submit", code), arg);
+  const py = execFileSync("python3", ["-c", `import json\ndef submit(x): print(json.dumps(x, sort_keys=True))\n${code}`]).toString();
+  assert.deepEqual(JSON.parse(py), arg);
+});
+
+test("remote up refuses without a budget; describe --on colab without a session says how to start one", () => {
+  freshVm();
+  const p = project();
+  assert.throws(() => remote.up({ budgetCu: 0 }), (e: any) => e.code === "usage" && /budget-cu/.test(e.message) && /money/.test(e.hint));
+  assert.throws(() => describeRemote(p, ["clip"]), (e: any) => e.code === "remote_not_up" && /vos remote up --profile marlin --budget-cu/.test(e.hint));
+});
+
+test("describe --on colab: one job for the batch, inputs by full hash, results written with where they ran; rerun is free", () => {
+  const vm = freshVm();
+  const p = project();
+  const up = remote.up({ budgetCu: 3 });
+  assert.equal(up.session, "vos-analysis");
+  assert.equal(fakeState(vm).sessions["vos-analysis"].state, "running");
+  assert.equal(fakeState(vm).sessions["vos-gen"], undefined, "never the generation VM");
+
+  const r = describeRemote(p, ["clip", "b"]);
+  assert.deepEqual(r.map((x) => [x.alias, x.status]), [["clip", "built"], ["b", "built"]]);
+  const st = fakeState(vm);
+  assert.equal(Object.keys(st.analysisRuns).length, 1, "one job, one model load");
+  assert.equal(st.lastAnalysis.inputs.length, 2);
+  const clipSha = sha256File(resolveAsset(p, "clip").path!);
+  assert.ok(st.uploads.includes(`/content/vosana/in/${clipSha}.mp4`), "uploaded under its full SHA-256");
+  assert.ok(st.renews.length >= 2, "lease renewed before each upload");
+
+  const d = readDescribe(p, resolveAsset(p, "clip").id)!;
+  assert.equal(d.format, "vos.describe/1");
+  assert.match(d.scene, /^fake scene /);
+  assert.equal(d.provenance.producer, "marlin-colab");
+  assert.equal(d.provenance.model, "NemoStation/Marlin-2B", "the model id, not a VM path");
+  assert.equal(d.provenance.ran?.backend, "colab");
+  assert.equal(d.provenance.ran?.gpu, "NVIDIA L4");
+  assert.equal(d.provenance.ran?.input_sha256, clipSha);
+  assert.equal(d.provenance.ran?.revision, remote.PROFILES.marlin.revision);
+  assert.ok(searchDescriptions(p, "fake event").length >= 2, "remote results feed search like local ones");
+
+  const uploads = st.uploads.length;
+  const again = describeRemote(p, ["clip", "b"]);
+  assert.deepEqual(again.map((x) => x.status), ["fresh", "fresh"]);
+  const st2 = fakeState(vm);
+  assert.equal(Object.keys(st2.analysisRuns).length, 1, "fresh results cost no remote call");
+  assert.equal(st2.uploads.length, uploads);
+
+  // --force runs again, but nothing is uploaded twice: the VM already holds the bytes
+  describeRemote(p, ["clip"], { force: true });
+  const st3 = fakeState(vm);
+  assert.equal(st3.uploads.length, uploads, "dedup by content on the VM");
+  assert.equal(Object.keys(st3.analysisRuns).length, 2);
+  remote.down();
+  assert.equal(fakeState(vm).sessions["vos-analysis"].state, "stopped");
+});
+
+test("existing finds survive a remote describe; a failed item is reported per clip and writes nothing", () => {
+  freshVm();
+  const p = project();
+  remote.up({ budgetCu: 3 });
+  const id = resolveAsset(p, "clip").id;
+  fs.mkdirSync(path.dirname(path.join(p.root, ".vos", "analysis", id, "describe.json")), { recursive: true });
+  fs.writeFileSync(path.join(p.root, ".vos", "analysis", id, "describe.json"), JSON.stringify({ format: "vos.describe/1", asset: id, scene: "old", events: [], finds: [{ query: "q", start: 1, end: 2 }], provenance: { producer: "marlin-local", model: "m", at: "x" } }));
+  process.env.FAKE_ANALYSIS_ITEM_FAIL = "1"; // the first input fails on the VM
+  const r = describeRemote(p, ["b", "clip"]);
+  const failed = r.find((x) => !x.ok)!;
+  assert.equal(failed.status, "failed");
+  assert.match(failed.error!, /decode failed/);
+  const ok = r.find((x) => x.ok)!;
+  const rec = readDescribe(p, resolveAsset(p, ok.alias).id)!;
+  assert.equal(rec.provenance.producer, "marlin-colab");
+  if (ok.alias === "clip") assert.deepEqual(rec.finds, [{ query: "q", start: 1, end: 2 }]);
+  const other = readDescribe(p, resolveAsset(p, failed.alias).id);
+  assert.ok(!other || other.provenance.producer !== "marlin-colab", "the failed clip keeps whatever it had");
+  remote.down();
+});
+
+test("a connection lost after the VM accepted the job does not run it twice", () => {
+  const vm = freshVm();
+  const p = project();
+  remote.up({ budgetCu: 3 });
+  process.env.FAKE_EXEC_DROPS_AFTER = "1";
+  const r = describeRemote(p, ["clip"]);
+  assert.equal(r[0].status, "built");
+  const runs = Object.values(fakeState(vm).analysisRuns) as number[];
+  assert.deepEqual(runs, [1]);
+  remote.down();
+});
+
+test("a corrupted upload fails the job naming the input; the next call uploads it again and succeeds", () => {
+  const vm = freshVm();
+  const p = project();
+  remote.up({ budgetCu: 3 });
+  process.env.FAKE_CORRUPT_UPLOAD = "1";
+  assert.throws(() => describeRemote(p, ["clip"]), (e: any) => e.code === "remote_job_failed" && /missing or corrupt/.test(e.hint));
+  const before = fakeState(vm).uploads.length;
+  const r = describeRemote(p, ["clip"]);
+  assert.equal(r[0].status, "built");
+  assert.ok(fakeState(vm).uploads.length > before, "re-uploaded after the VM dropped the bad copy");
+  remote.down();
+});
+
+test("results that do not verify are rejected, not written", () => {
+  for (const [env, re] of [["FAKE_ANALYSIS_STRAY", /not sent/], ["FAKE_ANALYSIS_BAD_SUM", /checksum/], ["FAKE_ANALYSIS_WRONG_ID", /answered for job/]] as const) {
+    freshVm();
+    const p = project();
+    remote.up({ budgetCu: 3 });
+    process.env[env] = "1";
+    assert.throws(() => describeRemote(p, ["clip"]), (e: any) => e.code === "remote_bad_result" && re.test(e.message), env);
+    assert.equal(readDescribe(p, resolveAsset(p, "clip").id), null, `${env}: nothing written`);
+    remote.down();
+  }
+});
+
+test("a session booted for another model revision is refused; a failed up releases the VM", () => {
+  let vm = freshVm();
+  const p = project();
+  process.env.FAKE_ANALYSIS_REV = "deadbeef";
+  remote.up({ budgetCu: 3 });
+  assert.throws(() => describeRemote(p, ["clip"]), (e: any) => e.code === "remote_wrong_profile");
+  remote.down();
+  vm = freshVm();
+  process.env.FAKE_EXEC_DROPS = "5";
+  assert.throws(() => remote.up({ budgetCu: 3 }), /after 2 attempts/);
+  assert.equal(fakeState(vm).sessions["vos-analysis"].state, "stopped", "released right away");
+});

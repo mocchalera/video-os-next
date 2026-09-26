@@ -378,6 +378,10 @@ def _run_job(r):
     _write(f"{ROOT}/jobs/{jid}.json", rep, f"{ROOT}/jobs/{jid}.done")
 
 
+_ACTIVE = globals().get("_ACTIVE") or set()  # job ids queued or running
+_TOKENS = globals().get("_TOKENS") or {}  # client token -> job id: a retried submit is a no-op
+
+
 def _worker():
     while True:
         r = _JOBS.get()
@@ -387,6 +391,8 @@ def _worker():
         except Exception:  # never let one job kill the queue
             _write(f"{ROOT}/jobs/{r['id']}.json", {"id": r["id"], "state": "error", "error": traceback.format_exc()[-2000:]},
                    f"{ROOT}/jobs/{r['id']}.done")
+        finally:
+            _ACTIVE.discard(r["id"])
 
 
 # one worker per kernel namespace, kept across re-loads (tracked by object, not by thread name)
@@ -396,10 +402,24 @@ if not (globals().get("_WORKER") and _WORKER.is_alive()):
 
 
 def submit(r):
+    """Queue a job exactly once per client call. The local side retries an exec after a dropped connection with the
+    same token, so a token already seen (or a job id already queued/running) must not run the job again."""
+    token = r.get("token")
+    if token and token in _TOKENS:
+        print(json.dumps({"ok": True, "queued": r["id"], "duplicate": True}))
+        return
+    if r["id"] in _ACTIVE:
+        if token:
+            _TOKENS[token] = r["id"]
+        print(json.dumps({"ok": True, "queued": r["id"], "already_active": True}))
+        return
     for ext in ("json", "done", "started"):
         p = f"{ROOT}/jobs/{r['id']}.{ext}"
         if os.path.exists(p):
             os.remove(p)
+    if token:
+        _TOKENS[token] = r["id"]
+    _ACTIVE.add(r["id"])
     _JOBS.put(r)
     print(json.dumps({"ok": True, "queued": r["id"], "depth": _JOBS.qsize()}))
 

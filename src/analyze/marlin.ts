@@ -1,8 +1,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { MARLIN_WORKER, marlinPython } from "../core/config.ts";
+import { sha256 } from "../core/hash.ts";
 import { P, requireOnline, resolveAsset, type Project } from "../core/project.ts";
-import { readJsonIf, run, VosError, writeJson } from "../core/util.ts";
+import { readJsonIf, run, stableStringify, VosError, writeJson } from "../core/util.ts";
+import { analysisColab, inputOf, PROFILES, runJob } from "../remote/analysis.ts";
 
 export interface MarlinEvent {
   start: number;
@@ -16,7 +18,28 @@ export interface DescribeRecord {
   scene: string;
   events: MarlinEvent[];
   finds: { query: string; start: number; end: number }[];
-  provenance: { producer: string; model: string; at: string; note?: string };
+  provenance: {
+    producer: string; // "marlin-local" | "marlin-colab"
+    model: string;
+    at: string;
+    note?: string;
+    key?: string; // remote results: hash of input bytes + model revision + worker + settings; same key = reuse
+    ran?: RemoteRun;
+  };
+}
+
+/** Where a remote result actually ran. Not part of the key: two GPUs may differ in the last bits, the inputs did not. */
+export interface RemoteRun {
+  backend: "colab";
+  session: string;
+  job: string;
+  gpu: string | null;
+  dtype: string;
+  versions: Record<string, unknown> | null;
+  revision: string;
+  worker_sha256: string;
+  input_sha256: string;
+  sec: number | null;
 }
 
 export const describePath = (p: Project, id: string) => path.join(P.analysis(p.root, id), "describe.json");
@@ -63,6 +86,76 @@ export function describeMany(p: Project, aliases: string[]): { alias: string; ok
     out.push({ alias: a.alias, ok: true });
   }
   if (!out.length) throw new VosError("marlin_failed", `Marlin produced no results (exit ${r.status}): ${r.stderr.trim().split("\n").slice(-4).join(" | ")}`);
+  return out;
+}
+
+const MAX_TOKENS = () => process.env.VOS_MARLIN_MAX_TOKENS ?? "2048";
+
+export interface RemoteDescribeOptions {
+  session?: string;
+  force?: boolean;
+  timeoutSec?: number;
+}
+
+export type RemoteDescribeOutcome = { alias: string; ok: boolean; status: "built" | "fresh" | "failed"; error?: string };
+
+/**
+ * `vos describe --on colab`: the same Marlin worker, run on the analysis VM, one model load for the batch.
+ * Only the videos travel (deduplicated by full SHA-256 on the VM). A result is reused when its key matches:
+ * same bytes, model revision, worker and settings. Written in the same vos.describe/1 form as local results.
+ */
+export function describeRemote(p: Project, aliases: string[], o: RemoteDescribeOptions = {}): RemoteDescribeOutcome[] {
+  const prof = PROFILES.marlin;
+  const settings = { model: prof.model, revision: prof.revision, max_tokens: MAX_TOKENS() };
+  const workerSha = sha256(fs.readFileSync(MARLIN_WORKER));
+  const out: RemoteDescribeOutcome[] = [];
+  const todo: { alias: string; id: string; key: string; input: ReturnType<typeof inputOf> }[] = [];
+  for (const al of aliases) {
+    const a = resolveAsset(p, al);
+    if (a.kind !== "video") throw new VosError("not_video", `describe needs a video asset; "${a.alias}" is ${a.kind}`);
+    const input = inputOf(requireOnline(a));
+    const key = sha256(stableStringify({ v: 1, input: input.sha256, worker: workerSha, ...settings })).slice(0, 16);
+    const prev = readDescribe(p, a.id);
+    if (!o.force && prev?.provenance.key === key) {
+      out.push({ alias: a.alias, ok: true, status: "fresh" });
+      continue;
+    }
+    todo.push({ alias: a.alias, id: a.id, key, input });
+  }
+  if (!todo.length) return out;
+  const c = analysisColab(o.session);
+  const inputs = [...new Map(todo.map((t) => [t.input.sha256, t.input])).values()];
+  const r = runJob(c, "marlin", { kind: "describe", inputs, worker: MARLIN_WORKER, env: { VOS_MARLIN_MAX_TOKENS: settings.max_tokens }, key: settings }, o.timeoutSec ?? 3600);
+  if (r.worker_sha256 !== workerSha) throw new VosError("remote_bad_result", "the Marlin worker changed while the job ran; run again");
+  const bySha = new Map(r.lines.map((l) => [l.sha256, l]));
+  const versions = r.job.versions ?? null;
+  for (const t of todo) {
+    const l = bySha.get(t.input.sha256)!;
+    if (!l.ok) {
+      out.push({ alias: t.alias, ok: false, status: "failed", error: String(l.error ?? "unknown Marlin error") });
+      continue;
+    }
+    const res = l.result ?? {};
+    const events: MarlinEvent[] = (res.events ?? []).map((e: any) => ({ start: num(e.start ?? e.start_sec), end: num(e.end ?? e.end_sec), description: String(e.description ?? "") }));
+    const bad = events.find((e) => !Number.isFinite(e.start) || !Number.isFinite(e.end) || e.end < e.start);
+    if (bad) {
+      out.push({ alias: t.alias, ok: false, status: "failed", error: `Marlin returned an unusable event span ${bad.start}–${bad.end}` });
+      continue;
+    }
+    const prev = readDescribe(p, t.id);
+    writeJson(describePath(p, t.id), {
+      format: "vos.describe/1", asset: t.id, scene: String(res.scene ?? res.caption ?? ""), events, finds: prev?.finds ?? [],
+      provenance: {
+        producer: "marlin-colab", model: prof.model, at: new Date().toISOString(), key: t.key,
+        ran: {
+          backend: "colab", session: c.session, job: r.id, gpu: (versions?.gpu as string) ?? null,
+          dtype: versions?.bf16 === false ? "bfloat16 (emulated: GPU has no bf16)" : "bfloat16", versions, revision: prof.revision,
+          worker_sha256: r.worker_sha256, input_sha256: t.input.sha256, sec: r.job.sec ?? null,
+        },
+      },
+    } satisfies DescribeRecord);
+    out.push({ alias: t.alias, ok: true, status: "built" });
+  }
   return out;
 }
 
