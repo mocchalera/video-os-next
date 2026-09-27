@@ -21,7 +21,7 @@ const TOKEN_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vos-hf-")), 
 fs.writeFileSync(TOKEN_FILE, "hf_dummy_for_tests\n");
 process.env.VOS_HF_TOKEN_FILE = TOKEN_FILE;
 const ENV = ["FAKE_EXEC_DROPS", "FAKE_EXEC_DROPS_AFTER", "FAKE_BOOT_FAIL", "FAKE_CORRUPT_UPLOAD", "FAKE_ANALYSIS_ITEM_FAIL", "FAKE_ANALYSIS_STRAY",
-  "FAKE_ANALYSIS_BAD_SUM", "FAKE_ANALYSIS_WRONG_ID", "FAKE_ANALYSIS_REV", "FAKE_NEVER_FINISHES", "FAKE_EMBED_NAN", "FAKE_EMBED_SHORT"];
+  "FAKE_ANALYSIS_BAD_SUM", "FAKE_ANALYSIS_WRONG_ID", "FAKE_ANALYSIS_REV", "FAKE_NEVER_FINISHES", "FAKE_EMBED_NAN", "FAKE_EMBED_SHORT", "FAKE_ANALYSIS_QUEUED"];
 
 function freshVm(): string {
   const vm = fs.mkdtempSync(path.join(os.tmpdir(), "vos-fakeana-"));
@@ -198,8 +198,9 @@ test("gated model: no token file refuses before any VM exists; the token travels
   vm = freshVm();
   remote.up({ budgetCu: 3 });
   const st = fakeState(vm);
-  assert.ok(st.uploads.includes("/content/vosana/.hf_token"), "uploaded as a file");
-  assert.equal(st.analysisBoots[0].token_file, "/content/vosana/.hf_token");
+  const tokenPath = st.analysisBoots[0].token_file;
+  assert.match(tokenPath, /^\/content\/vosana\/\.hf_token\.[0-9a-f-]{36}$/, "one file per request");
+  assert.ok(st.uploads.includes(tokenPath), "uploaded as a file");
   assert.ok(!JSON.stringify(st).includes("hf_dummy_for_tests"), "the token is in no snippet or call the VM side saw as code");
   remote.down();
 });
@@ -297,5 +298,40 @@ test("only the visual channel runs remotely", () => {
   const p = project();
   remote.up({ budgetCu: 3, profile: "visual" });
   assert.throws(() => indexChannel(p, ["tone"], "audio", { on: "colab", window: 2 }), (e: any) => e.code === "usage");
+  remote.down();
+});
+
+// ---------------- review fixes ----------------
+
+test("retrying a failed bootstrap sends the token again (the VM deleted the first one)", () => {
+  const vm = freshVm();
+  process.env.FAKE_BOOT_FAIL = "1";
+  remote.up({ budgetCu: 3 }); // marlin: gated
+  delete process.env.FAKE_BOOT_FAIL;
+  assert.equal(remote.up({ budgetCu: 3 }).status, "rebooting");
+  const boots = fakeState(vm).analysisBoots;
+  assert.ok(boots.at(-1).token_file, "the errored boot listed marlin, but nothing was downloaded: token sent again");
+  assert.notEqual(boots.at(-1).token_file, boots[0].token_file);
+  remote.down();
+});
+
+test("a session allocated by an interrupted up (no bootstrap yet) is resumed, not reported already_up", () => {
+  const vm = freshVm();
+  execFileSync(FAKE, ["start", "vos-analysis", "--gpu", "L4", "--budget-cu", "3", "--max-hours", "1", "--lease-min", "20"]);
+  const r = remote.up({ budgetCu: 3, profile: "visual" });
+  assert.equal(r.status, "resuming");
+  assert.equal(fakeState(vm).analysisBoots.length, 1);
+  assert.equal(remote.waitBoot(remote.analysisColab(), "visual").state, "ready");
+  remote.down();
+});
+
+test("a job the VM never starts is cancelled when the caller stops waiting", () => {
+  const vm = freshVm();
+  const p = project();
+  remote.up({ budgetCu: 3, profile: "visual" });
+  process.env.FAKE_ANALYSIS_QUEUED = "1";
+  assert.throws(() => indexChannel(p, ["clip"], "visual", { on: "colab" }), (e: any) => e.code === "colab_wait" && /start the job/.test(e.message));
+  const st = fakeState(vm);
+  assert.deepEqual(st.cancels, Object.keys(st.analysisRuns), "the queued job was cancelled");
   remote.down();
 });

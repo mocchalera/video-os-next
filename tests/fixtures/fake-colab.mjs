@@ -54,6 +54,7 @@ function analysis(code) {
     if (seenToken(r.token)) return;
     (state.analysisRuns ??= {})[r.id] = (state.analysisRuns[r.id] ?? 0) + 1;
     state.lastAnalysis = r;
+    if (process.env.FAKE_ANALYSIS_QUEUED) return; // stuck behind another job: never starts
     put(`${ANA}/jobs/${r.id}.started`, "");
     if (process.env.FAKE_NEVER_FINISHES) return;
     const bad = [r.worker, ...r.inputs].filter((x) => !check(x)).map((x) => x.sha256);

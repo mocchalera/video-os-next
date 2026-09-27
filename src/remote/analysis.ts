@@ -29,7 +29,8 @@ export const PROFILES = {
 } as const;
 export type Profile = keyof typeof PROFILES;
 
-const REMOTE_TOKEN = `${REMOTE_ROOT}/.hf_token`;
+/** One file per bootstrap request, so a request that finds a bootstrap already running can delete its own copy. */
+const remoteToken = () => `${REMOTE_ROOT}/.hf_token.${randomUUID()}`;
 
 /**
  * The Hugging Face token file for gated models: VOS_HF_TOKEN_FILE, else ~/.config/vos/hf_token. vos never reads
@@ -77,8 +78,9 @@ const wireProfiles = (ps: Profile[]) => ps.map((name) => ({ name, model: PROFILE
 /** Load the worker and start its bootstrap; a gated model's token file travels by upload, never in the snippet. */
 function bootstrapOn(c: Colab, profiles: Profile[], tokenFile: string | null): void {
   rc.exec(c, fs.readFileSync(VM_WORKER, "utf8"));
-  if (tokenFile) rc.upload(c, tokenFile, REMOTE_TOKEN, 60_000);
-  rc.exec(c, rc.pyCall("analysis_bootstrap", { profiles: wireProfiles(profiles), ...(tokenFile ? { token_file: REMOTE_TOKEN } : {}) }));
+  const remote = tokenFile ? remoteToken() : null;
+  if (tokenFile) rc.upload(c, tokenFile, remote!, 60_000);
+  rc.exec(c, rc.pyCall("analysis_bootstrap", { profiles: wireProfiles(profiles), ...(remote ? { token_file: remote } : {}) }));
 }
 
 function readBoot(c: Colab): any | null {
@@ -99,12 +101,17 @@ export function up(o: RemoteUpOptions) {
     // A running session is extended in place: a failed bootstrap is retried, a missing profile is added (the
     // worker reload keeps its queue). A healthy session that already covers the request is left alone.
     const boot = readBoot(c);
-    if (!boot || (boot.state === "ready" && covers(boot, want))) return { ok: true, session: c.session, status: "already_up" };
-    const kept = boot.state === "ready" ? (Object.keys(boot.profiles ?? {}).filter((p) => p in PROFILES) as Profile[]) : [];
+    if (boot?.state === "ready" && covers(boot, want)) return { ok: true, session: c.session, status: "already_up" };
+    const ready = boot?.state === "ready";
+    const kept = ready ? (Object.keys(boot.profiles ?? {}).filter((p) => p in PROFILES) as Profile[]) : [];
     const all = [...new Set([...kept, ...want])];
-    bootstrapOn(c, all, needToken(all.filter((p) => !covers(boot, [p]))));
-    const res: any = { ok: true, session: c.session, status: boot.state === "error" ? "rebooting" : "extending", profiles: all, bootstrap: "started",
-      ...(boot.state === "error" ? { previous_error: String(boot.error ?? "").slice(-300) } : {}) };
+    // Only a ready boot has downloaded anything: an errored one lists its profiles too, yet still needs the token.
+    // No boot.json at all is a bootstrap still running (the VM ignores the request) or one that never started
+    // (an `up` interrupted after the VM was allocated): sending the request again covers both.
+    bootstrapOn(c, all, needToken(ready ? all.filter((p) => !covers(boot, [p])) : all));
+    const status = !boot ? "resuming" : boot.state === "error" ? "rebooting" : "extending";
+    const res: any = { ok: true, session: c.session, status, profiles: all, bootstrap: "started",
+      ...(boot?.state === "error" ? { previous_error: String(boot.error ?? "").slice(-300) } : {}) };
     if (o.wait) res.boot = waitBoot(c, want);
     return res;
   }
@@ -215,8 +222,10 @@ export function runJob(c: Colab, profile: Profile, spec: JobSpec, timeoutSec = 3
   rc.exec(c, rc.pyCall("analysis_submit", {
     id, token: randomUUID(), kind: spec.kind, inputs: spec.inputs.map(wire), worker: wire(worker), env: spec.env ?? {}, timeout: timeoutSec, ...(spec.extra ?? {}),
   }));
-  rc.wait(c, `${REMOTE_ROOT}/jobs/${id}.started`, 180, "the VM to start the job");
   try {
+    // queued behind another job (e.g. a long index in another terminal) counts as started-late, not lost:
+    // either way, a caller that stops waiting cancels the job so it never runs unwatched on the budget
+    rc.wait(c, `${REMOTE_ROOT}/jobs/${id}.started`, 180, "the VM to start the job");
     rc.wait(c, `${REMOTE_ROOT}/jobs/${id}.done`, timeoutSec + 60, "the job to finish");
   } catch (e: any) {
     // a local timeout does not stop anything on the VM: kill the job there too (the session keeps its lease)

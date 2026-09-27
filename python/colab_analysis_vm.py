@@ -149,9 +149,12 @@ def _bootstrap(req):
     try:
         if not os.environ.get("VOSANA_PYTHON"):
             venv = f"{ROOT}/venv"
-            want = " ".join(f"'{x}'" for x in _pins(names))
-            marker = f"{venv}/.vos-ready"
-            if not (os.path.exists(marker) and open(marker).read() == want):
+            marker = f"{venv}/.vos-ready"  # one installed pin per line
+            have = None
+            if os.path.exists(marker):
+                with open(marker) as fh:
+                    have = fh.read().split("\n")
+            if have is None:
                 # A venv only counts once its pins are installed: a half-made one (live: the first attempt died in
                 # ensurepip and left a venv without system site packages) is rebuilt, not reused.
                 shutil.rmtree(venv, ignore_errors=True)
@@ -159,9 +162,14 @@ def _bootstrap(req):
                 # --without-pip: Colab's python has no ensurepip; the image's pip (/usr/local/.../dist-packages) is
                 # visible through the system site packages and installs into the venv when run by its python.
                 _sh(f"{sys.executable} -m venv --system-site-packages --without-pip {venv}")
-                _sh(f"{venv}/bin/python -m pip install -q {want}")
+                have = []
+            # Adding a profile to a live session only installs what is missing: a working venv is never removed
+            # (jobs of the other profile may be running from it).
+            missing = [x for x in _pins(names) if x not in have]
+            if missing:
+                _sh(f"{venv}/bin/python -m pip install -q " + " ".join(f"'{x}'" for x in missing))
                 with open(marker, "w") as f:
-                    f.write(want)
+                    f.write("\n".join([*have, *missing]))
             STATE["python"] = f"{venv}/bin/python"
         os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
         token = _token(req)
@@ -196,6 +204,7 @@ def analysis_bootstrap(req):
         print(json.dumps({"ok": True, "bootstrap": "already ready"}))  # idempotent: a retried exec must not restart it
         return
     if any(t.name == "vosana-boot" and t.is_alive() for t in threading.enumerate()):
+        _forget_token(req)  # each request has its own token file; the running bootstrap keeps its own
         print(json.dumps({"ok": True, "bootstrap": "running"}))
         return
     for f in ("boot.json", "boot.done", "boot.started"):
@@ -362,9 +371,18 @@ def _run_job(r):
     _write(f"{ROOT}/jobs/{r['id']}.json", rep, f"{ROOT}/jobs/{r['id']}.done")
 
 
+_CANCELLED = globals().get("_CANCELLED") or set()  # queued job ids to drop instead of run
+
+
 def _worker():
     while True:
         r = _JOBS.get()
+        if r["id"] in _CANCELLED:  # the caller gave up while it was queued: do not spend GPU on it
+            _CANCELLED.discard(r["id"])
+            _ACTIVE.pop(r["id"], None)
+            _write(f"{ROOT}/jobs/{r['id']}.json", {"id": r["id"], "state": "error", "error": "cancelled before it started"},
+                   f"{ROOT}/jobs/{r['id']}.done")
+            continue
         open(f"{ROOT}/jobs/{r['id']}.started", "w").close()
         try:
             _run_job(r)
@@ -402,12 +420,18 @@ def analysis_submit(r):
 
 
 def analysis_cancel(req):
-    p = _ACTIVE.get(req["id"])
-    if p is not None and p.poll() is None:
-        os.killpg(p.pid, signal.SIGKILL)
-        print(json.dumps({"ok": True, "cancelled": req["id"]}))
+    jid = req["id"]
+    if jid not in _ACTIVE:
+        print(json.dumps({"ok": True, "cancelled": None}))
         return
-    print(json.dumps({"ok": True, "cancelled": None}))
+    p = _ACTIVE.get(jid)
+    if p is None:  # still queued
+        _CANCELLED.add(jid)
+        print(json.dumps({"ok": True, "cancelled": jid, "queued": True}))
+        return
+    if p.poll() is None:
+        os.killpg(p.pid, signal.SIGKILL)
+    print(json.dumps({"ok": True, "cancelled": jid}))
 
 
 print(json.dumps({"ok": True, "worker": "vosana"}))

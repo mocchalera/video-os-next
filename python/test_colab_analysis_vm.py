@@ -231,6 +231,65 @@ class EmbedJobTests(unittest.TestCase):
         self.assertIn("--profile", k.wait_done("e5")["error"])
 
 
+class ReviewFixTests(unittest.TestCase):
+    def test_adding_a_profile_installs_only_what_is_missing_and_never_removes_the_venv(self):
+        import types
+        k = Kernel()
+        del os.environ["VOSANA_PYTHON"]
+        try:
+            venv = Path(k.root, "venv")
+            venv.mkdir()
+            (venv / "in-use").write_text("a running job's files")
+            (venv / ".vos-ready").write_text("\n".join(k.ns["PROFILES"]["marlin"]["pip"]))
+            cmds = []
+            k.ns["_sh"] = lambda cmd, check=True: cmds.append(cmd) or ""
+            k.ns["_versions"] = lambda py: {"torch": "x"}
+            sys.modules["huggingface_hub"] = types.SimpleNamespace(snapshot_download=lambda *a, **kw: os.makedirs(kw["local_dir"], exist_ok=True))
+            k.ns["_bootstrap"]({"profiles": [{"name": "marlin", "model": "m", "revision": "r"}, {"name": "visual", "model": "v", "revision": "r"}]})
+        finally:
+            sys.modules.pop("huggingface_hub", None)
+            os.environ["VOSANA_PYTHON"] = sys.executable
+        self.assertTrue((venv / "in-use").exists(), "the venv survived")
+        self.assertEqual(len(cmds), 1, cmds)
+        self.assertIn("sentence-transformers==5.6.0", cmds[0])
+        self.assertNotIn("transformers==5.12.1'", cmds[0].replace("sentence-transformers==5.6.0", ""), "already-installed pins are not reinstalled")
+        self.assertIn("sentence-transformers==5.6.0", (venv / ".vos-ready").read_text())
+        self.assertEqual(json.loads(Path(k.root, "boot.json").read_text())["state"], "ready")
+
+    def test_a_job_cancelled_while_queued_never_runs(self):
+        k = Kernel()
+        gate, ran = threading.Event(), []
+        k.ns["KINDS"]["describe"] = lambda r, rep: (ran.append(r["id"]), gate.wait(3))
+        a = k.put(b"clip-a", "mp4")
+        job = lambda i: {"id": i, "token": i, "kind": "describe", "inputs": [a], "worker": k.worker()}
+        k.ns["analysis_submit"](job("busy"))
+        for _ in range(100):
+            if ran:
+                break
+            time.sleep(0.02)
+        k.ns["analysis_submit"](job("queued"))
+        k.ns["analysis_cancel"]({"id": "queued"})
+        gate.set()
+        rep = k.wait_done("queued")
+        self.assertEqual(ran, ["busy"])
+        self.assertIn("cancelled before it started", rep["error"])
+        self.assertFalse(Path(k.root, "jobs", "queued.started").exists())
+
+    def test_a_request_that_finds_a_bootstrap_running_deletes_its_own_token_copy(self):
+        k = Kernel()
+        stop = threading.Event()
+        t = threading.Thread(target=stop.wait, name="vosana-boot", daemon=True)
+        t.start()
+        try:
+            tok = Path(k.root, ".hf_token.second")
+            tok.write_text("x")
+            k.ns["STATE"]["boot"] = None
+            k.ns["analysis_bootstrap"]({"profiles": [{"name": "marlin", "model": "m", "revision": "r"}], "token_file": str(tok)})
+            self.assertFalse(tok.exists())
+        finally:
+            stop.set()
+
+
 class TokenTests(unittest.TestCase):
     def _boot(self, fail):
         import types
