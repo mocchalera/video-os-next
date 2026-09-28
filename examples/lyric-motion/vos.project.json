@@ -1,0 +1,6 @@
+{
+  "canvas": { "fps": 24, "height": 1080, "width": 1920 },
+  "format": "vos.project/1",
+  "name": "lyric-motion",
+  "timeline": "timeline.json"
+}

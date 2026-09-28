@@ -21,6 +21,8 @@ ap.add_argument("--lang", default=None)
 ap.add_argument("--vocab", default="")
 ap.add_argument("--device", default="cpu")
 ap.add_argument("--compute", default="int8")
+# singing: Silero VAD (tuned for speech) drops sung vocals over music; the song is transcribed without it
+ap.add_argument("--no-vad", action="store_true")
 a = ap.parse_args()
 
 try:
@@ -30,7 +32,7 @@ try:
     t0 = time.time()
     model = WhisperModel(a.model, device=a.device, compute_type=a.compute)
     segs, info = model.transcribe(
-        a.file, language=a.lang or None, word_timestamps=True, vad_filter=True, beam_size=5,
+        a.file, language=a.lang or None, word_timestamps=True, vad_filter=not a.no_vad, beam_size=5,
         # vocabulary bias: proper nouns / terms of this piece (e.g. 紙の船 so it is not heard as 髪の船)
         initial_prompt=a.vocab or None, hotwords=a.vocab or None, condition_on_previous_text=False)
     out = []

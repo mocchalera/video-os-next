@@ -19,6 +19,7 @@ There is no pipeline to follow; there is a project state to read and an edit doc
 | Models present? | `vos models` / `vos models pull visual\|audio` (network, ask the human first) | HF cache, `~/.cache/vos/models` |
 | Tempo of music | `vos beats <alias>` | `.vos/analysis/<id>/beats.json` |
 | What is said, and when | `vos transcribe <alias> [--lang ja] [--vocab "固有名詞, …"]` (local faster-whisper, cached models only) → captions via `{"$transcript": alias}` (see `examples/graphics/captions.html`) | `.vos/analysis/<id>/transcript.json` |
+| Lyrics / on-screen type in motion (文字PV) | read `skills/jizura-lyric-type/SKILL.md` → `vos transcribe music --singing` → `vos lyrics time sheet.txt --from music` → copy `examples/graphics/lyric-motion.html` → `vos lyrics fonts` → `vos lyrics plan [--markers write]` (example: `examples/lyric-motion/`). Telops over footage: `"mode": "telop"`; keep lines while changing one: `vos lyrics lock` / `unlock --lines n` (SKILL §12) | `data/lyrics.json` + clip props; the cut plan is derived from them + `seed` |
 | Edit | write `timeline.json` + `graphics/*.html` | those files (the only edit state) |
 | Build / render | `vos compile` / `vos render [--draft]` | `.vos/build/`, `out/*.receipt.json` |
 | Check | `vos inspect` → findings with times + frame sheets | `out/*.inspect.json` |
@@ -81,6 +82,7 @@ Fonts must be declared with `@font-face` in `design/` (lint rejects undeclared f
   `VOS_EMBED_MOCK=1` gives deterministic vectors for tests).
 - Search channels never mix vector spaces; `find` fuses ranks (RRF) and says which channels it
   could not use and why. A missing model is reported, never silently skipped.
+- Before writing lyrics, captions or any typographic graphic, read `skills/jizura-lyric-type/SKILL.md` (JIZURA's typesetting and motion rules).
 - Before writing a previz scene, read `skills/previz-camera/SKILL.md` (intent → lens, shot size and camera move, built with `rig`).
 - Before any `vos gen clip`, read `skills/h3-prompt/SKILL.md` (official H3 prompt format; vos adds the frame-alignment line).
 - Generated footage is 24 fps. A piece built mostly on it should use a 24 fps canvas (`vos init --fps 24`,

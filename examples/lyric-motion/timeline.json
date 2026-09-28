@@ -1,0 +1,49 @@
+{
+  "format": "vos.timeline/1",
+  "name": "lyric-motion",
+  "duration": 24,
+  "grid": {
+    "bpm": 120,
+    "offset": 0
+  },
+  "tracks": [
+    {
+      "id": "G1",
+      "kind": "graphics",
+      "clips": [
+        {
+          "id": "lyrics",
+          "src": "graphics/lyric-motion.html",
+          "at": 0,
+          "dur": 24,
+          "props": {
+            "lyrics": {
+              "$data": "data/lyrics.json"
+            },
+            "style": "paper",
+            "seed": 3,
+            "fonts": "jizura",
+            "title": "夜明け"
+          }
+        }
+      ]
+    }
+  ],
+  "markers": [
+    {
+      "at": 9.55,
+      "dur": 0.275,
+      "kind": "expect-flash",
+      "label": "lyric-motion: flash"
+    },
+    {
+      "at": 16.525,
+      "dur": 0.442,
+      "kind": "expect-flash",
+      "label": "lyric-motion: filmBurn"
+    }
+  ],
+  "master": {
+    "loudness": null
+  }
+}

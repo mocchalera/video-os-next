@@ -63,7 +63,7 @@ const sec = (frames: number, fps: number) => String(framesToSeconds(frames, fps)
  *   {"$asset": "<alias>"}     → portable asset record
  *   {"$assets": true}         → all asset records by alias
  */
-function bindProps(p: Project, v: any, inputs: CompileInputs, where: string): any {
+export function bindProps(p: Project, v: any, inputs: CompileInputs, where: string): any {
   if (Array.isArray(v)) return v.map((x, i) => bindProps(p, x, inputs, `${where}[${i}]`));
   if (!v || typeof v !== "object") return v;
   const keys = Object.keys(v);

@@ -1,0 +1,10 @@
+[
+  {"at": 0.8, "text": "夜明けの色を 覚えてる"},
+  {"at": 3.6, "text": "まだ眠い街を/ひとりで歩く", "treat": "extrude"},
+  {"at": 6.6, "text": "信号が青に変わるまで|signal", "bg": "seigaiha"},
+  {"at": 9.8, "text": "走り出せ!", "section": true},
+  {"at": 11.4, "text": "君の名前を *呼んで* いた", "enter": "assemble"},
+  {"at": 14.6, "text": "Good morning 新しい朝", "trans": "irisOpen"},
+  {"at": 17.8, "text": "夜明けの色を 覚えてる"},
+  {"at": 21.0, "text": "もう一度だけ", "end": 23.4, "exit": "explode"}
+]

@@ -14,7 +14,11 @@ import * as gen from "./gen/colab.ts";
 import * as remote from "./remote/analysis.ts";
 import { initLibrary, listLibrary } from "./gen/library.ts";
 import { renderPreviz } from "./gen/previz.ts";
-import { transcribe } from "./analyze/transcribe.ts";
+import { readTranscript, transcribe } from "./analyze/transcribe.ts";
+import { alignLyrics, parseSheet } from "./lyrics/align.ts";
+import { lyricFonts } from "./lyrics/fonts.ts";
+import { lyricPlans, writeMarkers } from "./lyrics/plan.ts";
+import { lockLyrics } from "./lyrics/lock.ts";
 import { parseTime } from "./core/time.ts";
 import { loadTimeline, resolveTimeline, timelinePath } from "./core/timeline.ts";
 import { readJson, which, VosError, writeJson } from "./core/util.ts";
@@ -35,7 +39,7 @@ eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--w
          vos find "<event>" --asset alias           Marlin temporal find inside one clip
          vos models [pull <visual|audio>]           embedding models: status / download (network)
 ears     vos beats <alias> [--hint 120]
-         vos transcribe <alias…> [--model small] [--lang ja] [--vocab "紙の船, 路地"] [--force]   speech → segments + word times (local faster-whisper)
+         vos transcribe <alias…> [--model small] [--lang ja] [--vocab "紙の船, 路地"] [--singing] [--force]   speech → segments + word times (local faster-whisper; --singing: sung vocals over music)
 make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait] [--light --gpu T4]   rent a guarded Colab GPU (costs money: ask the human for N)
          vos gen clip --prompt "…"|--prompt-file f.txt [--from alias@sec] [--to alias@sec] [--refs a@s,b] [--guides a@s=t,…] [--ref-size match|max] [--quality turbo|full] [--control depth_alias [--control-strength 1] [--control-end 1]] [--seconds 5] [--size 768p|draft|WxH] [--seed 1] [--dense] [--as alias]
          vos previz render <scene.py> [--as name] [--seconds 5] [--size 768p]   Blender layout → beauty + depth passes (for --control)
@@ -44,6 +48,11 @@ make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait] [--l
          vos gen library [--search words] [--init <dir>] · vos gen pull <id> [--as alias]   shared takes (e.g. Google Drive)
 offload  vos remote up --budget-cu N [--profile marlin|visual|marlin,visual] [--gpu L4] [--max-hours 2] [--wait]   guarded analysis VM (costs money: ask the human for N)
          vos remote status | down                   then \`vos describe --all --on colab\` / \`vos index --channels visual --on colab\`; results carry where they ran
+lyrics   vos lyrics time <sheet.txt> --from <alias> [--out data/lyrics.json]   lyric sheet + transcript word times → timed lines (after \`vos transcribe <alias> --singing\`)
+         vos lyrics plan [--clip id] [--markers write]   cut plan of the lyric-motion clips (timeline seconds, parts, キメ) without rendering; flash / black markers
+         vos lyrics fonts [--download] [--check]   JIZURA's faces subset to the lyrics → design/jizura-fonts.css ("fonts": "jizura"); reports missing glyphs
+         vos lyrics lock [--lines 0,2-5|all] [--except 3] [--clip id]   keep what those lines show now while others change (stored in the lyric data)
+         vos lyrics unlock [--lines …] [--clip id]   let them be replanned again
 hands    vos compile [--timeline f]                  timeline + graphics → HyperFrames page
          vos render [--draft] [--graphics-only] [--out f]
 verify   vos inspect [render.mp4]                    evidence: findings with times + frame sheets
@@ -242,7 +251,7 @@ async function main() {
     case "transcribe": {
       const p = proj(a);
       if (!rest.length) throw new VosError("usage", "vos transcribe <alias…>");
-      const rs = rest.map((al) => transcribe(p, al, { model: a.model, lang: a.lang, vocab: a.vocab, force: !!a.force }));
+      const rs = rest.map((al) => transcribe(p, al, { model: a.model, lang: a.lang, vocab: a.vocab, force: !!a.force, singing: !!a.singing }));
       out(rs.map((r) => ({ alias: r.alias, status: r.status, language: r.record.language, segments: r.record.segments })), () => {
         for (const r of rs) {
           console.log(`${r.status.padEnd(6)} ${r.alias}  ${r.record.language}  ${r.record.segments.length} segment(s)  ${r.record.provenance.model}`);
@@ -365,6 +374,70 @@ async function main() {
       writeJson(path.join(P.analysis(p.root, asset.id), "beats.json"), { ...r, asset: asset.id });
       out({ ...r, beats: `${r.beats.length} beats` }, () => console.log(`${asset.alias}: ${r.bpm} BPM, offset ${r.offset}s, confidence ${r.confidence}`));
       return;
+    }
+
+    case "lyrics": {
+      const p = proj(a);
+      const sub = rest[0];
+      if (sub === "time") {
+        if (!rest[1] || !a.from) throw new VosError("usage", "vos lyrics time <sheet.txt> --from <alias> [--out data/lyrics.json]");
+        const sheet = parseSheet(fs.readFileSync(path.resolve(rest[1]), "utf8"));
+        const asset = resolveAsset(p, String(a.from));
+        const tr = readTranscript(p, asset.id);
+        const words = (tr?.segments ?? []).flatMap((sg) => (sg.words?.length ? sg.words : [{ start: sg.start, end: sg.end, word: sg.text, p: 1 }]));
+        if (!words.length) throw new VosError("no_transcript", `no transcribed words for "${asset.alias}"`, `run \`vos transcribe ${asset.alias} --singing --lang ja\` (sung vocals need --singing: the speech filter drops them)`);
+        const r = alignLyrics(sheet.lines, words);
+        const file = path.resolve(p.root, String(a.out ?? "data/lyrics.json"));
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, "[\n" + r.lines.map((l) => "  " + JSON.stringify(l)).join(",\n") + "\n]\n");
+        const report = { out: path.relative(p.root, file), lines: r.lines.length, flagged: r.flagged.map((i) => ({ at: r.lines[i].at, text: r.lines[i].text, confidence: r.lines[i].confidence })), skipped: sheet.skipped, transcript: tr?.provenance };
+        out(report, () => {
+          console.log(`${report.out}: ${r.lines.length} lines timed from ${asset.alias} (${tr?.provenance.model}${tr?.provenance.singing ? ", singing" : ""})`);
+          for (const l of r.lines) console.log(`  ${l.at.toFixed(2).padStart(7)}  ${l.interpolated ? "?" : l.confidence < 0.6 ? "~" : " "} ${String(Math.round(l.confidence * 100)).padStart(3)}%  ${l.text}`);
+          if (r.lines.some((l) => !l.interpolated && l.confidence < 0.6)) console.log(`\n~ = heard with other spellings: the time is usually right, check it by ear`);
+          if (r.flagged.length) console.log(`? = not heard in the transcript, interpolated between its neighbours — check these by ear and fix "at" by hand`);
+          for (const k of sheet.skipped) console.log(`skipped line ${k.srcLine}: ${k.text} — ${k.why}`);
+        });
+        return;
+      }
+      if (sub === "plan") {
+        const plans = lyricPlans(p, { timeline: a.timeline, clip: a.clip });
+        const wrote = a.markers === "write" ? writeMarkers(p, plans, a.timeline) : null;
+        out({ plans, markers_written: wrote }, () => {
+          for (const pl of plans) {
+            console.log(`${pl.clip}  ${pl.src}  style ${pl.style}  seed ${pl.seed}  ${pl.cuts.length} cuts / ${pl.lines.length} lines`);
+            for (const c of pl.cuts) console.log(`${c.locked ? "🔒" : "  "}${c.t0.toFixed(2).padStart(7)}–${c.t1.toFixed(2).padEnd(7)} L${String(c.line).padEnd(3)} ${(c.kime ? "KIME " : c.recap ? "recap" : "").padEnd(5)} ${c.text.padEnd(14, "　")}  ${c.layout} / ${c.enter} / ${c.hold} / ${c.exit}${c.treat !== "none" ? "  treat " + c.treat : ""}${c.bg !== "none" ? "  bg " + c.bg : ""}  cam ${c.cam}${c.trans ? "  ← " + c.trans : ""}${c.morph ? "  ← morph" : ""}${c.decor.length ? "  + " + c.decor.join(",") : ""}`);
+            if (pl.markers.length) console.log(`  markers: ${pl.markers.map((m) => `${m.kind}@${m.at}`).join("  ")}${wrote ? "  (written to " + wrote.file + ")" : "  (add them with --markers write)"}`);
+            for (const w of pl.warnings) console.log(`  warning: ${w}`);
+          }
+        });
+        return;
+      }
+      if (sub === "fonts") {
+        const r = lyricFonts(p, { timeline: a.timeline, download: !!a.download, check: !!a.check, text: a.text });
+        out(r, () => {
+          console.log(`${r.written ? "wrote" : "checked"} ${r.faces.length} faces → ${r.design}/jizura-fonts.css (${r.glyphs} glyphs, ${Math.round(r.faces.reduce((s, f) => s + f.bytes, 0) / 1024)} KB)`);
+          for (const [fam, cs] of Object.entries(r.missing)) console.log(`  ${fam} lacks ${cs}`);
+          if (r.written) console.log(`use "fonts": "jizura" in the lyric-motion clip props`);
+        });
+        return;
+      }
+      if (sub === "lock" || sub === "unlock") {
+        const r = lockLyrics(p, { timeline: a.timeline, clip: a.clip, lines: a.lines, except: a.except, unlock: sub === "unlock" });
+        out(r, () => {
+          if (sub === "lock") {
+            console.log(`${r.clip}: locked ${r.locked.length} line(s) in ${r.file}`);
+            for (const l of r.locked) console.log(`  🔒 L${String(l.line).padEnd(3)} ${l.text}  (${l.cuts} cut${l.cuts > 1 ? "s" : ""})`);
+            console.log(`other lines can now be directed or rerolled; these keep exactly what they show (\`vos lyrics unlock --lines …\` to release)`);
+          } else {
+            console.log(`${r.clip}: unlocked ${r.unlocked.length} line(s) in ${r.file}`);
+            for (const l of r.unlocked) console.log(`     L${String(l.line).padEnd(3)} ${l.text}`);
+          }
+          for (const s2 of r.skipped) console.log(`  skipped L${s2.line}: ${s2.why}`);
+        });
+        return;
+      }
+      throw new VosError("usage", "vos lyrics time | plan | fonts | lock | unlock", "run `vos help`");
     }
 
     case "compile": {

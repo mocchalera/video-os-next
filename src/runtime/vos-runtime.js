@@ -17,6 +17,7 @@
       root: root,
       props: meta.props || {},
       dur: meta.dur,
+      start: meta.start,   // timeline seconds where this clip starts (graphics that follow the timeline grid need it)
       fps: cfg.fps,
       spb: spb,
       b: function (n) { return n * spb; },

@@ -20,7 +20,7 @@ export interface TranscriptRecord {
   asset: string;
   language: string;
   segments: TranscriptSegment[];
-  provenance: { engine: string; model: string; vocab: string; key: string; at: string };
+  provenance: { engine: string; model: string; vocab: string; key: string; at: string; singing?: boolean };
 }
 
 const WORKER = path.join(REPO, "python", "asr_worker.py");
@@ -40,14 +40,16 @@ export function asrPython(): string | null {
   return (cachedPy = null);
 }
 
-export interface TranscribeOptions { model?: string; lang?: string; vocab?: string; force?: boolean }
+/** singing: no voice-activity filter (Silero VAD drops sung vocals over music: a whole song came back with 0 segments) */
+export interface TranscribeOptions { model?: string; lang?: string; vocab?: string; force?: boolean; singing?: boolean }
 
 export function transcribe(p: Project, alias: string, o: TranscribeOptions = {}): { alias: string; status: "built" | "fresh"; record: TranscriptRecord } {
   const a = resolveAsset(p, alias);
   if (!a.has_audio) throw new VosError("no_audio", `"${a.alias}" has no audio stream`);
   const model = o.model ?? "small";
   const vocab = (o.vocab ?? "").trim();
-  const key = sha256(stableStringify({ id: a.id, model, lang: o.lang ?? null, vocab, v: 1 })).slice(0, 16);
+  const singing = !!o.singing;
+  const key = sha256(stableStringify({ id: a.id, model, lang: o.lang ?? null, vocab, v: 1, ...(singing ? { singing } : {}) })).slice(0, 16);
   const prev = readTranscript(p, a.id);
   if (prev && prev.provenance.key === key && !o.force) return { alias: a.alias, status: "fresh", record: prev };
   const py = asrPython();
@@ -57,7 +59,7 @@ export function transcribe(p: Project, alias: string, o: TranscribeOptions = {})
   const d = run("ffmpeg", ["-v", "error", "-y", "-i", requireOnline(a), "-vn", "-ac", "1", "-ar", "16000", wav]);
   if (d.status !== 0) throw new VosError("decode_failed", `could not decode the audio of ${a.alias}`, d.stderr.slice(-300));
   const out = path.join(tmp, "t.json");
-  const args = [WORKER, "--file", wav, "--out", out, "--model", model, ...(o.lang ? ["--lang", o.lang] : []), ...(vocab ? ["--vocab", vocab] : [])];
+  const args = [WORKER, "--file", wav, "--out", out, "--model", model, ...(o.lang ? ["--lang", o.lang] : []), ...(vocab ? ["--vocab", vocab] : []), ...(singing ? ["--no-vad"] : [])];
   const r = run(py, args, { env: { ...process.env, HF_HUB_OFFLINE: "1" }, timeout: 60 * 60 * 1000 });
   const line = r.stdout.trim().split("\n").filter((l) => l.startsWith("{")).pop();
   const res = line ? JSON.parse(line) : { ok: false, error: r.stderr.slice(-500) };
@@ -65,7 +67,7 @@ export function transcribe(p: Project, alias: string, o: TranscribeOptions = {})
   const raw = JSON.parse(fs.readFileSync(out, "utf8"));
   const record: TranscriptRecord = {
     format: "vos.transcript/1", asset: a.id, language: raw.language, segments: raw.segments,
-    provenance: { engine: raw.engine, model, vocab, key, at: new Date().toISOString() },
+    provenance: { engine: raw.engine, model, vocab, key, at: new Date().toISOString(), ...(singing ? { singing } : {}) },
   };
   writeJson(transcriptPath(p, a.id), record, false);
   fs.rmSync(tmp, { recursive: true, force: true });
