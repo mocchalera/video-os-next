@@ -55,7 +55,9 @@ export function mixAudio(r: Resolved, outWav: string, tmpDir: string): MixReport
     if (m.fade.in > 0) f.push(`afade=t=in:st=0:d=${r3(m.fade.in)}`);
     if (m.fade.out > 0) f.push(`afade=t=out:st=${r3(Math.max(0, dur - m.fade.out))}:d=${r3(m.fade.out)}`);
     const ms = Math.round((m.start / fps) * 1000);
-    f.push(`adelay=${ms}:all=1`, `apad=whole_dur=${r3(total)}`, `atrim=0:${r3(total)}`);
+    // asetpts: some sources (iPhone MOV seeked with -ss) leave pts that atrim misreads after adelay/apad, dropping
+    // the delayed audio; the chain is contiguous from 0 here, so sample-count timestamps are exact.
+    f.push(`adelay=${ms}:all=1`, `apad=whole_dur=${r3(total)}`, "asetpts=N/SR/TB", `atrim=0:${r3(total)}`);
     chains.push(`[${i}:a]${f.join(",")}[s${i}]`);
     byTrack.set(m.track, [...(byTrack.get(m.track) ?? []), `[s${i}]`]);
   });
