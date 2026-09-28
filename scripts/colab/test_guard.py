@@ -54,6 +54,7 @@ class FakeBackend:
         self.assigned.pop(endpoint, None)
 
     def exec_file(self, name, file, timeout):
+        self.calls.append(("exec", name, os.path.basename(file)))
         return 0
 
 
@@ -160,6 +161,36 @@ class HardTimeoutTest(unittest.TestCase):
         left = subprocess.run(["pgrep", "-f", str(fake)], capture_output=True, text=True).stdout.strip()
         self.assertEqual(left, "")
 
+
+
+class WaitKeepAlive(unittest.TestCase):
+    """cmd_wait keeps the kernel busy so Colab does not reclaim the VM during a long background job."""
+
+    def run_wait(self, keepalive, minutes=25):
+        be = FakeBackend()
+        start(be, "ka")
+        clock = [time.time()]
+        real_time, real_sleep, real_run = guard.time.time, guard.time.sleep, guard.subprocess.run
+        guard.time.time = lambda: clock[0]
+        guard.time.sleep = lambda s: clock.__setitem__(0, clock[0] + s)
+        guard.subprocess.run = lambda *a, **k: subprocess.CompletedProcess([], 1, "", "")  # file never appears
+        try:
+            ns = type("A", (), {"name": "ka", "path": "/content/x/done.json", "timeout": minutes * 60, "every": 15.0, "keepalive": keepalive})
+            rc = guard.cmd_wait(ns, be)
+        finally:
+            guard.time.time, guard.time.sleep, guard.subprocess.run = real_time, real_sleep, real_run
+            guard.stop_session(guard.load("ka"), be, "test")
+        return rc, [c for c in be.calls if c[0] == "exec"]
+
+    def test_pings_kernel_every_five_minutes(self):
+        rc, pings = self.run_wait(300)
+        self.assertEqual(rc, 124)
+        self.assertEqual(len(pings), 4)  # 25 min wait: pings at 5, 10, 15, 20 (never 20 min silent)
+        self.assertEqual(pings[0][2], "keepalive.py")
+
+    def test_keepalive_can_be_disabled(self):
+        _, pings = self.run_wait(0)
+        self.assertEqual(pings, [])
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

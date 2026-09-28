@@ -275,11 +275,31 @@ def cmd_exec(a, be) -> int:
     return rc
 
 
+KEEPALIVE_CODE = "pass  # vos-colab keep-alive: kernel activity so Colab does not reclaim an idle-looking runtime\n"
+
+
+def keepalive_file() -> str:
+    f = HOME / "keepalive.py"
+    HOME.mkdir(parents=True, exist_ok=True)
+    if not f.exists():
+        f.write_text(KEEPALIVE_CODE)
+    return str(f)
+
+
 def cmd_wait(a, be) -> int:
-    """Poll for a file on the VM, renewing the lease while waiting (for background jobs)."""
+    """Poll for a file on the VM, renewing the lease while waiting (for background jobs).
+
+    Colab reclaims a runtime whose kernel has run nothing for ~20 minutes, even while a background job (ComfyUI,
+    a worker) is busy on the GPU; polling files does not count as activity. So every `--keepalive` seconds (0 = off)
+    run a no-op in the kernel. Measured 2026-09-29: VMs vanished 21-22 min after the last kernel exec, mid-job."""
     deadline = time.time() + a.timeout
+    last_ping = time.time()
     while time.time() < deadline:
         renew(a.name)
+        if a.keepalive > 0 and time.time() - last_ping >= a.keepalive:
+            rc = be.exec_file(a.name, keepalive_file(), 60)
+            print(json.dumps({"keepalive": rc}), file=sys.stderr)
+            last_ping = time.time()
         r = subprocess.run([be.colab, "ls", "-s", a.name, os.path.dirname(a.path)], capture_output=True, text=True, timeout=60)
         if os.path.basename(a.path) in r.stdout.split():
             print(json.dumps({"ok": True, "found": a.path}))
@@ -348,6 +368,7 @@ def main(argv: list[str] | None = None, be=None) -> int:
     w.add_argument("path")
     w.add_argument("--timeout", type=float, default=1800.0)
     w.add_argument("--every", type=float, default=30.0)
+    w.add_argument("--keepalive", type=float, default=300.0, help="seconds between no-op kernel execs (0 = off)")
     r = sub.add_parser("renew")
     r.add_argument("name")
     r.add_argument("--minutes", type=float)
