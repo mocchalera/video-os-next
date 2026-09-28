@@ -333,6 +333,32 @@ scene.camera.keyframe_insert("location", frame=frames)
   assert.equal(renderPreviz(p, scene, { as: "boxpv", seconds: 1, size: "256x160" }).cached, true);
 });
 
+test("previz rig: scene scripts get `rig`; a dolly zoom keeps the subject's size while the lens changes", async (t) => {
+  const { blenderBin, renderPreviz } = await import("../src/gen/previz.ts");
+  if (!blenderBin()) return t.skip("Blender not installed");
+  const p = fixtureProject();
+  const scene = path.join(p.root, "dz.py");
+  // the scene checks itself: a failed assert stops the driver before "previz: done", so renderPreviz throws
+  fs.writeFileSync(scene, `from bpy_extras.object_utils import world_to_camera_view as w2c
+rig.box("wall", (0, 12, 2), (10, 0.3, 4))
+hero = rig.person(at=(0, 0, 0))
+rig.walk(rig.person(at=(2, 4, 0), name="extra"), [(2, 4, 0), (-2, 4, 0)])
+cam = rig.camera(lens=30, look=hero)
+rig.dolly_zoom(cam, hero, distances=(2.0, 6.0), lens=30)
+def size(f):
+    scene.frame_set(f)
+    feet, top = hero.matrix_world.translation, rig.eye(hero)
+    return w2c(scene, cam, top).y - w2c(scene, cam, feet).y
+scene.frame_set(frames); lens_end = cam.data.lens
+assert abs(lens_end - 90) < 0.01, lens_end
+assert abs(size(1) - size(frames)) < 0.01, (size(1), size(frames))
+assert abs(rig.shot_distance("MCU", 50) - 0.6 * 50 / (36 * height / width)) < 1e-9
+`);
+  const r = renderPreviz(p, scene, { as: "dz", seconds: 1, size: "256x160" });
+  assert.equal(r.cached, false);
+  assert.ok(loadProject(p.root).assets.assets.dz_depth);
+});
+
 test("up: a dropped connection is retried once; a failed up stops the VM instead of leaving it to the budget", () => {
   const vm = freshVm();
   process.env.FAKE_EXEC_DROPS = "1";

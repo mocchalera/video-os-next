@@ -14,7 +14,7 @@ There is no pipeline to follow; there is a project state to read and an edit doc
 | Find a moment | `vos find "<words>"` (text+visual+audio+lexical, rank-fused; ja/en) · `--image f.jpg` · `--asset a` (Marlin temporal find inside one clip) | same |
 | Missing footage → generate it | `vos gen library --search "…"` first (free) → else `vos gen up --budget-cu N` (N from the human) → `vos gen clip --prompt "…" [--from hero@2.5] --as a` → `vos look a` → `vos gen down` | `generated/*.gen.json`, `assets.json`, shared library |
 | Heavy analysis off this machine | `vos remote up --budget-cu N [--profile marlin,visual]` (N from the human) → `vos describe --all --on colab` / `vos index --channels visual --on colab` / `vos find "…" --on colab` → `vos remote down` | same `describe.json` / `embed.visual.*`; `provenance.ran` says where it ran |
-| Plan space + camera for generated shots | write a bpy scene (see `examples/previz/alley.py`) → `vos previz render scene.py --as pv` → `vos look pv` → `vos gen clip --control pv_depth [--refs …] --prompt-file …` | `previz/<name>/`, `assets.json` |
+| Plan space + camera for generated shots | read `skills/previz-camera/SKILL.md` → write a bpy scene with `rig` (see `examples/previz/*.py`) → `vos previz render scene.py --as pv` → `vos look pv` → `vos gen clip --control pv_depth [--refs …] --prompt-file …` | `previz/<name>/`, `assets.json` |
 | Finish generated footage (last step) | `vos gen upscale --dry-run` → `vos gen up --light --gpu T4 --budget-cu N` → `vos gen upscale` → `vos render` | aliases rebound; `generated/*.gen.json` (`vos.gen-upscale/1`) |
 | Models present? | `vos models` / `vos models pull visual\|audio` (network, ask the human first) | HF cache, `~/.cache/vos/models` |
 | Tempo of music | `vos beats <alias>` | `.vos/analysis/<id>/beats.json` |
@@ -81,6 +81,7 @@ Fonts must be declared with `@font-face` in `design/` (lint rejects undeclared f
   `VOS_EMBED_MOCK=1` gives deterministic vectors for tests).
 - Search channels never mix vector spaces; `find` fuses ranks (RRF) and says which channels it
   could not use and why. A missing model is reported, never silently skipped.
+- Before writing a previz scene, read `skills/previz-camera/SKILL.md` (intent → lens, shot size and camera move, built with `rig`).
 - Before any `vos gen clip`, read `skills/h3-prompt/SKILL.md` (official H3 prompt format; vos adds the frame-alignment line).
 - Generated footage is 24 fps. A piece built mostly on it should use a 24 fps canvas (`vos init --fps 24`,
   or `"canvas": {"fps": 24}` in the timeline); the timeline warns about judder otherwise.

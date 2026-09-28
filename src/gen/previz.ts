@@ -14,6 +14,7 @@ import { framesFor, parseSize } from "./colab.ts";
  */
 
 const DRIVER = path.join(REPO, "python", "blender_previz.py");
+const RIG = path.join(REPO, "python", "previz_rig.py"); // imported by the driver, `rig` in scene scripts
 
 export function blenderBin(): string | null {
   const c = loadConfig() as any;
@@ -43,7 +44,7 @@ export function renderPreviz(p: Project, scene: string, o: { as?: string; second
   const frames = framesFor(seconds);
   const encoding = o.encoding ?? "disparity";
   const dir = path.join(p.root, "previz", name);
-  const key = sha256(stableStringify({ scene: sha256(fs.readFileSync(scenePath)), driver: sha256(fs.readFileSync(DRIVER)), width, height, frames, encoding }));
+  const key = sha256(stableStringify({ scene: sha256(fs.readFileSync(scenePath)), driver: sha256(fs.readFileSync(DRIVER)), rig: sha256(fs.readFileSync(RIG)), width, height, frames, encoding }));
   const media = { beauty: path.join(dir, `${name}.beauty.mp4`), depth: path.join(dir, `${name}.depth.mp4`) };
   const meta = readJsonIf<any>(path.join(dir, "previz.json"), null);
   const cached = !!meta && meta.key === key && fs.existsSync(media.beauty) && fs.existsSync(media.depth);

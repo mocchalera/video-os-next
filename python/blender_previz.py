@@ -4,7 +4,8 @@
         --width 1344 --height 768 --frames 124 --fps 24
 
 The scene script is plain bpy code that builds objects, lights, a camera and its animation in an empty scene
-(frames 1..N). This driver then renders two passes of the same camera:
+(frames 1..N); `rig` (python/previz_rig.py: camera moves, lens / shot-size maths, a person proxy) is in its
+namespace. This driver then renders two passes of the same camera:
 
   beauty  EEVEE with the scene's own materials (a clay-look layout pass: composition, blocking, light direction)
   depth   the same shot with a material override: emission = encoded camera distance, near = white, far/sky = black;
@@ -44,7 +45,10 @@ sc.frame_start, sc.frame_end = 1, a.frames
 sc.render.fps = a.fps
 sc.render.resolution_x, sc.render.resolution_y = a.width, a.height
 sc.render.resolution_percentage = 100
-ns = {"bpy": bpy, "scene": sc, "frames": a.frames, "fps": a.fps, "width": a.width, "height": a.height,
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import previz_rig  # noqa: E402  camera moves + scale proxies, exposed to the scene as `rig`
+
+ns = {"bpy": bpy, "scene": sc, "frames": a.frames, "fps": a.fps, "width": a.width, "height": a.height, "rig": previz_rig,
       "__file__": os.path.abspath(a.scene)}
 with open(a.scene) as f:
     exec(compile(f.read(), a.scene, "exec"), ns)

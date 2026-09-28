@@ -60,6 +60,8 @@ non_diegetic_music: …
 Give every move three things — **type, amplitude, speed** — written as a natural action, not stacked labels:
 "The camera pushes in with small amplitude at slow speed", "a fast, wide pan to the left", "tracking alongside at
 walking pace", "locked-off, static". Say "static" if you want no movement.
+With `--control <previz>_depth` the camera is already decided in the previz (`skills/previz-camera/SKILL.md`):
+describe that same move here, and spend the words on what depth cannot carry (focus, light, texture, motion blur).
 
 ## 5. Dialogue
 
