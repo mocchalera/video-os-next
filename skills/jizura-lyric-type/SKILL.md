@@ -8,7 +8,8 @@ description: Make lyric motion video (文字PV / kinetic typography) and on-scre
 JIZURA (github.com/852wa/JIZURA, MIT, v0.9.0 @ 8da975f) is a browser lyric-video engine: lyrics → timed cuts →
 Canvas2D, deterministic from a seed. vos runs **JIZURA's own engine** with every expression pack inside one graphic,
 `examples/graphics/lyric-motion.html` (vendored by `vendor.py`), drives it with `vos lyrics time | fonts | plan`, and
-this skill carries its ways of thinking, which hold for every graphic you write. Every key with its Japanese name:
+this skill carries its ways of thinking: §11 lists what holds for every graphic you write, §12 what changes for
+captions over footage. Every key with its Japanese name:
 `VOCABULARY.md`. License and attribution: `LICENSE-JIZURA.txt`.
 
 ## 1. The model: a lyric video is a sequence of cuts
@@ -200,7 +201,8 @@ Even outside lyric videos (titles, captions, HUDs in other graphics):
 - one strong type element + one small mono annotation layer (numbers, timecode, `No.03`, 【見出し】);
 - motion = easing curves JIZURA uses: in `outExpo`/`outBack`, out `inCubic`/`inExpo`, holds `inOutSine`; stagger glyphs
   by 0.02–0.06 s; masks for elegance, bands/slices for energy, pieces for impact;
-- colours from role tokens in `design/tokens.css`; the accent is rare;
+- colours from role tokens (CSS custom properties in a `design/` stylesheet, like `--bg --ink --dim` in
+  `examples/videoos-pv/design/tokens.css`; `vos init` creates an empty `design/`); the accent is rare;
 - grain / paper as a deterministic texture, never noise from `Math.random`.
 
 ## 12. テロップ: JIZURA over footage (captions, not a lyric video)

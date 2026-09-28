@@ -52,7 +52,8 @@ non_diegetic_music: …
 - Later shots give the cut time as `mm:ss.mmm`: `[Shot 2] At 00:02.500, the camera cuts to …`
 - The shots must fit the clip: a 5 s clip (`--seconds 5`, 124 frames) ends at 00:05.125. vos warns if a cut time is
   past the end.
-- One clip is 4–15 s. Fewer shots per clip hold better; for an edit, prefer several clips and cut them in the timeline.
+- One clip is up to 15 s; the model's trained range is ~5–15 s, so keep shorter clips (the 2 s drafts in §8) for framing
+  tests. Fewer shots per clip hold better; for an edit, prefer several clips and cut them in the timeline.
 - Dialogue that runs across a cut: mark the cut with `<scenetrans>` and say the audio "continues seamlessly across the cut".
 
 ## 4. Camera
@@ -80,8 +81,9 @@ Two voices at once: `(S1,S2)`. Keep the same ID for the same person in every sho
   re-describe a different starting composition — it fights the frame.
 - FL2VA: describe the path between them and end with "…settles into the pose, spacing and composition established by
   Picture 2 at the end of the shot."
-- Continuing a generated shot: `--from <previous clip>@<a late frame>` and describe only what happens next. This is how
-  consecutive clips stay continuous (same boat, same light) until references land in vos.
+- Continuing a generated shot: `--from <previous clip>@<a late frame>` and describe only what happens next. This keeps
+  consecutive clips continuous (same boat, same light); for a character, style or prop that recurs across clips, use
+  reference mode (§7).
 
 ## 7. Reference mode — characters, styles, props, keyframes (`--refs` / `--guides`)
 
