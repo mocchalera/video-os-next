@@ -99,6 +99,9 @@ export function ingest(p: Project, file: string, alias?: string, note?: string, 
   const abs = path.resolve(file);
   if (!fs.existsSync(abs)) throw new VosError("missing_file", `${abs} does not exist`);
   const id = contentId(abs);
+  // A file rewritten in place (a regenerated stem, a re-exported still): --replace without --as rebinds the alias
+  // that already points at this path, instead of adding a second alias beside it.
+  if (replace && !alias) alias = Object.entries(p.assets.assets).find(([, a]) => p.paths[a.id] === abs)?.[0];
   const existingAlias = Object.entries(p.assets.assets).find(([, a]) => a.id === id)?.[0];
   if (existingAlias && (!alias || alias === existingAlias)) {
     const status = p.paths[id] === abs ? "unchanged" : "relinked";

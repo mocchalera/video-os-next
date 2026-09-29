@@ -38,7 +38,9 @@ non_diegetic_music: …
 
 - **integrated_multimodal_description** — chronological, one flowing description per shot: style/medium first
   ("Live-action, cinematic, …"), composition, subjects, environment, lighting, actions, camera, dialogue and the
-  sounds actions make. Concrete nouns and visible actions beat mood words and plot summary.
+  sounds actions make. Concrete nouns and visible actions beat mood words and plot summary. Similes are drawn
+  literally ("holds his coat open like a sail" produced a separate sail), so describe the shape itself; keep the
+  metaphor in the project's notes, not in the prompt.
 - **overall_soundscape** — 1–4 sentences: ambience, physical sounds, non-verbal human sounds (breath, footsteps).
 - **non_diegetic_music** — 1–3 sentences: score the characters cannot hear (instrumentation, tempo, where it hits).
   `N/A` when there is none. Name what you want; unspecified audio is left to chance.
@@ -100,6 +102,10 @@ Two voices at once: `(S1,S2)`. Keep the same ID for the same person in every sho
 - Identity: in our test a stylised object (a pyramid-shaped paper boat) drifted toward a *generic* paper boat. Give
   references with clear, distinctive features, describe them precisely in `subject_definitions`, and try
   `--ref-size max` when identity matters.
+- Counts, left and right, and relative size (the wheels of a vehicle, which hand holds the microphone, a boy a head
+  shorter than the girl) are not held by references or words alone; with a depth control a vehicle still went from
+  6 to 8 wheels mid-clip. Build them into the previz or the keyframe, state them in `subject_definitions`, and check
+  them in `vos look`.
 - `--from/--to` do not mix with references; use a guide at 0 / at the end instead.
 
 The prompt uses **six fields**, in this order:
@@ -138,8 +144,12 @@ non_diegetic_music:
 1. `vos gen library --search "<words>"` first — a matching take is free.
 2. Draft cheap: `--size draft --seconds 2` to test framing/motion (~12 s warm), then the real `--seconds 5` at 768p (~80 s).
 3. Change one thing at a time; keep `--seed` fixed while fixing the prompt, vary the seed only for alternatives.
-4. `vos look <alias> --count 8` and judge frames. A human decides whether a take is kept.
-5. Put negatives last in the description when something keeps appearing: "No text, no logos, no extra people."
+4. `vos look <alias> --count 8` and judge frames against the project's fixed facts (counts, sides, sizes, how props
+   are built), not only whether they look good. Check keyframes and refs the same way before a clip is spent on
+   them: whatever is wrong in a keyframe is copied into every clip made from it. A human decides whether a take is kept.
+5. Put negatives last in the description when something keeps appearing, or when the world lacks something the model
+   assumes (a dried-up seabed grows water at the horizon unless the prompt says there is none): "No text, no logos,
+   no extra people."
 
 ## Example (I2VA, continuing a generated shot)
 

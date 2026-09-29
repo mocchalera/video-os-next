@@ -94,6 +94,8 @@ rig.walk(person, [p0, p1, …], ease="linear", span=…)       # subject moves; 
   stay on one side, so looks and movements keep their screen direction. Cross it only on screen (a move across it)
   or on purpose.
 - Shot/reverse-shot: mirror the camera height, lens and distance for both people unless the imbalance is the point.
+- People of different heights: give each `rig.person` its real `height`. Generation from references alone flattened
+  a 13 cm difference between two characters; the previz is where the difference is fixed for keyframes and control.
 - Match on action: end shot A and start shot B at the same moment of one movement; plan both paths from the same
   `rig.walk`.
 
@@ -120,6 +122,9 @@ How closely H3's Fun ControlNet follows each technique is not measured yet: espe
 dolly zoom, fast pans, and `shake`. After a test, add one line: technique · control strength/end · size · what held
 and what broke.
 
-- (none yet)
+- Tracking alongside a large vehicle, seen from above · strength 1 / end 1 · draft, 15 s, 2 refs + guide at 0 · the
+  first ~6 s followed the guide; then the vehicle was redrawn (6 wheels became 8 and moved under the hull), and from
+  a high camera over flat ground it read as a toy on a table. Redone at ground level (0.8 m, 50 mm) with a relief on
+  the ground; not generated yet.
 
 For looking at real examples of a technique, a human can browse https://melies.co/cinematic-techniques.
