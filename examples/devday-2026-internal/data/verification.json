@@ -1,43 +1,65 @@
 {
   "verified": "2026-09-30",
-  "artifact": "out/devday-2026-visual-preview-v3.mp4",
-  "sha256": "60cffd8f30156232ec46de6fc2c42fb736529c2077fa28080a65803df0bf57ed",
-  "receipt": "out/devday-2026-visual-preview-v3.receipt.json",
-  "duration": 367.933333,
+  "artifact": "out/devday-2026-internal-final.mp4",
+  "sha256": "82460def5b0f9a36402104b4886d5b86df3b12f44e4f58375490d88751a1cbc3",
+  "receipt": "out/devday-2026-internal-final.receipt.json",
+  "duration": 397.533333,
+  "size_bytes": 33382699,
   "canvas": {
     "width": 1920,
     "height": 1080,
     "fps": 30
   },
-  "render_quality": "draft",
+  "render_quality": "high",
   "receipt_stale": false,
+  "inspect_loudness_target": -16,
   "inspect_errors": 0,
   "inspect_warnings": 0,
   "inspect_info": [
     {
       "severity": "info",
-      "check": "audio",
-      "count": 1
+      "check": "silence",
+      "count": 41
     },
     {
       "severity": "info",
       "check": "freeze",
-      "count": 90
+      "count": 80
     }
   ],
+  "measurements": {
+    "duration": {
+      "expected": 397.533333,
+      "actual": 397.533333
+    },
+    "loudness": {
+      "integrated_lufs": -16,
+      "true_peak_dbfs": -1.9
+    }
+  },
   "dom_scenes": 19,
   "dom_issues": [],
-  "visual_review": "All 19 resting scenes, current overview/cut sheets, Work model selector, official Dots demo, price/speed card and closing credit.",
+  "fonts_loaded": true,
+  "visual_review": "Current overview and cut sheets plus full-resolution Work, Dots demo, Space, Cloud Codex caption, price/speed, first-30-minutes and closing frames. Closing preview badge removed and narration credit updated.",
   "audio": {
-    "present": false,
+    "present": true,
     "requested_model": "gemini-3.8-flash-tts",
-    "generation": "not-generated",
-    "captions": "estimated-preview-timings"
+    "returned_model": "gemini-3.8-flash-tts",
+    "voice": "Kore",
+    "generation": "received-from-official-api",
+    "content_check": "Full-program local ASR compared with authored script",
+    "captions": "71 synchronized to ASR word times",
+    "scenes": 19,
+    "caption_interpolations": 0,
+    "scene_interpolations": 0,
+    "caption_bounds_and_overlap_errors": 0,
+    "manual_audition": false
   },
   "limitations": [
-    "No narration or audio synchronization has been verified.",
-    "No app task was executed or shared; request input is an unsent example.",
-    "Feature availability is checked as of 2026-09-30, subject to plan, region and administrator settings."
+    "Subjective voice quality and pronunciation have not been auditioned by a human; content and timing checks use automated ASR.",
+    "No app task was executed or shared; request input is an unsent example and public product media are explicitly labeled.",
+    "Feature availability is checked as of 2026-09-30, subject to plan, region and administrator settings.",
+    "API charge is estimated from returned token usage and official standard prices; billing-console amount not verified."
   ],
-  "repository_tests": "Not run: no engine or test files changed."
+  "repository_tests": "Not run: no engine or test files changed; Node syntax, real-provider TTS, real local ASR, VOS compile/render/inspect and browser layout checks performed."
 }

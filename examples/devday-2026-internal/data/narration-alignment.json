@@ -1,0 +1,793 @@
+{
+  "format": "devday.narration-alignment/1",
+  "audio_asset": "a_f24c53f0601776af",
+  "transcript": ".vos/analysis/a_f24c53f0601776af/transcript.json",
+  "engine": {
+    "engine": "faster-whisper 1.2.1",
+    "model": "small",
+    "vocab": "OpenAI,DevDay,ChatGPT,Work,Dots,Space,Pages,Codex,GPT-6.1 Sol,Astra,Ultrafast,API,Agents API,Decisions API,Slack,Teams,Meetings,GitHub,GitLab,MCP,Private Intelligence,Security Cloud",
+    "key": "3b062508e65c55f2",
+    "at": "2026-09-30T02:44:10.540Z"
+  },
+  "preroll": 1,
+  "audio_duration": 394.92,
+  "total_duration": 397.53333333333336,
+  "scene_flagged": [],
+  "caption_flagged": [],
+  "scenes": [
+    {
+      "id": "opening",
+      "at": 0,
+      "duration": 19.133333333333333,
+      "speech_at": 0,
+      "confidence": 1
+    },
+    {
+      "id": "priorities",
+      "at": 19.133333333333333,
+      "duration": 18.4,
+      "speech_at": 18.44,
+      "confidence": 0.86
+    },
+    {
+      "id": "work",
+      "at": 37.53333333333333,
+      "duration": 20.66666666666667,
+      "speech_at": 36.84,
+      "confidence": 1
+    },
+    {
+      "id": "request",
+      "at": 58.2,
+      "duration": 25.86666666666666,
+      "speech_at": 57.5,
+      "confidence": 0.96
+    },
+    {
+      "id": "review",
+      "at": 84.06666666666666,
+      "duration": 19.5,
+      "speech_at": 83.38,
+      "confidence": 0.95
+    },
+    {
+      "id": "dots",
+      "at": 103.56666666666666,
+      "duration": 19.46666666666667,
+      "speech_at": 102.88,
+      "confidence": 0.94
+    },
+    {
+      "id": "dots-start",
+      "at": 123.03333333333333,
+      "duration": 24.46666666666667,
+      "speech_at": 122.32,
+      "confidence": 0.96
+    },
+    {
+      "id": "space",
+      "at": 147.5,
+      "duration": 19,
+      "speech_at": 146.8,
+      "confidence": 0.95
+    },
+    {
+      "id": "pages",
+      "at": 166.5,
+      "duration": 23.03333333333333,
+      "speech_at": 165.8,
+      "confidence": 0.97
+    },
+    {
+      "id": "meetings",
+      "at": 189.53333333333333,
+      "duration": 20.400000000000006,
+      "speech_at": 188.82,
+      "confidence": 0.87
+    },
+    {
+      "id": "codex",
+      "at": 209.93333333333334,
+      "duration": 22.099999999999994,
+      "speech_at": 209.24,
+      "confidence": 0.92
+    },
+    {
+      "id": "codex-more",
+      "at": 232.03333333333333,
+      "duration": 19.5,
+      "speech_at": 231.32,
+      "confidence": 0.85
+    },
+    {
+      "id": "models",
+      "at": 251.53333333333333,
+      "duration": 22.333333333333343,
+      "speech_at": 250.84,
+      "confidence": 0.95
+    },
+    {
+      "id": "apis",
+      "at": 273.8666666666667,
+      "duration": 19.69999999999999,
+      "speech_at": 273.18,
+      "confidence": 0.91
+    },
+    {
+      "id": "plugins",
+      "at": 293.56666666666666,
+      "duration": 20.866666666666674,
+      "speech_at": 292.88,
+      "confidence": 1
+    },
+    {
+      "id": "security",
+      "at": 314.43333333333334,
+      "duration": 20.69999999999999,
+      "speech_at": 313.72,
+      "confidence": 0.98
+    },
+    {
+      "id": "availability",
+      "at": 335.1333333333333,
+      "duration": 23.166666666666686,
+      "speech_at": 334.42,
+      "confidence": 0.97
+    },
+    {
+      "id": "action",
+      "at": 358.3,
+      "duration": 23.23333333333335,
+      "speech_at": 357.6,
+      "confidence": 0.9
+    },
+    {
+      "id": "closing",
+      "at": 381.53333333333336,
+      "duration": 16,
+      "speech_at": 380.84,
+      "confidence": 0.89
+    }
+  ],
+  "captions": [
+    {
+      "scene": 0,
+      "text": "毎週の会議準備。調べて、まとめて、みんなで直す。この流れを",
+      "at": 1,
+      "end": 7.4,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 0,
+      "text": "AIと一緒に進められるようになりました。今回のDevDayで何が変わったのか。今日",
+      "at": 7.4,
+      "end": 14.22,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 0,
+      "text": "どこから試せばいいのか。実際の画面を見ながら紹介します。",
+      "at": 14.22,
+      "end": 19.133333333333333,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 1,
+      "text": "優先順位は三つです。個人なら、Workで一件の仕事を頼む。繰り返す仕事なら",
+      "at": 19.44,
+      "end": 26.56,
+      "confidence": 0.94,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 1,
+      "text": "Dotsに継続して任せる。チームなら、Spaceに材料と成果物を集める。",
+      "at": 26.56,
+      "end": 33.34,
+      "confidence": 0.9,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 1,
+      "text": "開発者向けのCodexとAPIは、その後に見ていきます。",
+      "at": 33.34,
+      "end": 37.53333333333333,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 2,
+      "text": "最初の入口は、ChatGPTのWorkです。画面下に",
+      "at": 37.84,
+      "end": 42.5,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 2,
+      "text": "GPT-6.1 Solが見えます。Solは、Work、Codex",
+      "at": 42.5,
+      "end": 49.16,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 2,
+      "text": "APIに提供されています。まずは公開メモの整理や、会議の準備など",
+      "at": 49.16,
+      "end": 55.1,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 2,
+      "text": "答えを確認しやすい仕事を選びましょう。",
+      "at": 55.1,
+      "end": 58.2,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 3,
+      "text": "依頼は、目的、材料、欲しい出力、任せる範囲の四点セット。例えば、定例会の準備。",
+      "at": 58.5,
+      "end": 67.88,
+      "confidence": 0.97,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 3,
+      "text": "公開メモから、要点三つ、未決事項、担当と期限を整理。不明点は不明と書く。",
+      "at": 67.88,
+      "end": 76.12,
+      "confidence": 0.97,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 3,
+      "text": "送信や公開はしない。この画面は入力例です。実行前に、使ってよい資料を添付します。",
+      "at": 76.12,
+      "end": 84.06666666666666,
+      "confidence": 0.94,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 4,
+      "text": "できた下書きは、そのまま配布せず、元資料と照合します。要点に抜けはないか。",
+      "at": 84.38,
+      "end": 91.58,
+      "confidence": 0.94,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 4,
+      "text": "決まっていないことを、決定事項にしていないか。担当と期限は正しいか。",
+      "at": 91.58,
+      "end": 97.4,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 4,
+      "text": "この三つを確認すれば、便利そう、で終わらず、実際に使える成果物に近づきます。",
+      "at": 97.4,
+      "end": 103.56666666666666,
+      "confidence": 0.91,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 5,
+      "text": "次の目玉は、常時稼働するエージェント、Dots。自分用のクラウドPCとブラウザを持ち",
+      "at": 103.88,
+      "end": 111.32,
+      "confidence": 0.85,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 5,
+      "text": "連携したアプリを使って、依頼された仕事を進めます。これは公式デモです。",
+      "at": 111.32,
+      "end": 117.24,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 5,
+      "text": "作業中の画面を開き、何をしているかを確認できることも、大事なポイントです。",
+      "at": 117.24,
+      "end": 123.03333333333333,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 6,
+      "text": "最初は、毎週の公開ニュースを、出典付きで下書きする、といった定型業務がおすすめです。",
+      "at": 123.32,
+      "end": 130.32,
+      "confidence": 0.87,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 6,
+      "text": "パソコンで初期設定し、必要なアプリだけを接続。目的、頻度、確認のタイミングを決めます。",
+      "at": 130.32,
+      "end": 138.74,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 6,
+      "text": "自発的なバックグラウンド調査は読み取り専用。送信や変更を伴う依頼は",
+      "at": 138.74,
+      "end": 144.14,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 6,
+      "text": "実行範囲と承認ルールを確認しましょう。",
+      "at": 144.14,
+      "end": 147.5,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 7,
+      "text": "チームで使うなら、Spaceです。実際の新規メニューには",
+      "at": 147.8,
+      "end": 152.5,
+      "confidence": 1,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 7,
+      "text": "ページとSpaceがあります。まずは一つのテーマでSpaceを作り、メモ、ファイル",
+      "at": 152.5,
+      "end": 159.18,
+      "confidence": 0.92,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 7,
+      "text": "リンクを集めましょう。会話の中に埋もれがちな材料と成果物を",
+      "at": 159.18,
+      "end": 164.24,
+      "confidence": 0.93,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 7,
+      "text": "チームで見つけられる場所に置けます。",
+      "at": 164.24,
+      "end": 166.5,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 8,
+      "text": "Pagesでは、人とAIが同じ文書を編集できます。資料を根拠に下書きを作り",
+      "at": 166.8,
+      "end": 173.86,
+      "confidence": 0.97,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 8,
+      "text": "人が内容を直し、AIに構成や表現を整えてもらう。共有する前に",
+      "at": 173.86,
+      "end": 180.42,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 8,
+      "text": "閲覧と編集の権限を確認します。ページに転記された内容は、共有相手にも見えるので",
+      "at": 180.42,
+      "end": 187.3,
+      "confidence": 0.95,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 8,
+      "text": "資料の扱いも意識しましょう。",
+      "at": 187.3,
+      "end": 189.53333333333333,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 9,
+      "text": "SlackとTeamsでは、@ChatGPTで呼び出せます。",
+      "at": 189.82,
+      "end": 194.42,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 9,
+      "text": "対象はビジネスとエンタープライズ。Meetingsは",
+      "at": 194.42,
+      "end": 198.72,
+      "confidence": 0.52,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 9,
+      "text": "録音から議事録とアクション項目を作ります。こちらはマックのベータで",
+      "at": 198.72,
+      "end": 203.92,
+      "confidence": 1,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 9,
+      "text": "プロとビジネス向け。まず、社内の管理者設定と利用条件を確認してください。",
+      "at": 203.92,
+      "end": 209.93333333333334,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 10,
+      "text": "開発者は、クラウドのCodexから。環境の設定を再利用し、パソコンを閉じても",
+      "at": 210.24,
+      "end": 216.84,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 10,
+      "text": "長いタスクを続けられます。入口は",
+      "at": 216.84,
+      "end": 219.88,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 10,
+      "text": "Work in → Cloud → Select environment。",
+      "at": 219.88,
+      "end": 223.12,
+      "confidence": 1,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 10,
+      "text": "最初は小さな修正を一件。終わったら、差分、テスト結果",
+      "at": 223.12,
+      "end": 229.16,
+      "confidence": 0.87,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 10,
+      "text": "残っている問題を確認してから取り込みます。",
+      "at": 229.16,
+      "end": 232.03333333333333,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 11,
+      "text": "Codexは、音声に対応したCLI",
+      "at": 232.32,
+      "end": 235.88,
+      "confidence": 0.7,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 11,
+      "text": "GitHubとGitLabのコードレビューも強化されました。",
+      "at": 235.88,
+      "end": 239.56,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 11,
+      "text": "Security Cloudは、リポジトリを調べ、修正案を用意します。開発チームは",
+      "at": 239.56,
+      "end": 245.5,
+      "confidence": 1,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 11,
+      "text": "変更を作る機能と、変更を確認する機能を、一組で試すのがおすすめです。",
+      "at": 245.5,
+      "end": 251.53333333333333,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 12,
+      "text": "Solの標準API価格は、100万トークンあたり、入力二ドル、出力十ドル。",
+      "at": 251.84,
+      "end": 258.34,
+      "confidence": 0.94,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 12,
+      "text": "Astra標準の、およそ五分の一です。Ultrafastは",
+      "at": 258.34,
+      "end": 262.36,
+      "confidence": 0.93,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 12,
+      "text": "Codexで最大八倍のトークン生成速度。ただし、仕事全体が八倍速になるとは限りません。",
+      "at": 262.36,
+      "end": 270.14,
+      "confidence": 0.95,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 12,
+      "text": "実際の所要時間と、修正の回数で比べましょう。",
+      "at": 270.14,
+      "end": 273.8666666666667,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 13,
+      "text": "自社システムへの組み込みは、目的で分けます。画面操作が必要なら",
+      "at": 274.18,
+      "end": 279.78,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 13,
+      "text": "Computer Useが加わった、Agents API。問い合わせを",
+      "at": 279.78,
+      "end": 284.26,
+      "confidence": 0.79,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 13,
+      "text": "決まった部署へ振り分けるような判断には、限定プレビューの、Decisions API。",
+      "at": 284.26,
+      "end": 289.94,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 13,
+      "text": "AWS内での運用という選択肢も発表されました。",
+      "at": 289.94,
+      "end": 293.56666666666666,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 14,
+      "text": "プラグインは、会話の横に操作画面を置けるようになります。MCPのイベント対応は",
+      "at": 293.88,
+      "end": 300.64,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 14,
+      "text": "アプリの出来事をきっかけにAIを起動する仕組み。サインイン、ウィズ",
+      "at": 300.64,
+      "end": 305.24,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 14,
+      "text": "ChatGPTでは、対応アプリが、自分の利用枠で動きます。連携する前に",
+      "at": 305.24,
+      "end": 311.54,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 14,
+      "text": "権限と利用量の扱いを確認しましょう。",
+      "at": 311.54,
+      "end": 314.43333333333334,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 15,
+      "text": "管理者は、データの扱いと、操作の範囲を整えます。",
+      "at": 314.72,
+      "end": 319.16,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 15,
+      "text": "Private Intelligenceは、ゼロデータ保持と",
+      "at": 319.16,
+      "end": 322.1,
+      "confidence": 1,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 15,
+      "text": "担当者が内容を見ない安全処理を組み合わせた企業向けの選択肢。",
+      "at": 322.1,
+      "end": 327.1,
+      "confidence": 0.93,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 15,
+      "text": "すべてのアカウントに自動で適用されるものではありません。導入する契約の条件と",
+      "at": 327.1,
+      "end": 332.9,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 15,
+      "text": "アプリの権限を確認します。",
+      "at": 332.9,
+      "end": 335.1333333333333,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 16,
+      "text": "発表された機能には、すぐ使えるもの、順次展開のもの、近日公開のものがあります。",
+      "at": 335.42,
+      "end": 342.34,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 16,
+      "text": "SolはWorkとCodexから。Dotsは対象プランで順次。共同編集スライドと",
+      "at": 342.34,
+      "end": 348.92,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 16,
+      "text": "SolのUltrafastは近日です。新しいPro 500ドルのプランもありますが",
+      "at": 348.92,
+      "end": 354.56,
+      "confidence": 0.92,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 16,
+      "text": "まずは今のプランで、小さな一件を試しましょう。",
+      "at": 354.56,
+      "end": 358.3,
+      "confidence": 0.95,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 17,
+      "text": "今日の三十分で、まず一件。最初の五分で、面倒な仕事と、使ってよい資料を選ぶ。",
+      "at": 358.6,
+      "end": 366.3,
+      "confidence": 0.85,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 17,
+      "text": "次の十五分で、Workに下書きを頼む。最後の十分で、人が確認して直す。",
+      "at": 366.3,
+      "end": 373.32,
+      "confidence": 0.9,
+      "match_mode": "spoken-form",
+      "interpolated": false
+    },
+    {
+      "scene": 17,
+      "text": "準備に何分かかったか、何回直したかを記録します。うまくいった仕事だけ",
+      "at": 373.32,
+      "end": 379.34,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 17,
+      "text": "DotsやSpaceへ広げましょう。",
+      "at": 379.34,
+      "end": 381.53333333333336,
+      "confidence": 1,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 18,
+      "text": "大切なのは、新機能を全部覚えることより、自分の仕事を一つ、実際に楽にすることです。",
+      "at": 381.84,
+      "end": 389.44,
+      "confidence": 0.86,
+      "match_mode": "written-form",
+      "interpolated": false
+    },
+    {
+      "scene": 18,
+      "text": "依頼文と公式リンクは、付属ガイドにまとめました。まず一件、今日から始めてみましょう。",
+      "at": 389.44,
+      "end": 395.8,
+      "confidence": 0.92,
+      "match_mode": "written-form",
+      "interpolated": false
+    }
+  ]
+}

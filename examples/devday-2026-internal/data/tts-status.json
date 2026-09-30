@@ -1,11 +1,113 @@
 {
   "requested_model": "gemini-3.8-flash-tts",
-  "status": "not-generated",
-  "attempt": "Google AI Studio, 2026-09-30",
-  "observed_model": "Gemini 3.8 Flash TTS",
-  "observed_voice": "Fola",
-  "generation_result": "HTTP 403",
-  "key_list_result": "permission denied",
-  "audio_received": false,
-  "fallback_used": false
+  "returned_model": "gemini-3.8-flash-tts",
+  "voice": "Kore",
+  "status": "generated-and-asr-aligned",
+  "provider": "Google Gemini Interactions API",
+  "http_status": 200,
+  "generated_at": "2026-09-30T02:39:41.876Z",
+  "audio_received": true,
+  "audio_asset": "narration",
+  "audio_sha256": "6a9d6c01e1413542c28e661a231d35b29593cb30c4d7b903aed8e694a2c80d56",
+  "duration": 394.92,
+  "sample_rate": 24000,
+  "channels": 1,
+  "fallback_used": false,
+  "usage": {
+    "total_tokens": 14129,
+    "total_input_tokens": 1491,
+    "input_tokens_by_modality": [
+      {
+        "modality": "audio",
+        "tokens": 201
+      },
+      {
+        "modality": "text",
+        "tokens": 1290
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 12638,
+    "output_tokens_by_modality": [
+      {
+        "modality": "audio",
+        "tokens": 12638
+      }
+    ],
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 0,
+    "raw_prompt_token": 2999,
+    "model_invocation_token_counts": [
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 1487
+          },
+          {
+            "modality": "audio",
+            "tokens": 201
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 9875
+          }
+        ]
+      }
+    ],
+    "non_grounding_model_invocation_token_counts": [
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 1487
+          },
+          {
+            "modality": "audio",
+            "tokens": 201
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 9875
+          }
+        ]
+      }
+    ]
+  },
+  "budget": {
+    "authorized_usd": 1,
+    "api_requests": 1,
+    "reserved_upper_bound_usd": 0.16,
+    "estimated_standard_price_usd": 0.114488,
+    "billing_verified": false,
+    "pricing_source": "https://ai.google.dev/gemini-api/docs/pricing",
+    "pricing_date": "2026-09-30"
+  },
+  "earlier_ai_studio_attempt": {
+    "requested_model": "gemini-3.8-flash-tts",
+    "status": "not-generated",
+    "attempt": "Google AI Studio, 2026-09-30",
+    "observed_model": "Gemini 3.8 Flash TTS",
+    "observed_voice": "Fola",
+    "generation_result": "HTTP 403",
+    "key_list_result": "permission denied",
+    "audio_received": false,
+    "fallback_used": false
+  },
+  "content_verification": {
+    "method": "Full-program cached local faster-whisper ASR compared with authored script; ASR spellings are not used as caption text.",
+    "transcript_engine": "faster-whisper 1.2.1 / small",
+    "scenes": 19,
+    "captions": 71,
+    "interpolated_scenes": 0,
+    "interpolated_captions": 0,
+    "low_confidence_caption_review": "Meetings / Business / Enterprise names checked against ASR word times.",
+    "alignment": "data/narration-alignment.json",
+    "manual_audition": false,
+    "note": "Automated speech recognition supports content and timing; subjective voice quality has not been listened to by the agent."
+  }
 }

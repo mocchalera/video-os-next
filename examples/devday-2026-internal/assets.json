@@ -23,6 +23,15 @@
       "size": 1346808,
       "width": 3819
     },
+    "narration": {
+      "duration": 394.92,
+      "filename": "narration-gemini-tts-01.wav",
+      "has_audio": true,
+      "id": "a_f24c53f0601776af",
+      "kind": "audio",
+      "note": "Gemini 3.8 Flash TTS / Kore / official Interactions API / 2026-09-30 / USD 1 authorized budget",
+      "size": 18962226
+    },
     "pages_official": {
       "duration": null,
       "filename": "pages-official.png",

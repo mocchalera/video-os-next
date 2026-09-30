@@ -69,6 +69,16 @@
       "captured": "2026-09-30",
       "kind": "sanitized-actual-screen",
       "note": "2026-09-30 ChatGPT Work実画面。自作の依頼入力例・未送信。周辺の個人情報を画角から除外。"
+    },
+    {
+      "alias": "narration",
+      "id": "a_f24c53f0601776af",
+      "sha256": "6a9d6c01e1413542c28e661a231d35b29593cb30c4d7b903aed8e694a2c80d56",
+      "file": "media/narration-gemini-tts-01.wav",
+      "source": "https://generativelanguage.googleapis.com/v1beta/interactions",
+      "captured": "2026-09-30",
+      "kind": "generated-narration",
+      "note": "Official Gemini API; returned model gemini-3.8-flash-tts; voice Kore; no fallback; usage and budget in data/tts-status.json."
     }
   ]
 }
