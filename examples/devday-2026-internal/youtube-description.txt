@@ -1,0 +1,90 @@
+OpenAI DevDay 2026（9月29日）の発表を、「何から試すか」が分かる6分38秒にまとめました。2026年9月30日に確認した公式情報と実際のアプリ画面を使った、業務での活用に向けた解説です。
+
+最初は、Workで1件の下書き → Dotsで繰り返す仕事 → Spaceでチーム共有。この順番で、今日の仕事をひとつ進めてみましょう。
+
+【チャプター】
+0:00 今日、ひとつ仕事を任せよう
+0:19 最初に試す3つ：Work・Dots・Space
+0:37 Workの実画面とモデル選択
+0:58 依頼は「目的・材料・出力・範囲」の4点セット
+1:24 下書きの出典・担当・期限を確認する
+1:43 Dots：繰り返す仕事を任せる
+2:03 Dotsに頼む最初の1件
+2:27 Space：チームの資料と成果物を集める
+2:46 Pages：人とAIで同じ文書を編集する
+3:09 Slack・Teams・Meetings
+3:29 Cloud Codex：クラウドで仕事を続ける
+3:52 コードレビューとSecurity Cloud
+4:11 GPT-6.1 Sol・Ultrafastの速度とコスト
+4:33 Agents API・Decisions API
+4:53 プラグイン・MCP Events・Sign in with ChatGPT
+5:14 管理者が確認するデータと権限
+5:35 提供状況を確認して始める
+5:58 今日の30分で1件試す
+6:21 うまくいったらチームへ
+
+【そのまま試せる依頼例】
+目的：次の定例会の準備です。
+材料：添付したメモのみを根拠にしてください。
+出力：要点3つ、未決事項、担当と期限の表。各要点に資料名と該当箇所を付けてください。
+資料にない事実・担当・期限は推測せず「不明」としてください。
+任せる範囲：下書きの作成まで。送信・公開・他アプリの変更はしないでください。
+
+最初の30分は、5分で仕事と材料を選び、15分で下書きを作り、10分で元資料と照合。準備時間と修正回数を記録すると、次に任せる仕事を選びやすくなります。
+
+【制作に使ったツール・モデル】
+・構成、調査、台本、編集コードの制作：OpenAI Codex
+・実画面の取得・ブラウザ確認：AGI Cockpitの内蔵ブラウザ
+・編集：Video OS Next（vos）。timeline.jsonとassets.jsonで映像・音声・字幕を管理
+・図解とモーション：HTML / CSS / GSAP
+・映像レンダリング：HyperFrames 0.7.60
+・エンコード、音声ミックス、音量調整：FFmpeg 8.1.2
+・ナレーション：Google Gemini 3.8 Flash TTS（gemini-3.8-flash-tts）、声はKore。公式Gemini Interactions APIで生成したAI音声
+・音声の文字起こしと字幕時刻の照合：ローカルのfaster-whisper 1.2.1 / Whisper small
+・制作スクリプト：Python / Node.js
+
+【作り方】
+1. 公式発表と利用手順を確認し、最初に試す仕事から19場面の台本を作成。
+2. Work・Spaceの実画面を取得。アカウント情報や既存の会話・ページ名が映らないように切り出し。
+3. 公開されたOpenAI公式デモ・製品画像を、実画面と区別して表示。
+4. 台本からGemini 3.8 Flash TTSで日本語ナレーションを生成。
+5. 音声の単語時刻を取得し、台本を元にした71個の字幕と場面切り替えを同期。
+6. HTMLの図解をvosのタイムラインで合成。1080p・30fpsで書き出し、音量を-16 LUFSに調整。レイアウト、字幕時刻、映像と音声を検査。
+
+Workへの入力は未送信の依頼例です。Dotsなどの公開デモはOpenAI公式素材であり、この動画で実行した業務の成果物ではありません。機能の提供時期・利用可否はプラン、地域、管理者設定で変わります。利用時は公式ページと自分のアカウントの表示をご確認ください。
+
+【公式出典・詳しい手順】
+DevDay 2026まとめ
+https://openai.com/index/devday-2026-recap/
+Dots
+https://openai.com/index/introducing-dots/
+GPT-6.1 Sol
+https://openai.com/index/introducing-gpt-6-1-sol/
+Space
+https://chatgpt.com/features/space/
+https://learn.chatgpt.com/docs/space/getting-started
+Cloud Codex
+https://learn.chatgpt.com/docs/cloud
+Code Review / Security Cloud
+https://learn.chatgpt.com/docs/code-review?surface=app
+https://learn.chatgpt.com/docs/security/setup
+Slack・Teams / Meetings
+https://chatgpt.com/features/chatgpt-in-slack-and-teams/
+https://help.openai.com/en/articles/20001546-the-meetings-plugin-in-chatgpt
+Agents API Computer Use / AWS Bedrock
+https://developers.openai.com/api/docs/guides/agents-api/tools/computer-use
+https://aws.amazon.com/bedrock/managed-agents-openai/
+プラグインUI / MCP Events
+https://developers.openai.com/plugins/build/extensions
+https://developers.openai.com/plugins/build/mcp-events
+Sign in with ChatGPT
+https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites
+Private Safety Processing / Proプラン
+https://developers.openai.com/api/docs/guides/private-safety-processing
+https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers
+Gemini 3.8 Flash TTS
+https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash-tts
+
+この動画はOpenAIの公式動画ではなく、業務活用のための独自の解説です。
+
+#OpenAIDevDay #ChatGPT #Codex

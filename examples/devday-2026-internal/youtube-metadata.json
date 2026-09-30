@@ -1,0 +1,54 @@
+{
+  "channel": {
+    "id": "UCHdcFBvqg1oEyxYYHj38HSg",
+    "name": "Takuma Sakamoto"
+  },
+  "defaults": {
+    "defaultLanguage": "ja",
+    "selfDeclaredMadeForKids": false,
+    "license": "youtube",
+    "privacyStatus": "unlisted",
+    "categoryId": "28",
+    "containsSyntheticMedia": true
+  },
+  "videos": [
+    {
+      "id": "BDhcQ-KIMt4",
+      "url": "https://youtu.be/BDhcQ-KIMt4",
+      "file": "out/devday-2026-internal-final.mp4",
+      "duration": 397.533333,
+      "sha256": "82460def5b0f9a36402104b4886d5b86df3b12f44e4f58375490d88751a1cbc3",
+      "title": "OpenAI DevDay 2026｜最初に試す3つを実画面で解説【Work・Dots・Space】",
+      "description": "OpenAI DevDay 2026（9月29日）の発表を、「何から試すか」が分かる6分38秒にまとめました。2026年9月30日に確認した公式情報と実際のアプリ画面を使った、業務での活用に向けた解説です。\n\n最初は、Workで1件の下書き → Dotsで繰り返す仕事 → Spaceでチーム共有。この順番で、今日の仕事をひとつ進めてみましょう。\n\n【チャプター】\n0:00 今日、ひとつ仕事を任せよう\n0:19 最初に試す3つ：Work・Dots・Space\n0:37 Workの実画面とモデル選択\n0:58 依頼は「目的・材料・出力・範囲」の4点セット\n1:24 下書きの出典・担当・期限を確認する\n1:43 Dots：繰り返す仕事を任せる\n2:03 Dotsに頼む最初の1件\n2:27 Space：チームの資料と成果物を集める\n2:46 Pages：人とAIで同じ文書を編集する\n3:09 Slack・Teams・Meetings\n3:29 Cloud Codex：クラウドで仕事を続ける\n3:52 コードレビューとSecurity Cloud\n4:11 GPT-6.1 Sol・Ultrafastの速度とコスト\n4:33 Agents API・Decisions API\n4:53 プラグイン・MCP Events・Sign in with ChatGPT\n5:14 管理者が確認するデータと権限\n5:35 提供状況を確認して始める\n5:58 今日の30分で1件試す\n6:21 うまくいったらチームへ\n\n【そのまま試せる依頼例】\n目的：次の定例会の準備です。\n材料：添付したメモのみを根拠にしてください。\n出力：要点3つ、未決事項、担当と期限の表。各要点に資料名と該当箇所を付けてください。\n資料にない事実・担当・期限は推測せず「不明」としてください。\n任せる範囲：下書きの作成まで。送信・公開・他アプリの変更はしないでください。\n\n最初の30分は、5分で仕事と材料を選び、15分で下書きを作り、10分で元資料と照合。準備時間と修正回数を記録すると、次に任せる仕事を選びやすくなります。\n\n【制作に使ったツール・モデル】\n・構成、調査、台本、編集コードの制作：OpenAI Codex\n・実画面の取得・ブラウザ確認：AGI Cockpitの内蔵ブラウザ\n・編集：Video OS Next（vos）。timeline.jsonとassets.jsonで映像・音声・字幕を管理\n・図解とモーション：HTML / CSS / GSAP\n・映像レンダリング：HyperFrames 0.7.60\n・エンコード、音声ミックス、音量調整：FFmpeg 8.1.2\n・ナレーション：Google Gemini 3.8 Flash TTS（gemini-3.8-flash-tts）、声はKore。公式Gemini Interactions APIで生成したAI音声\n・音声の文字起こしと字幕時刻の照合：ローカルのfaster-whisper 1.2.1 / Whisper small\n・制作スクリプト：Python / Node.js\n\n【作り方】\n1. 公式発表と利用手順を確認し、最初に試す仕事から19場面の台本を作成。\n2. Work・Spaceの実画面を取得。アカウント情報や既存の会話・ページ名が映らないように切り出し。\n3. 公開されたOpenAI公式デモ・製品画像を、実画面と区別して表示。\n4. 台本からGemini 3.8 Flash TTSで日本語ナレーションを生成。\n5. 音声の単語時刻を取得し、台本を元にした71個の字幕と場面切り替えを同期。\n6. HTMLの図解をvosのタイムラインで合成。1080p・30fpsで書き出し、音量を-16 LUFSに調整。レイアウト、字幕時刻、映像と音声を検査。\n\nWorkへの入力は未送信の依頼例です。Dotsなどの公開デモはOpenAI公式素材であり、この動画で実行した業務の成果物ではありません。機能の提供時期・利用可否はプラン、地域、管理者設定で変わります。利用時は公式ページと自分のアカウントの表示をご確認ください。\n\n【公式出典・詳しい手順】\nDevDay 2026まとめ\nhttps://openai.com/index/devday-2026-recap/\nDots\nhttps://openai.com/index/introducing-dots/\nGPT-6.1 Sol\nhttps://openai.com/index/introducing-gpt-6-1-sol/\nSpace\nhttps://chatgpt.com/features/space/\nhttps://learn.chatgpt.com/docs/space/getting-started\nCloud Codex\nhttps://learn.chatgpt.com/docs/cloud\nCode Review / Security Cloud\nhttps://learn.chatgpt.com/docs/code-review?surface=app\nhttps://learn.chatgpt.com/docs/security/setup\nSlack・Teams / Meetings\nhttps://chatgpt.com/features/chatgpt-in-slack-and-teams/\nhttps://help.openai.com/en/articles/20001546-the-meetings-plugin-in-chatgpt\nAgents API Computer Use / AWS Bedrock\nhttps://developers.openai.com/api/docs/guides/agents-api/tools/computer-use\nhttps://aws.amazon.com/bedrock/managed-agents-openai/\nプラグインUI / MCP Events\nhttps://developers.openai.com/plugins/build/extensions\nhttps://developers.openai.com/plugins/build/mcp-events\nSign in with ChatGPT\nhttps://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites\nPrivate Safety Processing / Proプラン\nhttps://developers.openai.com/api/docs/guides/private-safety-processing\nhttps://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers\nGemini 3.8 Flash TTS\nhttps://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash-tts\n\nこの動画はOpenAIの公式動画ではなく、業務活用のための独自の解説です。\n\n#OpenAIDevDay #ChatGPT #Codex",
+      "tags": [
+        "OpenAI",
+        "DevDay 2026",
+        "ChatGPT",
+        "Work",
+        "Dots",
+        "Space",
+        "Pages",
+        "Codex",
+        "GPT-6.1 Sol",
+        "Gemini 3.8 Flash TTS",
+        "AI活用"
+      ],
+      "uploadStatus": "uploaded",
+      "observedPrivacyStatus": "unlisted",
+      "metadataStatus": "saved-and-read-back",
+      "visibilityDecision": "preserved-studio-preselection",
+      "checks": "YouTube upload dialog: チェックが完了しました。問題は検出されませんでした。",
+      "privacySelectionBasis": "Studio upload dialog initially selected UNLISTED; retained for the requested internal link sharing.",
+      "processingStatus": "1080p available on YouTube watch page",
+      "thumbnail": "out/youtube-thumbnail.jpg",
+      "captions": {
+        "language": "ja",
+        "file": "data/captions.srt",
+        "status": "published",
+        "local_cues": 71,
+        "cues_verified_in_watch_transcript": 71
+      }
+    }
+  ],
+  "verifiedAt": "2026-09-30T03:34:10+00:00"
+}

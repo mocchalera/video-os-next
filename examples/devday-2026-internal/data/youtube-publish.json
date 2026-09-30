@@ -1,0 +1,66 @@
+{
+  "verified_at": "2026-09-30T03:34:10+00:00",
+  "video_id": "BDhcQ-KIMt4",
+  "url": "https://youtu.be/BDhcQ-KIMt4",
+  "studio_url": "https://studio.youtube.com/video/BDhcQ-KIMt4/edit",
+  "channel": {
+    "id": "UCHdcFBvqg1oEyxYYHj38HSg",
+    "name": "Takuma Sakamoto"
+  },
+  "privacy_status": "unlisted",
+  "privacy_basis": "Studio upload dialog initially selected UNLISTED; retained for the requested internal link sharing.",
+  "artifact": {
+    "path": "out/devday-2026-internal-final.mp4",
+    "sha256": "82460def5b0f9a36402104b4886d5b86df3b12f44e4f58375490d88751a1cbc3",
+    "duration": 397.533333
+  },
+  "title": "OpenAI DevDay 2026｜最初に試す3つを実画面で解説【Work・Dots・Space】",
+  "description_sha256": "eef2a52f38f6ee237fc126ac51c55ec52d5740cccdabb5c4e144d8c54765a974",
+  "description_characters": 3101,
+  "metadata_readback": {
+    "method": "New Studio video details tab loaded after final Save; title and description compared against local metadata. Watch page displayed Unlisted and same channel/title.",
+    "title_matches": true,
+    "description_matches": true,
+    "save_button_disabled_after_readback": true
+  },
+  "youtube_initial_checks": {
+    "copyright": "no issues detected",
+    "community_guidelines": "no issues detected"
+  },
+  "processing": {
+    "available_qualities": [
+      "hd1080",
+      "hd720",
+      "medium",
+      "tiny",
+      "auto"
+    ],
+    "watch_duration": 397.561,
+    "playable": true,
+    "stream_ready_state": 4,
+    "media_error": null
+  },
+  "captions": {
+    "local_cues": 71,
+    "cues_found_in_watch_transcript": 71,
+    "missing_cues": [],
+    "manual_track": "Japanese / user supplied",
+    "method": "Whitespace-normalized authored SRT cue text checked against YouTube watch transcript UI"
+  },
+  "chapters": 19,
+  "ai_disclosure": {
+    "studio_selection": true,
+    "watch_label": "AI 生成",
+    "basis": "Gemini-generated realistic narration, also credited in description."
+  },
+  "thumbnail": {
+    "file": "out/youtube-thumbnail.jpg",
+    "source": "Frame at 25 seconds in the uploaded final MP4",
+    "dimensions": [
+      1280,
+      720
+    ],
+    "upload_ui": "Custom thumbnail present after file upload"
+  },
+  "distribution": "YouTube upload only; no external messages sent."
+}

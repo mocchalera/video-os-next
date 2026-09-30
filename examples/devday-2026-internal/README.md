@@ -9,9 +9,11 @@
 | 映像 | 1920×1080 / 30fps、6分37.53秒、音声付きMP4 |
 | ナレーション | Gemini 3.8 Flash TTS / Kore。公式APIの返却モデルを確認 |
 | 字幕 | 71本。実音声のASR単語時刻に同期、画面内の収まりを確認 |
-| 公開・社内配布 | 未実施 |
+| YouTube | [限定公開](https://youtu.be/BDhcQ-KIMt4)。Takuma Sakamotoチャンネル、1080p利用可 |
 
 完成動画は `out/devday-2026-internal-final.mp4`（約33 MB）。同名のreceipt / inspectが書き出しと検査の記録です。視聴後は `guide.md` の依頼文をコピーして使えます。外付け字幕は `data/captions.srt` です。
+
+YouTubeの概要欄には使用ツール・モデル・制作手順、19チャプター、依頼文、公式リンクを掲載しました。日本語字幕もアップロードし、全71字幕の内容を視聴ページの文字起こしと照合しています。投稿内容は`youtube-metadata.json` / `youtube-description.txt`、保存内容の再確認と初期チェックの結果は`data/youtube-publish.json`に記録しています。公開範囲はStudioで初期選択されていた限定公開を維持しました。
 
 ## 編集ファイル
 
