@@ -1,0 +1,8 @@
+@font-face{font-family:ZK;src:url(fonts/ZenKakuGothicNew-Black.ttf);font-weight:900}
+@font-face{font-family:ZK;src:url(fonts/ZenKakuGothicNew-Bold.ttf);font-weight:700}
+@font-face{font-family:ZK;src:url(fonts/ZenKakuGothicNew-Medium.ttf);font-weight:500}
+@font-face{font-family:BC;src:url(fonts/BarlowCondensed-Bold.ttf);font-weight:700}
+@font-face{font-family:PlexMono;src:url(fonts/IBMPlexMono-Regular.ttf);font-weight:400}
+:root{--bg:#101d25;--paper:#f3f2ec;--ink:#eef2ee;--dim:#9caeb5;--line:#35454d;--accent:#b8f568;--accent2:#75d3cd;--muted:#20323b;--dark:#111e25;--ghost:#19323b}
+body{font-family:ZK,sans-serif;font-weight:500;color:var(--ink);-webkit-font-smoothing:antialiased}
+.mono{font-family:PlexMono,ZK,monospace;font-weight:400}

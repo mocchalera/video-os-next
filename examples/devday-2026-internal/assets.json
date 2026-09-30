@@ -1,0 +1,84 @@
+{
+  "assets": {
+    "dots_official": {
+      "duration": 16.633008,
+      "filename": "dots-official.mp4",
+      "fps": 30,
+      "has_audio": false,
+      "height": 1080,
+      "id": "a_063bdea77211ff1d",
+      "kind": "video",
+      "note": "OpenAI公式 Introducing dots / codex-example / Vimeo 1231113706; 2026-09-30取得。公式製品デモ。",
+      "size": 1134443,
+      "width": 1920
+    },
+    "dots_proposal": {
+      "duration": null,
+      "filename": "dots-proposal.png",
+      "has_audio": false,
+      "height": 2148,
+      "id": "a_b736981c12b69b3d",
+      "kind": "image",
+      "note": "OpenAI Introducing dots公式ページの提案書画面。",
+      "size": 1346808,
+      "width": 3819
+    },
+    "pages_official": {
+      "duration": null,
+      "filename": "pages-official.png",
+      "has_audio": false,
+      "height": 1300,
+      "id": "a_8aab5f9082c96e98",
+      "kind": "image",
+      "note": "OpenAI ChatGPT Space公式ページの共同編集画面。",
+      "size": 1357044,
+      "width": 2286
+    },
+    "space_menu": {
+      "duration": null,
+      "filename": "space-menu.png",
+      "has_audio": false,
+      "height": 935,
+      "id": "a_1ce597873dada96b",
+      "kind": "image",
+      "note": "2026-09-30 ChatGPT Space実画面。「新規」メニュー。アカウント名・既存ページ名を除いた画角。",
+      "size": 54440,
+      "width": 486
+    },
+    "space_official": {
+      "duration": 60,
+      "filename": "space-official.mp4",
+      "fps": 30,
+      "has_audio": false,
+      "height": 1080,
+      "id": "a_69746f60ba47b50b",
+      "kind": "video",
+      "note": "OpenAI公式 ChatGPT Space / OAI_DevDay_Spaces_1x1 / Vimeo 1231119830; 2026-09-30取得。公式製品デモ。",
+      "size": 15204982,
+      "width": 1080
+    },
+    "work_home": {
+      "duration": null,
+      "filename": "work-home.png",
+      "has_audio": false,
+      "height": 550,
+      "id": "a_4fc34dd62d8dd6b6",
+      "kind": "image",
+      "note": "2026-09-30 ChatGPT Work実画面。GPT-6.1 Solの表示を確認。",
+      "size": 50381,
+      "width": 1740
+    },
+    "work_prompt": {
+      "duration": null,
+      "filename": "work-prompt.png",
+      "has_audio": false,
+      "height": 550,
+      "id": "a_d87061a64d8b81f4",
+      "kind": "image",
+      "note": "2026-09-30 ChatGPT Work実画面。自作の依頼入力例・未送信。周辺の個人情報を画角から除外。",
+      "size": 88518,
+      "width": 1740
+    }
+  },
+  "format": "vos.assets/1"
+}

@@ -1,0 +1,10 @@
+{
+  "canvas": {
+    "fps": 30,
+    "height": 1080,
+    "width": 1920
+  },
+  "format": "vos.project/1",
+  "name": "devday-2026-internal",
+  "timeline": "timeline.json"
+}

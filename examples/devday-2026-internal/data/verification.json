@@ -1,0 +1,43 @@
+{
+  "verified": "2026-09-30",
+  "artifact": "out/devday-2026-visual-preview-v3.mp4",
+  "sha256": "60cffd8f30156232ec46de6fc2c42fb736529c2077fa28080a65803df0bf57ed",
+  "receipt": "out/devday-2026-visual-preview-v3.receipt.json",
+  "duration": 367.933333,
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30
+  },
+  "render_quality": "draft",
+  "receipt_stale": false,
+  "inspect_errors": 0,
+  "inspect_warnings": 0,
+  "inspect_info": [
+    {
+      "severity": "info",
+      "check": "audio",
+      "count": 1
+    },
+    {
+      "severity": "info",
+      "check": "freeze",
+      "count": 90
+    }
+  ],
+  "dom_scenes": 19,
+  "dom_issues": [],
+  "visual_review": "All 19 resting scenes, current overview/cut sheets, Work model selector, official Dots demo, price/speed card and closing credit.",
+  "audio": {
+    "present": false,
+    "requested_model": "gemini-3.8-flash-tts",
+    "generation": "not-generated",
+    "captions": "estimated-preview-timings"
+  },
+  "limitations": [
+    "No narration or audio synchronization has been verified.",
+    "No app task was executed or shared; request input is an unsent example.",
+    "Feature availability is checked as of 2026-09-30, subject to plan, region and administrator settings."
+  ],
+  "repository_tests": "Not run: no engine or test files changed."
+}

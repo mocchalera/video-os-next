@@ -1,0 +1,146 @@
+<style>
+.dd{position:absolute;inset:0;background:var(--bg);overflow:hidden}
+.dd-grid{position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:120px 120px;opacity:.13;transform:translateY(-28px)}
+.dd-top{position:absolute;left:96px;right:96px;top:64px;display:flex;align-items:center;justify-content:space-between;font-size:22px;color:var(--dim)}
+.dd-dot{display:inline-block;background:var(--accent);width:12px;height:12px;margin-right:16px;border-radius:50%}
+.dd-top .brand{letter-spacing:.10em;font-size:20px}.dd-top .section{color:var(--accent2);letter-spacing:.08em}
+.dd-head{position:absolute;left:96px;top:160px;width:1740px;font-size:88px;line-height:1.13;letter-spacing:-.025em;font-weight:900;white-space:pre-line}
+.dd-sub{position:absolute;left:100px;top:278px;max-width:1710px;color:var(--dim);font-size:34px;line-height:1.35}
+.dd-content{position:absolute;left:96px;right:96px;top:390px;height:442px}
+.dd-cards{display:flex;gap:24px;height:100%}
+.dd-card{flex:1;min-width:0;padding:42px 34px;background:var(--muted);border-top:3px solid var(--line);box-sizing:border-box;position:relative}
+.dd-card.active{border-color:var(--accent)}
+.dd-label{font-size:24px;color:var(--accent2);margin-bottom:32px;line-height:1.4}
+.dd-card h3{margin:0 0 25px;font-size:58px;line-height:1.16;font-weight:900;letter-spacing:-.015em;white-space:pre-line}
+.dd-card p{font-size:31px;line-height:1.55;margin:0;white-space:pre-line;color:var(--ink)}
+.dd-card .ordinal{position:absolute;right:28px;bottom:16px;font-family:BC;font-size:94px;color:var(--dim);opacity:.12}
+.dd-note{position:absolute;left:100px;right:96px;top:862px;color:var(--accent2);font-size:26px;line-height:1.4}
+.dd-visual{position:absolute;left:96px;top:375px;width:1728px;height:500px;overflow:hidden;border-radius:18px;background:var(--dark)}
+.dd-visual img{position:absolute;width:100%;height:100%;object-fit:contain;display:none}
+.dd-visual .slot{position:absolute;inset:0;overflow:hidden}
+.dd-visual .slot video{object-fit:contain!important}
+.dd-badge{position:absolute;left:120px;top:392px;background:var(--paper);color:var(--dark);font-size:22px;padding:8px 16px;border-radius:3px;z-index:3}
+.dd-pointer{position:absolute;left:0;top:0;border:4px solid var(--accent);border-radius:18px;pointer-events:none;display:none}
+.dd-screenhint{position:absolute;left:122px;top:820px;display:flex;gap:12px;z-index:4}
+.dd-pill{font-size:23px;background:var(--bg);border:1px solid var(--line);border-radius:30px;padding:10px 18px;color:var(--accent)}
+.dd-caption{position:absolute;left:130px;right:130px;top:924px;min-height:60px;display:flex;justify-content:center;align-items:center;color:var(--ink);font-size:34px;line-height:1.2;text-align:center;white-space:pre-line}
+.dd-caption span{display:inline-block;background:var(--dark);padding:4px 18px;border-radius:8px}
+.dd-footer{position:absolute;left:100px;right:96px;bottom:31px;display:flex;justify-content:space-between;align-items:center;color:var(--dim);font-size:18px}
+.dd-progress{position:absolute;bottom:0;left:0;width:100%;height:5px;background:var(--muted)}
+.dd-progress i{display:block;background:var(--accent);height:100%;width:0}
+.dd-hero-orbit{position:absolute;right:-210px;top:170px;width:1010px;height:1010px;border:2px solid var(--line);border-radius:50%}
+.dd-hero-orbit:before{content:"";position:absolute;inset:100px;border:2px solid var(--line);border-radius:50%}
+.dd-hero-orbit:after{content:"";position:absolute;inset:220px;border:2px solid var(--line);border-radius:50%}
+.dd-hero-word{position:absolute;right:120px;top:530px;font-family:BC;font-size:190px;color:var(--accent);line-height:.85;transform:rotate(-7deg);opacity:.75}
+.dd.hero .dd-head,.dd.closing .dd-head{top:223px;font-size:132px;line-height:1.16;width:1540px}
+.dd.hero .dd-sub,.dd.closing .dd-sub{top:146px;color:var(--accent2);font-size:30px;letter-spacing:.04em}
+.dd.hero .dd-content,.dd.closing .dd-content{top:642px;height:152px;width:1120px}
+.dd.hero .dd-card,.dd.closing .dd-card{padding:24px;background:transparent;border:0;border-left:3px solid var(--accent);flex:initial;width:auto}
+.dd.hero .dd-card p,.dd.closing .dd-card p{font-size:29px}
+.dd.hero .ordinal,.dd.closing .ordinal{display:none}
+.dd.hero .dd-visual,.dd.closing .dd-visual{display:none}
+.dd.screen .dd-visual{top:357px;height:542px;background:var(--dark)}
+.dd.screen .dd-content{display:none}.dd.screen .dd-note{display:none}
+.dd.screen .dd-badge{top:365px}.dd.screen .dd-screenhint{top:830px}
+.dd.screen.request .dd-screenhint{display:none}
+.dd.demo .dd-visual{top:328px;left:310px;width:1300px;height:556px;background:var(--paper)}
+.dd.demo .dd-content{display:none}.dd.demo .dd-badge{left:326px;top:344px}
+.dd.demo .dd-visual .slot video,.dd.demo .dd-visual img{object-fit:cover!important}
+.dd.menu .dd-head{width:1140px}.dd.menu .dd-sub{width:1020px}
+.dd.menu .dd-visual{left:1348px;top:128px;width:470px;height:748px;border-radius:16px;overflow:hidden}
+.dd.menu .dd-visual img{object-fit:contain}.dd.menu .dd-content{width:1160px;right:auto;top:391px;height:441px}
+.dd.menu .dd-cards{flex-direction:column;gap:15px}.dd.menu .dd-card{padding:19px 26px;border:0;border-left:3px solid var(--accent2);display:flex;align-items:center}
+.dd.menu .dd-card p{font-size:35px}.dd.menu .ordinal{position:relative;right:auto;bottom:auto;order:-1;font-size:47px;color:var(--accent);opacity:1;margin-right:35px}
+.dd.menu .dd-badge{left:1334px;top:876px;font-size:20px;padding:6px 10px}.dd.menu .dd-screenhint{display:none}
+.dd.picture .dd-visual{left:655px;top:350px;width:1169px;height:514px;border-radius:14px;background:var(--paper)}
+.dd.picture .dd-content{left:96px;top:378px;width:510px;height:452px}
+.dd.picture .dd-cards{flex-direction:column;gap:16px}.dd.picture .dd-card{padding:27px 25px;border:0;border-left:3px solid var(--accent)}
+.dd.picture .dd-card p{font-size:33px}.dd.picture .dd-badge{left:680px;top:370px;font-size:20px}.dd.picture .dd-screenhint{display:none}
+.dd.steps .dd-cards{flex-direction:column;gap:14px}.dd.steps .dd-card{display:flex;align-items:center;gap:42px;padding:18px 32px;border:0;border-left:3px solid var(--line)}
+.dd.steps .dd-card.active{border-color:var(--accent)}.dd.steps .dd-card h3{width:215px;flex-shrink:0;margin:0;font-size:43px}.dd.steps .dd-card p{font-size:34px;line-height:1.3}
+.dd.steps .dd-label,.dd.steps .ordinal{display:none}
+.dd.numbers .dd-card h3{font-family:BC,ZK;font-size:134px;color:var(--accent)}
+.dd.numbers .dd-label{margin-bottom:16px}.dd.numbers .dd-card p{font-size:30px}
+.dd.two .dd-card h3{font-size:66px}.dd.two .dd-card p{font-size:32px}
+.dd.flow .dd-card h3{font-size:47px}.dd.flow .dd-label{font-size:22px}
+.dd.check .dd-card h3{font-size:58px}.dd.check .dd-label{display:none}
+.dd.availability .dd-card h3{font-size:44px}.dd.availability .dd-label{font-size:27px}
+.dd.action .dd-card h3{font-size:65px}.dd.action .dd-label{font-family:BC,ZK;font-size:86px;color:var(--accent);line-height:1;margin-bottom:22px}
+.dd-preview{position:absolute;right:96px;top:109px;font-size:19px;color:var(--dim);display:none}
+</style>
+<div class="dd">
+  <div class="dd-grid"></div><div class="dd-hero-orbit"></div><div class="dd-hero-word">TRY<br>ONE.</div>
+  <div class="dd-top mono"><div class="brand"><i class="dd-dot"></i>OPENAI DEVDAY / 2026</div><div class="section"></div></div>
+  <div class="dd-preview">映像プレビュー / ナレーション待ち</div>
+  <div class="dd-head"></div><div class="dd-sub"></div>
+  <div class="dd-visual">
+    <div class="slot" data-slot="demo"></div>
+    <div class="dd-pointer"></div>
+  </div>
+  <div class="dd-badge"></div><div class="dd-screenhint"></div>
+  <div class="dd-content"><div class="dd-cards"></div></div>
+  <div class="dd-note"></div>
+  <div class="dd-caption"><span></span></div>
+  <div class="dd-footer mono"><span class="dd-source"></span><span class="dd-num"></span></div>
+  <div class="dd-progress"><i></i></div>
+</div>
+<script>
+vos.graphic(({q,qa,props,tl,onFrame})=>{
+  const film=props.film, d=film.scenes[props.index], dur=props.duration;
+  const root=q('.dd'); root.classList.add(d.layout,d.id);
+  q('.dd-head').textContent=d.title; q('.dd-sub').textContent=d.subtitle;
+  q('.section').textContent=d.chapter; q('.dd-num').textContent=String(props.index+1).padStart(2,'0')+' / '+film.scenes.length;
+  const sources=d.sources.map(k=>film.sources[k]);
+  q('.dd-source').textContent='公式出典 '+sources.map(s=>'['+String(s.number).padStart(2,'0')+']').join(' ')+' / 詳細リンクは付属ガイド / '+film.date;
+  q('.dd-note').textContent=d.note||'';
+  q('.dd-preview').style.display=props.preview?'block':'none';
+  if(!['hero','closing'].includes(d.layout)){q('.dd-hero-orbit').style.display='none';q('.dd-hero-word').style.display='none';}
+  const images={work_home:'vos://asset/work_home@0',work_prompt:'vos://asset/work_prompt@0',space_menu:'vos://asset/space_menu@0',pages_official:'vos://asset/pages_official@0',dots_official:'vos://asset/dots_official@15'};
+  if(d.image){const img=document.createElement('img');img.src=images[d.image];img.style.display='block';q('.dd-visual').insertBefore(img,q('.dd-visual .slot'));q('.dd-badge').textContent=d.badge;}
+  else{q('.dd-visual').style.display='none';q('.dd-badge').style.display='none';}
+  const cards=d.cards.map((card,i)=>{
+    const el=document.createElement('div');el.className='dd-card';
+    if(typeof card==='string'){const p=document.createElement('p');p.textContent=card;el.appendChild(p);}
+    else{
+      if(card.label){const label=document.createElement('div');label.className='dd-label mono';label.textContent=card.label;el.appendChild(label);}
+      const h=document.createElement('h3');h.textContent=card.head;el.appendChild(h);
+      const p=document.createElement('p');p.textContent=card.body;el.appendChild(p);
+    }
+    const n=document.createElement('span');n.className='ordinal';n.textContent=String(i+1).padStart(2,'0');el.appendChild(n);
+    q('.dd-cards').appendChild(el);return el;
+  });
+  if(d.layout==='screen'||d.layout==='demo'){
+    for(const c of d.cards){const p=document.createElement('span');p.className='dd-pill';p.textContent=typeof c==='string'?c:c.head;q('.dd-screenhint').appendChild(p);}
+  }
+  const pointer=q('.dd-pointer');
+  if(d.id==='work'){
+    pointer.style.cssText+=';display:block;left:67%;top:56%;width:17%;height:12%;';
+    tl.from(pointer,{opacity:0,scale:1.15,duration:.7,ease:'expo.out'},3.2);
+  }
+  const title=q('.dd-head');
+  // The composition may be display:none while mounting. Fit from the canvas box,
+  // independent of hidden DOM measurements, then verify the resting frames.
+  const maxUnits=Math.max(...d.title.split('\n').map(line=>Array.from(line).reduce((n,ch)=>n+(/[\u0020-\u007e]/.test(ch)?.61:1),0)));
+  const box=['hero','closing'].includes(d.layout)?1540:d.layout==='menu'?1140:1740;
+  const max=['hero','closing'].includes(d.layout)?132:88;
+  title.style.fontSize=Math.min(max,Math.floor(box/Math.max(1,maxUnits)))+'px';
+  tl.from(q('.dd-head'),{y:35,opacity:0,duration:.8,ease:'expo.out'},.12)
+    .from(q('.dd-sub'),{y:20,opacity:0,duration:.6,ease:'expo.out'},.25)
+    .from(cards,{y:24,opacity:0,duration:.7,stagger:.13,ease:'expo.out'},.55)
+    .from(q('.dd-visual'),{y:22,opacity:0,duration:.7,ease:'expo.out'},.45)
+    .from(q('.dd-badge'),{opacity:0,duration:.4},.85)
+    .from(q('.dd-screenhint'),{opacity:0,y:12,duration:.5,ease:'expo.out'},1.25)
+    .from(q('.dd-note'),{opacity:0,duration:.5},1.4);
+  const units=d.captions||[{text:d.narration,at:0,dur:dur}];
+  onFrame(t=>{
+    const c=units.find(c=>t>=c.at&&t<c.at+c.dur);
+    q('.dd-caption span').textContent=c?c.text:'';
+    q('.dd-caption').style.opacity=c?Math.min(1,Math.max(0,(t-c.at)*8)):0;
+    q('.dd-progress i').style.width=Math.max(0,Math.min(100,(props.start+t)/props.total*100))+'%';
+    const idx=Math.min(cards.length-1,Math.floor(Math.max(0,t-1.5)/Math.max(1,(dur-3)/cards.length)));
+    cards.forEach((el,i)=>el.classList.toggle('active',i===idx));
+    if(d.layout==='hero'||d.layout==='closing')q('.dd-hero-orbit').style.transform='rotate('+(t*.35)+'deg)';
+    if(d.layout==='demo')q('.dd-visual .slot').style.display=t<15?'block':'none';
+  });
+});
+</script>

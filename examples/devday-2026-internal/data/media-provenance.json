@@ -1,0 +1,74 @@
+{
+  "assets": [
+    {
+      "alias": "dots_official",
+      "id": "a_063bdea77211ff1d",
+      "sha256": "36c132130ccf43d0f9729011ae621f2927f0764d411b20533a62bef9951708a3",
+      "file": "media/dots-official.mp4",
+      "source": "https://player.vimeo.com/video/1231113706?h=9e51d5dd78",
+      "captured": "2026-09-30",
+      "kind": "official-public-media",
+      "note": "OpenAI公式 Introducing dots / codex-example / Vimeo 1231113706; 2026-09-30取得。公式製品デモ。"
+    },
+    {
+      "alias": "dots_proposal",
+      "id": "a_b736981c12b69b3d",
+      "sha256": "3bc94e6cb4be9f8eab58ff484539eaee168a29c579de4cdc014adf29b400f1fb",
+      "file": "media/dots-proposal.png",
+      "source": "https://images.ctfassets.net/kftzwdyauwt9/6FLrjxbFjTxYrhc6wKch43/85e34bf667a7837764568873e39a21b7/introducing-dots-carousel-proposal.png",
+      "captured": "2026-09-30",
+      "kind": "official-public-media",
+      "note": "OpenAI Introducing dots公式ページの提案書画面。"
+    },
+    {
+      "alias": "pages_official",
+      "id": "a_8aab5f9082c96e98",
+      "sha256": "b43ab318c18e5e0d0e9b13453e02ff9caa48f53b016839c0c2865a768edd95f8",
+      "file": "media/pages-official.png",
+      "source": "https://images.ctfassets.net/8su2tbn87fck/Z2uVjpDqSNUgScExYRlI2/df85340215bf6f11c2a9a534055506b0/module_3_Visualize-ideas-on-a-page_16x9.png",
+      "captured": "2026-09-30",
+      "kind": "official-public-media",
+      "note": "OpenAI ChatGPT Space公式ページの共同編集画面。"
+    },
+    {
+      "alias": "space_menu",
+      "id": "a_1ce597873dada96b",
+      "sha256": "aa1791ad96364d7faa23a1470ffc8165b73516d17dc75df1b1142ee7bb26b237",
+      "file": "media/space-menu.png",
+      "source": "https://chatgpt.com/space",
+      "captured": "2026-09-30",
+      "kind": "sanitized-actual-screen",
+      "note": "2026-09-30 ChatGPT Space実画面。「新規」メニュー。アカウント名・既存ページ名を除いた画角。"
+    },
+    {
+      "alias": "space_official",
+      "id": "a_69746f60ba47b50b",
+      "sha256": "528817b13daa5fd7382d8be0572071e435c2845c12941f0f219cb48f80a0b459",
+      "file": "media/space-official.mp4",
+      "source": "https://player.vimeo.com/video/1231119830?h=b2a49e2661",
+      "captured": "2026-09-30",
+      "kind": "official-public-media",
+      "note": "OpenAI公式 ChatGPT Space / OAI_DevDay_Spaces_1x1 / Vimeo 1231119830; 2026-09-30取得。公式製品デモ。"
+    },
+    {
+      "alias": "work_home",
+      "id": "a_4fc34dd62d8dd6b6",
+      "sha256": "3d8f30fd278b53df73d1fe540c7ada62cba74163dcbfce0b6a8c4a42ab673896",
+      "file": "media/work-home.png",
+      "source": "https://chatgpt.com/",
+      "captured": "2026-09-30",
+      "kind": "sanitized-actual-screen",
+      "note": "2026-09-30 ChatGPT Work実画面。GPT-6.1 Solの表示を確認。"
+    },
+    {
+      "alias": "work_prompt",
+      "id": "a_d87061a64d8b81f4",
+      "sha256": "023088f2ce02b160f8c07d9e08f2f8e6fca24cec6e5fc003a15fc7d3d16f1eb5",
+      "file": "media/work-prompt.png",
+      "source": "https://chatgpt.com/",
+      "captured": "2026-09-30",
+      "kind": "sanitized-actual-screen",
+      "note": "2026-09-30 ChatGPT Work実画面。自作の依頼入力例・未送信。周辺の個人情報を画角から除外。"
+    }
+  ]
+}

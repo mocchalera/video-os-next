@@ -1,0 +1,546 @@
+{
+  "format": "vos.timeline/1",
+  "name": "devday-2026-visual-preview",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "background": "#101d25"
+  },
+  "duration": "11038f",
+  "tracks": [
+    {
+      "id": "G1",
+      "kind": "graphics",
+      "clips": [
+        {
+          "id": "opening",
+          "src": "graphics/scene.html",
+          "at": "0f",
+          "dur": "484f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 0,
+            "start": 0,
+            "duration": 16.133333333333333,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "priorities",
+          "src": "graphics/scene.html",
+          "at": "484f",
+          "dur": "498f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 1,
+            "start": 16.133333333333333,
+            "duration": 16.6,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "work",
+          "src": "graphics/scene.html",
+          "at": "982f",
+          "dur": "588f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 2,
+            "start": 32.733333333333334,
+            "duration": 19.6,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "request",
+          "src": "graphics/scene.html",
+          "at": "1570f",
+          "dur": "552f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 3,
+            "start": 52.333333333333336,
+            "duration": 18.4,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "review",
+          "src": "graphics/scene.html",
+          "at": "2122f",
+          "dur": "525f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 4,
+            "start": 70.73333333333333,
+            "duration": 17.5,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "dots",
+          "src": "graphics/scene.html",
+          "at": "2647f",
+          "dur": "556f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 5,
+            "start": 88.23333333333333,
+            "duration": 18.533333333333335,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "dots-start",
+          "src": "graphics/scene.html",
+          "at": "3203f",
+          "dur": "655f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 6,
+            "start": 106.76666666666667,
+            "duration": 21.833333333333332,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "space",
+          "src": "graphics/scene.html",
+          "at": "3858f",
+          "dur": "556f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 7,
+            "start": 128.6,
+            "duration": 18.533333333333335,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "pages",
+          "src": "graphics/scene.html",
+          "at": "4414f",
+          "dur": "601f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 8,
+            "start": 147.13333333333333,
+            "duration": 20.033333333333335,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "meetings",
+          "src": "graphics/scene.html",
+          "at": "5015f",
+          "dur": "624f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 9,
+            "start": 167.16666666666666,
+            "duration": 20.8,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "codex",
+          "src": "graphics/scene.html",
+          "at": "5639f",
+          "dur": "583f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 10,
+            "start": 187.96666666666667,
+            "duration": 19.433333333333334,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "codex-more",
+          "src": "graphics/scene.html",
+          "at": "6222f",
+          "dur": "588f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 11,
+            "start": 207.4,
+            "duration": 19.6,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "models",
+          "src": "graphics/scene.html",
+          "at": "6810f",
+          "dur": "624f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 12,
+            "start": 227.0,
+            "duration": 20.8,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "apis",
+          "src": "graphics/scene.html",
+          "at": "7434f",
+          "dur": "673f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 13,
+            "start": 247.8,
+            "duration": 22.433333333333334,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "plugins",
+          "src": "graphics/scene.html",
+          "at": "8107f",
+          "dur": "651f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 14,
+            "start": 270.23333333333335,
+            "duration": 21.7,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "security",
+          "src": "graphics/scene.html",
+          "at": "8758f",
+          "dur": "624f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 15,
+            "start": 291.93333333333334,
+            "duration": 20.8,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "availability",
+          "src": "graphics/scene.html",
+          "at": "9382f",
+          "dur": "660f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 16,
+            "start": 312.73333333333335,
+            "duration": 22.0,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "action",
+          "src": "graphics/scene.html",
+          "at": "10042f",
+          "dur": "588f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 17,
+            "start": 334.73333333333335,
+            "duration": 19.6,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        },
+        {
+          "id": "closing",
+          "src": "graphics/scene.html",
+          "at": "10630f",
+          "dur": "408f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 18,
+            "start": 354.33333333333337,
+            "duration": 13.6,
+            "total": 367.9333333333334,
+            "preview": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "S1",
+      "kind": "video",
+      "clips": [
+        {
+          "id": "dots-demo",
+          "asset": "dots_official",
+          "at": "2671f",
+          "in": 1,
+          "dur": 14,
+          "slot": "dots/demo"
+        }
+      ]
+    }
+  ],
+  "markers": [
+    {
+      "at": "0f",
+      "label": "START HERE",
+      "kind": "chapter"
+    },
+    {
+      "at": "45f",
+      "dur": 14.633,
+      "label": "Reading hold: opening",
+      "kind": "expect-still"
+    },
+    {
+      "at": "484f",
+      "label": "THREE FIRST STEPS",
+      "kind": "chapter"
+    },
+    {
+      "at": "529f",
+      "dur": 15.1,
+      "label": "Reading hold: priorities",
+      "kind": "expect-still"
+    },
+    {
+      "at": "982f",
+      "label": "01 / WORK",
+      "kind": "chapter"
+    },
+    {
+      "at": "1027f",
+      "dur": 18.1,
+      "label": "Reading hold: work",
+      "kind": "expect-still"
+    },
+    {
+      "at": "1570f",
+      "label": "01 / REQUEST",
+      "kind": "chapter"
+    },
+    {
+      "at": "1615f",
+      "dur": 16.9,
+      "label": "Reading hold: request",
+      "kind": "expect-still"
+    },
+    {
+      "at": "2122f",
+      "label": "01 / REVIEW",
+      "kind": "chapter"
+    },
+    {
+      "at": "2167f",
+      "dur": 16.0,
+      "label": "Reading hold: review",
+      "kind": "expect-still"
+    },
+    {
+      "at": "2647f",
+      "label": "02 / DOTS",
+      "kind": "chapter"
+    },
+    {
+      "at": "3203f",
+      "label": "02 / FIRST TASK",
+      "kind": "chapter"
+    },
+    {
+      "at": "3248f",
+      "dur": 20.333,
+      "label": "Reading hold: dots-start",
+      "kind": "expect-still"
+    },
+    {
+      "at": "3858f",
+      "label": "03 / SPACE",
+      "kind": "chapter"
+    },
+    {
+      "at": "3903f",
+      "dur": 17.033,
+      "label": "Reading hold: space",
+      "kind": "expect-still"
+    },
+    {
+      "at": "4414f",
+      "label": "03 / PAGES",
+      "kind": "chapter"
+    },
+    {
+      "at": "4459f",
+      "dur": 18.533,
+      "label": "Reading hold: pages",
+      "kind": "expect-still"
+    },
+    {
+      "at": "5015f",
+      "label": "TEAM WORKFLOW",
+      "kind": "chapter"
+    },
+    {
+      "at": "5060f",
+      "dur": 19.3,
+      "label": "Reading hold: meetings",
+      "kind": "expect-still"
+    },
+    {
+      "at": "5639f",
+      "label": "DEVELOPERS / CODEX",
+      "kind": "chapter"
+    },
+    {
+      "at": "5684f",
+      "dur": 17.933,
+      "label": "Reading hold: codex",
+      "kind": "expect-still"
+    },
+    {
+      "at": "6222f",
+      "label": "DEVELOPERS / REVIEW",
+      "kind": "chapter"
+    },
+    {
+      "at": "6267f",
+      "dur": 18.1,
+      "label": "Reading hold: codex-more",
+      "kind": "expect-still"
+    },
+    {
+      "at": "6810f",
+      "label": "MODELS & SPEED",
+      "kind": "chapter"
+    },
+    {
+      "at": "6855f",
+      "dur": 19.3,
+      "label": "Reading hold: models",
+      "kind": "expect-still"
+    },
+    {
+      "at": "7434f",
+      "label": "DEVELOPERS / API",
+      "kind": "chapter"
+    },
+    {
+      "at": "7479f",
+      "dur": 20.933,
+      "label": "Reading hold: apis",
+      "kind": "expect-still"
+    },
+    {
+      "at": "8107f",
+      "label": "ECOSYSTEM",
+      "kind": "chapter"
+    },
+    {
+      "at": "8152f",
+      "dur": 20.2,
+      "label": "Reading hold: plugins",
+      "kind": "expect-still"
+    },
+    {
+      "at": "8758f",
+      "label": "ADMIN & SECURITY",
+      "kind": "chapter"
+    },
+    {
+      "at": "8803f",
+      "dur": 19.3,
+      "label": "Reading hold: security",
+      "kind": "expect-still"
+    },
+    {
+      "at": "9382f",
+      "label": "AVAILABILITY",
+      "kind": "chapter"
+    },
+    {
+      "at": "9427f",
+      "dur": 20.5,
+      "label": "Reading hold: availability",
+      "kind": "expect-still"
+    },
+    {
+      "at": "10042f",
+      "label": "YOUR FIRST 30 MINUTES",
+      "kind": "chapter"
+    },
+    {
+      "at": "10087f",
+      "dur": 18.1,
+      "label": "Reading hold: action",
+      "kind": "expect-still"
+    },
+    {
+      "at": "10630f",
+      "label": "LET'S START",
+      "kind": "chapter"
+    },
+    {
+      "at": "10675f",
+      "dur": 12.1,
+      "label": "Reading hold: closing",
+      "kind": "expect-still"
+    }
+  ],
+  "master": {
+    "loudness": -16,
+    "true_peak": -1
+  }
+}

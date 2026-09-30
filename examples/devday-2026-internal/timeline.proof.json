@@ -1,0 +1,438 @@
+{
+  "format": "vos.timeline/1",
+  "name": "devday-2026-visual-proof",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "background": "#101d25"
+  },
+  "duration": "2280f",
+  "tracks": [
+    {
+      "id": "G1",
+      "kind": "graphics",
+      "clips": [
+        {
+          "id": "opening",
+          "src": "graphics/scene.html",
+          "at": "0f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 0,
+            "start": 0,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "priorities",
+          "src": "graphics/scene.html",
+          "at": "120f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 1,
+            "start": 4,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "work",
+          "src": "graphics/scene.html",
+          "at": "240f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 2,
+            "start": 8,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "request",
+          "src": "graphics/scene.html",
+          "at": "360f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 3,
+            "start": 12,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "review",
+          "src": "graphics/scene.html",
+          "at": "480f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 4,
+            "start": 16,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "dots",
+          "src": "graphics/scene.html",
+          "at": "600f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 5,
+            "start": 20,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "dots-start",
+          "src": "graphics/scene.html",
+          "at": "720f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 6,
+            "start": 24,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "space",
+          "src": "graphics/scene.html",
+          "at": "840f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 7,
+            "start": 28,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "pages",
+          "src": "graphics/scene.html",
+          "at": "960f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 8,
+            "start": 32,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "meetings",
+          "src": "graphics/scene.html",
+          "at": "1080f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 9,
+            "start": 36,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "codex",
+          "src": "graphics/scene.html",
+          "at": "1200f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 10,
+            "start": 40,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "codex-more",
+          "src": "graphics/scene.html",
+          "at": "1320f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 11,
+            "start": 44,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "models",
+          "src": "graphics/scene.html",
+          "at": "1440f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 12,
+            "start": 48,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "apis",
+          "src": "graphics/scene.html",
+          "at": "1560f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 13,
+            "start": 52,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "plugins",
+          "src": "graphics/scene.html",
+          "at": "1680f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 14,
+            "start": 56,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "security",
+          "src": "graphics/scene.html",
+          "at": "1800f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 15,
+            "start": 60,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "availability",
+          "src": "graphics/scene.html",
+          "at": "1920f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 16,
+            "start": 64,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "action",
+          "src": "graphics/scene.html",
+          "at": "2040f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 17,
+            "start": 68,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        },
+        {
+          "id": "closing",
+          "src": "graphics/scene.html",
+          "at": "2160f",
+          "dur": "120f",
+          "props": {
+            "film": {
+              "$data": "data/film.json"
+            },
+            "index": 18,
+            "start": 72,
+            "duration": 4,
+            "total": 76,
+            "preview": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "S1",
+      "kind": "video",
+      "clips": [
+        {
+          "id": "dots-demo",
+          "asset": "dots_official",
+          "at": "624f",
+          "in": 1,
+          "dur": 3.1,
+          "slot": "dots/demo"
+        }
+      ]
+    }
+  ],
+  "markers": [
+    {
+      "at": "0f",
+      "label": "START HERE",
+      "kind": "chapter"
+    },
+    {
+      "at": "120f",
+      "label": "THREE FIRST STEPS",
+      "kind": "chapter"
+    },
+    {
+      "at": "240f",
+      "label": "01 / WORK",
+      "kind": "chapter"
+    },
+    {
+      "at": "360f",
+      "label": "01 / REQUEST",
+      "kind": "chapter"
+    },
+    {
+      "at": "480f",
+      "label": "01 / REVIEW",
+      "kind": "chapter"
+    },
+    {
+      "at": "600f",
+      "label": "02 / DOTS",
+      "kind": "chapter"
+    },
+    {
+      "at": "720f",
+      "label": "02 / FIRST TASK",
+      "kind": "chapter"
+    },
+    {
+      "at": "840f",
+      "label": "03 / SPACE",
+      "kind": "chapter"
+    },
+    {
+      "at": "960f",
+      "label": "03 / PAGES",
+      "kind": "chapter"
+    },
+    {
+      "at": "1080f",
+      "label": "TEAM WORKFLOW",
+      "kind": "chapter"
+    },
+    {
+      "at": "1200f",
+      "label": "DEVELOPERS / CODEX",
+      "kind": "chapter"
+    },
+    {
+      "at": "1320f",
+      "label": "DEVELOPERS / REVIEW",
+      "kind": "chapter"
+    },
+    {
+      "at": "1440f",
+      "label": "MODELS & SPEED",
+      "kind": "chapter"
+    },
+    {
+      "at": "1560f",
+      "label": "DEVELOPERS / API",
+      "kind": "chapter"
+    },
+    {
+      "at": "1680f",
+      "label": "ECOSYSTEM",
+      "kind": "chapter"
+    },
+    {
+      "at": "1800f",
+      "label": "ADMIN & SECURITY",
+      "kind": "chapter"
+    },
+    {
+      "at": "1920f",
+      "label": "AVAILABILITY",
+      "kind": "chapter"
+    },
+    {
+      "at": "2040f",
+      "label": "YOUR FIRST 30 MINUTES",
+      "kind": "chapter"
+    },
+    {
+      "at": "2160f",
+      "label": "LET'S START",
+      "kind": "chapter"
+    }
+  ],
+  "master": {
+    "loudness": -16,
+    "true_peak": -1
+  }
+}

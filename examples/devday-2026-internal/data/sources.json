@@ -1,0 +1,110 @@
+{
+  "recap": {
+    "title": "OpenAI DevDay 2026 recap",
+    "url": "https://openai.com/index/devday-2026-recap/",
+    "checked": "2026-09-30",
+    "number": 1
+  },
+  "dots": {
+    "title": "Introducing dots",
+    "url": "https://openai.com/index/introducing-dots/",
+    "checked": "2026-09-30",
+    "number": 2
+  },
+  "sol": {
+    "title": "Introducing GPT-6.1 Sol",
+    "url": "https://openai.com/index/introducing-gpt-6-1-sol/",
+    "checked": "2026-09-30",
+    "number": 3
+  },
+  "space": {
+    "title": "ChatGPT Space",
+    "url": "https://chatgpt.com/features/space/",
+    "checked": "2026-09-30",
+    "number": 4
+  },
+  "space-start": {
+    "title": "Space: getting started",
+    "url": "https://learn.chatgpt.com/docs/space/getting-started",
+    "checked": "2026-09-30",
+    "number": 5
+  },
+  "cloud": {
+    "title": "Cloud Codex",
+    "url": "https://learn.chatgpt.com/docs/cloud",
+    "checked": "2026-09-30",
+    "number": 6
+  },
+  "slack": {
+    "title": "ChatGPT in Slack and Teams",
+    "url": "https://chatgpt.com/features/chatgpt-in-slack-and-teams/",
+    "checked": "2026-09-30",
+    "number": 7
+  },
+  "tts": {
+    "title": "Gemini 3.8 Flash TTS",
+    "url": "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash-tts",
+    "checked": "2026-09-30",
+    "number": 8
+  },
+  "review": {
+    "title": "Code review",
+    "url": "https://learn.chatgpt.com/docs/code-review?surface=app",
+    "checked": "2026-09-30",
+    "number": 9
+  },
+  "security-cloud": {
+    "title": "Codex Security Cloud setup",
+    "url": "https://learn.chatgpt.com/docs/security/setup",
+    "checked": "2026-09-30",
+    "number": 10
+  },
+  "psp": {
+    "title": "ZDR with Private Safety Processing",
+    "url": "https://developers.openai.com/api/docs/guides/private-safety-processing",
+    "checked": "2026-09-30",
+    "number": 11
+  },
+  "extensions": {
+    "title": "Plugin Extensions",
+    "url": "https://developers.openai.com/plugins/build/extensions",
+    "checked": "2026-09-30",
+    "number": 12
+  },
+  "mcp": {
+    "title": "MCP Events",
+    "url": "https://developers.openai.com/plugins/build/mcp-events",
+    "checked": "2026-09-30",
+    "number": 13
+  },
+  "signin": {
+    "title": "Using your ChatGPT plan in other apps and sites",
+    "url": "https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites",
+    "checked": "2026-09-30",
+    "number": 14
+  },
+  "meetings": {
+    "title": "The Meetings plugin in ChatGPT",
+    "url": "https://help.openai.com/en/articles/20001546-the-meetings-plugin-in-chatgpt",
+    "checked": "2026-09-30",
+    "number": 15
+  },
+  "pro": {
+    "title": "About ChatGPT Pro tiers",
+    "url": "https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers",
+    "checked": "2026-09-30",
+    "number": 16
+  },
+  "computer-use": {
+    "title": "Agents API: Computer use",
+    "url": "https://developers.openai.com/api/docs/guides/agents-api/tools/computer-use",
+    "checked": "2026-09-30",
+    "number": 17
+  },
+  "bedrock": {
+    "title": "Amazon Bedrock Managed Agents",
+    "url": "https://aws.amazon.com/bedrock/managed-agents-openai/",
+    "checked": "2026-09-30",
+    "number": 18
+  }
+}

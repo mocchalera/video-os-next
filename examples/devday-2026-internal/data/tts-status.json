@@ -1,0 +1,11 @@
+{
+  "requested_model": "gemini-3.8-flash-tts",
+  "status": "not-generated",
+  "attempt": "Google AI Studio, 2026-09-30",
+  "observed_model": "Gemini 3.8 Flash TTS",
+  "observed_voice": "Fola",
+  "generation_result": "HTTP 403",
+  "key_list_result": "permission denied",
+  "audio_received": false,
+  "fallback_used": false
+}
