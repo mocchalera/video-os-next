@@ -359,6 +359,61 @@ assert abs(rig.shot_distance("MCU", 50) - 0.6 * 50 / (36 * height / width)) < 1e
   assert.ok(loadProject(p.root).assets.assets.dz_depth);
 });
 
+test("previz actor: feet never slide in stance, marks are hit, gaze and hand contacts land; a pose pass and beats come out", async (t) => {
+  const { blenderBin, renderPreviz } = await import("../src/gen/previz.ts");
+  if (!blenderBin()) return t.skip("Blender not installed");
+  const p = fixtureProject();
+  const scene = path.join(p.root, "act.py");
+  // the scene asserts the invariants itself on the baked armatures; a failure fails the render
+  fs.writeFileSync(scene, `import math
+from mathutils import Vector
+cam = rig.camera(lens=28, at=(0, -7, 1.5), look=(0, 1, 1))
+ball = rig.box("ball", (-1.25, -0.3, 1.1), (0.05, 0.05, 0.05))
+B = rig.actor("B", at=(2.5, 3, 0), facing=180)
+A = rig.actor("A", at=(0, 0, 0))
+C = rig.actor("C", at=(-1, 0, 0))
+rig.perform(B, {})
+rig.perform(A, {"effort": {"space": "direct"}, "path": [(1, (0, 0)), (frames - 14, (0, 2))], "gaze": [(1, B, 1)],
+                "beats": [(1, "go"), (frames - 14, "arrive")]})
+rig.perform(C, {"hands": [(1, "R", ball, 1)], "body": [(1, {"weight": "L"}, 1)]})
+def head(arm, bone, f):
+    scene.frame_set(f)
+    return arm.matrix_world @ arm.pose.bones[bone].head
+lifted = {"foot.L": 0, "foot.R": 0}
+for f in range(1, frames + 1):  # walking has no flight phase: a foot is always on the ground (none floats)
+    assert min(head(A, "foot.L", f).z, head(A, "foot.R", f).z) < 0.0801, ("both feet off the ground", f)
+for bone in lifted:
+    prev = None
+    for f in range(1, frames + 1):
+        p = head(A, bone, f)
+        if p.z > 0.1:
+            lifted[bone] += 1
+        if prev is not None and p.z < 0.0801 and prev.z < 0.0801:
+            assert (p.xy - prev.xy).length < 0.002, ("foot slides", bone, f, (p.xy - prev.xy).length)
+        prev = p
+assert 0 < lifted["foot.L"] < frames * 0.4 and 0 < lifted["foot.R"] < frames * 0.4, lifted
+end = head(A, "root", frames)
+assert (end.xy - Vector((0, 2))).length < 0.01, end
+scene.frame_set(frames)
+hb = A.pose.bones["head"]
+fwd = ((A.matrix_world @ hb.matrix @ hb.bone.matrix_local.inverted()).to_3x3() @ Vector((0, -1, 0))).normalized()
+to_b = (rig.eye(B) - rig.eye(A)).normalized()
+assert math.degrees(fwd.angle(to_b)) < 12, math.degrees(fwd.angle(to_b))
+wrist = head(C, "hand.R", 6)
+assert (wrist - ball.location).length < 0.02, (wrist - ball.location).length
+`);
+  const r = renderPreviz(p, scene, { as: "act", seconds: 2, size: "256x160" });
+  assert.ok(r.pose, "actors give a pose pass");
+  assert.equal(loadProject(p.root).assets.assets.act_pose.fps, 24);
+  assert.deepEqual(r.markers.map((m) => m.label), ["A: go", "A: arrive"]);
+  const kp = JSON.parse(fs.readFileSync(path.join(p.root, r.dir, "pose.json"), "utf8"));
+  const f1 = kp.frames["1"];
+  assert.deepEqual(Object.keys(f1).sort(), ["A", "B", "C"]);
+  assert.equal(f1.A.length, 18);
+  assert.ok(f1.C[0] && f1.C[14] && f1.C[15], "C faces the camera: nose and eyes are visible");
+  assert.equal(f1.B[0], null, "B faces away: no nose");
+});
+
 test("up: a dropped connection is retried once; a failed up stops the VM instead of leaving it to the budget", () => {
   const vm = freshVm();
   process.env.FAKE_EXEC_DROPS = "1";

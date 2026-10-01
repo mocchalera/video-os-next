@@ -244,7 +244,10 @@ async function main() {
     case "previz": {
       if (rest[0] !== "render" || !rest[1]) throw new VosError("usage", "vos previz render <scene.py> [--as name] [--seconds 5] [--size 768p|draft|WxH] [--encoding disparity|log|linear]");
       const r = renderPreviz(proj(a), rest[1], { as: a.as, seconds: a.seconds ? Number(a.seconds) : undefined, size: a.size, encoding: a.encoding });
-      out(r, () => console.log(`${r.cached ? "cached" : "rendered"}  ${r.name} (beauty) + ${r.name}_depth  ${r.size.join("x")} ${r.frames} frames  ${r.dir}`));
+      out(r, () => {
+        console.log(`${r.cached ? "cached" : "rendered"}  ${r.name} (beauty) + ${r.name}_depth${r.pose ? ` + ${r.name}_pose` : ""}  ${r.size.join("x")} ${r.frames} frames  ${r.dir}`);
+        for (const m of r.markers) console.log(`  ${m.sec.toFixed(2)}s  f${m.frame}  ${m.label}`);
+      });
       return;
     }
 

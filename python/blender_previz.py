@@ -11,8 +11,11 @@ namespace. This driver then renders two passes of the same camera:
   depth   the same shot with a material override: emission = encoded camera distance, near = white, far/sky = black;
           default encoding is normalised disparity (1/z), the relative-depth convention depth ControlNets are trained
           on; the range is taken from the scene over the whole shot
+  pose    only when the scene has actors (armatures with `vos_keypoints`): OpenPose body-18 skeletons on black, the
+          format pose ControlNets are trained on; keypoints also go to DIR/pose.json
 
-Output: DIR/beauty/####.png, DIR/depth/####.png and DIR/previz.json (settings, depth range, blender version).
+Output: DIR/beauty/####.png, DIR/depth/####.png, [DIR/pose/####.png] and DIR/previz.json (settings, depth range,
+passes, timeline markers = performance beats, blender version).
 Everything is deterministic (no noise, fixed samples), so the same scene script gives the same frames.
 """
 import argparse
@@ -134,6 +137,95 @@ def render(pass_name):
     bpy.ops.render.render(animation=True)
 
 
+# OpenPose body-18: limb pairs and colours (as drawn by the common OpenPose / controlnet_aux renderers)
+LIMBS = [(1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (1, 8), (8, 9), (9, 10), (1, 11), (11, 12), (12, 13), (1, 0),
+         (0, 14), (14, 16), (0, 15), (15, 17)]
+COLORS = [(255, 0, 0), (255, 85, 0), (255, 170, 0), (255, 255, 0), (170, 255, 0), (85, 255, 0), (0, 255, 0),
+          (0, 255, 85), (0, 255, 170), (0, 255, 255), (0, 170, 255), (0, 85, 255), (0, 0, 255), (85, 0, 255),
+          (170, 0, 255), (255, 0, 255), (255, 0, 170), (255, 0, 85)]
+
+
+def keypoints(arm):
+    """Image-space OpenPose keypoints of one actor at the current frame: [(x_px, y_px) | None] * 18."""
+    from bpy_extras.object_utils import world_to_camera_view as w2c
+    spec = json.loads(arm["vos_keypoints"])
+    cam_pos = cam.matrix_world.translation
+    head = arm.pose.bones["head"]
+    hm = arm.matrix_world @ head.matrix @ head.bone.matrix_local.inverted()
+    fwd = (hm.to_3x3() @ Vector((0, -1, 0))).normalized()
+    side = (hm.to_3x3() @ Vector((1, 0, 0))).normalized()
+    out = []
+    for bone, rest_p, vis in spec:
+        pb = arm.pose.bones[bone]
+        p = arm.matrix_world @ pb.matrix @ pb.bone.matrix_local.inverted() @ Vector(rest_p)
+        to_cam = (cam_pos - p).normalized()
+        if (vis == "front" and fwd.dot(to_cam) < 0.1) or (vis == "L" and side.dot(to_cam) < -0.3) or \
+                (vis == "R" and side.dot(to_cam) > 0.3):
+            out.append(None)
+            continue
+        v = w2c(sc, cam, p)
+        out.append((v.x * a.width, (1 - v.y) * a.height) if v.z > 0 and -0.2 < v.x < 1.2 and -0.2 < v.y < 1.2 else None)
+    return out
+
+
+def draw_pose(people):
+    import numpy as np
+    h, w = a.height, a.width
+    img = np.zeros((h, w, 3), dtype=np.float32)
+    k = max(1.0, min(w, h) / 512)
+    stick, dot = 4 * k, 4 * k
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
+
+    def fill(mask_fn, box, color):
+        x0, y0, x1, y1 = (max(0, int(box[0])), max(0, int(box[1])), min(w, int(box[2]) + 1), min(h, int(box[3]) + 1))
+        if x0 >= x1 or y0 >= y1:
+            return
+        m = mask_fn(xx[y0:y1, x0:x1], yy[y0:y1, x0:x1])
+        img[y0:y1, x0:x1][m] = color
+
+    for kp in people:
+        for i, (p, q) in enumerate(LIMBS):
+            if kp[p] is None or kp[q] is None:
+                continue
+            (ax, ay), (bx, by) = kp[p], kp[q]
+            c = [0.6 * v / 255 for v in COLORS[i]]
+            dx, dy = bx - ax, by - ay
+            ll = max(1e-6, dx * dx + dy * dy)
+
+            def seg(X, Y, ax=ax, ay=ay, dx=dx, dy=dy, ll=ll):
+                t = np.clip(((X - ax) * dx + (Y - ay) * dy) / ll, 0, 1)
+                return (X - ax - t * dx) ** 2 + (Y - ay - t * dy) ** 2 <= stick * stick
+            fill(seg, (min(ax, bx) - stick, min(ay, by) - stick, max(ax, bx) + stick, max(ay, by) + stick), c)
+        for i, pt in enumerate(kp):
+            if pt is None:
+                continue
+            x, y = pt
+            fill(lambda X, Y, x=x, y=y: (X - x) ** 2 + (Y - y) ** 2 <= dot * dot, (x - dot, y - dot, x + dot, y + dot),
+                 [v / 255 for v in COLORS[i]])
+    return img
+
+
+def render_pose(actors):
+    import numpy as np
+    d = os.path.join(a.out, "pose")
+    os.makedirs(d, exist_ok=True)
+    im = bpy.data.images.new("vos_pose", a.width, a.height, alpha=False)
+    frames_kp = {}
+    for fr in range(1, a.frames + 1):
+        sc.frame_set(fr)
+        people = [keypoints(arm) for arm in actors]
+        frames_kp[fr] = {arm["vos_actor"]: [list(map(lambda v: round(v, 1), p)) if p else None for p in kp]
+                         for arm, kp in zip(actors, people)}
+        rgb = draw_pose(people)[::-1]  # Blender images are stored bottom row first
+        rgba = np.concatenate([rgb, np.ones((a.height, a.width, 1), dtype=np.float32)], axis=2)
+        im.pixels.foreach_set(rgba.ravel())
+        im.filepath_raw = os.path.join(d, f"{fr:04d}.png")
+        im.file_format = "PNG"
+        im.save()
+    with open(os.path.join(a.out, "pose.json"), "w") as f:
+        json.dump({"format": "vos.previz-pose/1", "keypoints": "openpose-body18", "frames": frames_kp}, f)
+
+
 near, far = (a.near, a.far) if a.near and a.far else depth_range()
 render("beauty")
 vl = bpy.context.view_layer
@@ -144,8 +236,15 @@ sc.view_settings.view_transform = "Standard"
 render("depth")
 vl.material_override = None
 sc.world = world
+passes = ["beauty", "depth"]
+actors = [ob for ob in sc.objects if ob.type == "ARMATURE" and "vos_keypoints" in ob]
+if actors:
+    render_pose(actors)
+    passes.append("pose")
+markers = sorted(({"frame": m.frame, "sec": round((m.frame - 1) / a.fps, 3), "label": m.name} for m in sc.timeline_markers),
+                 key=lambda m: m["frame"])
 with open(os.path.join(a.out, "previz.json"), "w") as f:
     json.dump({"format": "vos.previz/1", "blender": bpy.app.version_string, "engine": sc.render.engine,
-               "width": a.width, "height": a.height, "frames": a.frames, "fps": a.fps,
+               "width": a.width, "height": a.height, "frames": a.frames, "fps": a.fps, "passes": passes, "markers": markers,
                "depth": {"near": round(near, 4), "far": round(far, 4), "encoding": f"{a.depth_encoding}, near=white, clamped"}}, f)
 print("previz: done", a.out)

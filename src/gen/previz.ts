@@ -14,7 +14,10 @@ import { framesFor, parseSize } from "./colab.ts";
  */
 
 const DRIVER = path.join(REPO, "python", "blender_previz.py");
-const RIG = path.join(REPO, "python", "previz_rig.py"); // imported by the driver, `rig` in scene scripts
+// modules the driver imports (`rig` in scene scripts, actors); all of them are part of the cache key
+const RIG_FILES = ["previz_rig.py", "previz_actor.py"].map((f) => path.join(REPO, "python", f));
+type Pass = "beauty" | "depth" | "pose";
+const passesOf = (m: any): Pass[] => m?.passes ?? ["beauty", "depth"];
 
 export function blenderBin(): string | null {
   const c = loadConfig() as any;
@@ -28,6 +31,8 @@ export interface PrevizResult {
   cached: boolean;
   beauty: IngestResult;
   depth: IngestResult;
+  pose?: IngestResult; // only when the scene has actors
+  markers: { frame: number; sec: number; label: string }[]; // timeline markers (performance beats)
   dir: string;
   frames: number;
   size: [number, number];
@@ -44,10 +49,10 @@ export function renderPreviz(p: Project, scene: string, o: { as?: string; second
   const frames = framesFor(seconds);
   const encoding = o.encoding ?? "disparity";
   const dir = path.join(p.root, "previz", name);
-  const key = sha256(stableStringify({ scene: sha256(fs.readFileSync(scenePath)), driver: sha256(fs.readFileSync(DRIVER)), rig: sha256(fs.readFileSync(RIG)), width, height, frames, encoding }));
-  const media = { beauty: path.join(dir, `${name}.beauty.mp4`), depth: path.join(dir, `${name}.depth.mp4`) };
+  const key = sha256(stableStringify({ scene: sha256(fs.readFileSync(scenePath)), driver: sha256(fs.readFileSync(DRIVER)), rig: RIG_FILES.map((f) => sha256(fs.readFileSync(f))), width, height, frames, encoding }));
+  const media: Record<Pass, string> = { beauty: path.join(dir, `${name}.beauty.mp4`), depth: path.join(dir, `${name}.depth.mp4`), pose: path.join(dir, `${name}.pose.mp4`) };
   const meta = readJsonIf<any>(path.join(dir, "previz.json"), null);
-  const cached = !!meta && meta.key === key && fs.existsSync(media.beauty) && fs.existsSync(media.depth);
+  const cached = !!meta && meta.key === key && passesOf(meta).every((x) => fs.existsSync(media[x]));
   if (!cached) {
     fs.rmSync(dir, { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });
@@ -57,7 +62,7 @@ export function renderPreviz(p: Project, scene: string, o: { as?: string; second
       const err = (r.stdout + r.stderr).split("\n").filter((l) => /Error|Traceback|previz:|line \d+/.test(l)).slice(-12).join("\n");
       throw new VosError("previz_failed", "Blender could not render the previz scene", err || (r.stdout + r.stderr).slice(-800));
     }
-    for (const pass of ["beauty", "depth"] as const) {
+    for (const pass of passesOf(readJsonIf<any>(path.join(dir, "previz.json"), {}))) {
       const e = run("ffmpeg", ["-v", "error", "-y", "-framerate", "24", "-i", path.join(dir, pass, "%04d.png"), "-c:v", "libx264", "-crf", "12",
         "-pix_fmt", "yuv420p", media[pass]]);
       if (e.status !== 0) throw new VosError("previz_encode", `could not encode the ${pass} pass`, e.stderr.slice(-300));
@@ -70,6 +75,10 @@ export function renderPreviz(p: Project, scene: string, o: { as?: string; second
   const note = `previz (blender): ${path.basename(scenePath)}`;
   const beauty = ingest(p, media.beauty, name, `${note} — beauty pass`, true);
   const depth = ingest(p, media.depth, `${name}_depth`, `${note} — depth pass (${encoding}, near=white): use with vos gen clip --control`, true);
+  const info = readJsonIf<any>(path.join(dir, "previz.json"), {});
+  const pose = passesOf(info).includes("pose")
+    ? ingest(p, media.pose, `${name}_pose`, `${note} — pose pass (OpenPose body-18): use with vos gen clip --control instead of the depth pass`, true)
+    : undefined;
   saveAssets(p);
-  return { name, cached, beauty, depth, dir: path.relative(p.root, dir), frames, size: [width, height] };
+  return { name, cached, beauty, depth, ...(pose ? { pose } : {}), markers: info.markers ?? [], dir: path.relative(p.root, dir), frames, size: [width, height] };
 }

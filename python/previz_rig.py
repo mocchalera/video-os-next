@@ -105,7 +105,10 @@ def person(at=(0, 0, 0), height=1.7, facing=0.0, color=CLAY, name="person"):
 
 
 def eye(ob):
-    """World-space eye point of a person() (at the current frame); for other objects, their origin."""
+    """World-space eye point of a person() or actor() (at the current frame); for other objects, their origin."""
+    if "vos_actor" in ob:
+        import previz_actor
+        return previz_actor.eye_at(ob)
     m = ob.matrix_world
     return m @ Vector((0, 0, ob.get("vos_eye_height", 0.0)))
 
@@ -142,12 +145,24 @@ def framing(subject, size, lens, height=None):
     """(distance, aim_z) that frame a person() at `size` with this lens: the distance from shot_distance(), and an aim
     height that leaves ~10 % headroom above the head (ECU: centred on the eyes). Put the camera `distance` in front of
     the subject and aim at (subject x, subject y, aim_z); pass `height` to know where the camera sits (default: aim)."""
-    tall = subject.get("vos_eye_height", 1.58) / 1.58 * 1.7
+    tall = 1.7 * subject["vos_scale"] if "vos_scale" in subject else subject.get("vos_eye_height", 1.58) / 1.58 * 1.7
     visible = SHOT_SIZES[size] * tall / 1.7 if isinstance(size, str) else float(size)
     d = shot_distance(visible, lens)
     top = subject.matrix_world.translation.z + tall
     aim_z = eye(subject).z if visible < 0.3 else top + 0.1 * visible - visible / 2
     return d, aim_z
+
+
+def actor(name="actor", at=(0, 0, 0), facing=0.0, height=1.7, color=CLAY):
+    """A jointed clay person driven by perform(); see python/previz_actor.py and skills/previz-performance."""
+    import previz_actor
+    return previz_actor.actor(name, at, facing, height, color)
+
+
+def perform(arm, spec):
+    """Compile a performance spec (path, facing, body, gaze, hands, beats, effort) into keys on an actor()."""
+    import previz_actor
+    return previz_actor.perform(arm, spec)
 
 
 # ---- moves ---------------------------------------------------------------------------------------------------------
@@ -227,6 +242,9 @@ def walk(ob, path, ease="linear", span=None):
 
 def _point(x, frame=None):
     if isinstance(x, bpy.types.Object):
+        if "vos_actor" in x:  # performed actors are cached per frame: no frame change needed
+            import previz_actor
+            return previz_actor.eye_at(x, frame)
         if frame is not None and _scene().frame_current != frame:
             _scene().frame_set(frame)
         else:

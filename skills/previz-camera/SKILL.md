@@ -53,8 +53,9 @@ d, aim_z = rig.framing(hero, "MS", 40)       # distance for a waist-up shot on 4
 cam = rig.camera(lens=40, at=(0, 1.2 - d, 1.55), look=(0, 1.2, aim_z))
 ```
 
-Always put a `rig.person` (or a real-size prop) in the set: without a human scale reference neither you nor the
-beauty pass can tell a close-up from a wide shot. Camera height: eye level 1.5–1.6 m; chest 1.2 m (slightly heroic);
+Always put a `rig.person` (static stand-in) or a `rig.actor` (jointed, performs — `skills/previz-performance/SKILL.md`)
+or a real-size prop in the set: without a human scale reference neither you nor the beauty pass can tell a close-up
+from a wide shot. Camera height: eye level 1.5–1.6 m; chest 1.2 m (slightly heroic);
 hip 0.9 m (low); ground 0.3 m (very low).
 
 ## 3. Moves (`rig`)

@@ -226,6 +226,12 @@ FFmpeg は解析・抽出・検査・後処理に使う。
   なくプリビズの数値（焦点距離・高さ・距離・軌道・イージング）で決める。シーンスクリプトには `rig`
   （`python/previz_rig.py`: 移動・オービット・ドリーズーム・人物の代役・ショットサイズ計算）が渡り、1 フレーム 1 キーで
   焼くので決定的。選び方は `skills/previz-camera/SKILL.md`。
+- **人物は演技仕様からコンパイルする。** `rig.actor` は関節つきのクレイ人形（自前の小さな骨格、Rigify も IK 拘束も
+  使わない）、`rig.perform(actor, spec)` はビート・経路・支持脚・視線・接触・Laban Effort の辞書を毎フレーム Python で
+  解いて 1 フレーム 1 キーで焼く。足は足跡計画で接地中は世界に固定（滑らない）、骨盤は脚の届く高さまでしか上がらない、
+  視線は目→頭→胸の順に遅れて回る。アクターがいるシーンは OpenPose body-18 の pose パスも出し（`<name>_pose`、
+  `pose.json`）、`--control` に深度の代わりに渡せる。ビートはタイムラインマーカーとして `previz.json` に残る。
+  選び方は `skills/previz-performance/SKILL.md`。
 - **アップスケールは最後に一度。** `vos gen upscale` はタイムラインが実際に使う生成テイクだけを、キャンバスを覆う
   最小サイズへ Real-ESRGAN（BSD）で拡大し、alias を差し替える（タイムラインは不変、旧内容は `replaced` に残る）。
   フレームを 1 枚ずつ流す（decode→拡大→encode）ので長さに関係なくメモリ一定。ComfyUI グラフで全フレームを
