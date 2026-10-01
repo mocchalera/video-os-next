@@ -243,8 +243,11 @@ if actors:
     passes.append("pose")
 markers = sorted(({"frame": m.frame, "sec": round((m.frame - 1) / a.fps, 3), "label": m.name} for m in sc.timeline_markers),
                  key=lambda m: m["frame"])
+# external files the scene read (e.g. motion takes via previz_motion.load_bvh): part of the cache check in vos
+inputs = list(getattr(sys.modules.get("previz_motion"), "INPUTS", []))
 with open(os.path.join(a.out, "previz.json"), "w") as f:
     json.dump({"format": "vos.previz/1", "blender": bpy.app.version_string, "engine": sc.render.engine,
                "width": a.width, "height": a.height, "frames": a.frames, "fps": a.fps, "passes": passes, "markers": markers,
+               "inputs": inputs,
                "depth": {"near": round(near, 4), "far": round(far, 4), "encoding": f"{a.depth_encoding}, near=white, clamped"}}, f)
 print("previz: done", a.out)

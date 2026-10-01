@@ -14,8 +14,11 @@ import { framesFor, parseSize } from "./colab.ts";
  */
 
 const DRIVER = path.join(REPO, "python", "blender_previz.py");
-// modules the driver imports (`rig` in scene scripts, actors); all of them are part of the cache key
-const RIG_FILES = ["previz_rig.py", "previz_actor.py"].map((f) => path.join(REPO, "python", f));
+// modules the driver imports (`rig` in scene scripts, actors, motion takes); all of them are part of the cache key
+const RIG_FILES = ["previz_rig.py", "previz_actor.py", "previz_motion.py"].map((f) => path.join(REPO, "python", f));
+/** Files the last render read (previz.json `inputs`, e.g. motion takes) still have the same content. */
+const inputsUnchanged = (m: any): boolean =>
+  (m?.inputs ?? []).every((i: { path: string; sha256: string }) => fs.existsSync(i.path) && sha256(fs.readFileSync(i.path)) === i.sha256);
 type Pass = "beauty" | "depth" | "pose";
 const passesOf = (m: any): Pass[] => m?.passes ?? ["beauty", "depth"];
 
@@ -52,7 +55,7 @@ export function renderPreviz(p: Project, scene: string, o: { as?: string; second
   const key = sha256(stableStringify({ scene: sha256(fs.readFileSync(scenePath)), driver: sha256(fs.readFileSync(DRIVER)), rig: RIG_FILES.map((f) => sha256(fs.readFileSync(f))), width, height, frames, encoding }));
   const media: Record<Pass, string> = { beauty: path.join(dir, `${name}.beauty.mp4`), depth: path.join(dir, `${name}.depth.mp4`), pose: path.join(dir, `${name}.pose.mp4`) };
   const meta = readJsonIf<any>(path.join(dir, "previz.json"), null);
-  const cached = !!meta && meta.key === key && passesOf(meta).every((x) => fs.existsSync(media[x]));
+  const cached = !!meta && meta.key === key && passesOf(meta).every((x) => fs.existsSync(media[x])) && inputsUnchanged(meta);
   if (!cached) {
     fs.rmSync(dir, { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });

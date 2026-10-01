@@ -414,6 +414,45 @@ assert (wrist - ball.location).length < 0.02, (wrist - ball.location).length
   assert.equal(f1.B[0], null, "B faces away: no nose");
 });
 
+test("previz motion: a Kimodo BVH take drives an actor (placed, turned, grounded); changing the take re-renders", async (t) => {
+  const { blenderBin, renderPreviz } = await import("../src/gen/previz.ts");
+  if (!blenderBin()) return t.skip("Blender not installed");
+  const p = fixtureProject();
+  const take = path.join(p.root, "motion", "walk.bvh");
+  fs.mkdirSync(path.dirname(take), { recursive: true });
+  // 48 frames (1.6 s at 30 fps) of a real Kimodo walk (SOMA skeleton, cm, Y up), straight ahead
+  fs.copyFileSync(path.join(path.dirname(FAKE), "motion", "kimodo_walk.bvh"), take);
+  const scene = path.join(p.root, "walk.py");
+  fs.writeFileSync(scene, `import previz_motion as motion
+from mathutils import Vector
+cam = rig.camera(lens=28, at=(2, -6, 1.5), look=(2, 2, 1))
+A = rig.actor("A", at=(1, 2, 0), facing=90)   # facing 90: walking toward +X
+motion.apply(A, motion.load_bvh(${JSON.stringify(take)}))
+def head(bone, f):
+    scene.frame_set(f)
+    return A.matrix_world @ A.pose.bones[bone].head
+r1 = head("root", 1)
+assert (r1.xy - Vector((1, 2))).length < 0.06, ("starts at the mark", r1)
+r2 = head("root", 37)                          # 1.5 s later
+assert r2.x - r1.x > 1.2 and abs(r2.y - r1.y) < 0.3, ("walks along +X", r1, r2)
+pel = head("pelvis", 1)
+assert 0.85 < pel.z < 1.05, ("hip height scaled to the actor", pel.z)
+for f in range(1, frames + 1):
+    feet = [head("foot.L", f).z, head("foot.R", f).z]
+    assert min(feet) > -0.06 and min(feet) < 0.2, ("a foot near the ground", f, feet)
+assert len(motion.INPUTS) == 1
+`);
+  const r = renderPreviz(p, scene, { as: "walk", seconds: 2, size: "256x160" });
+  assert.ok(r.pose, "a motion-driven actor gives a pose pass");
+  const meta = JSON.parse(fs.readFileSync(path.join(p.root, r.dir, "previz.json"), "utf8"));
+  assert.equal(meta.inputs.length, 1);
+  assert.equal(meta.inputs[0].path, take);
+  assert.equal(renderPreviz(p, scene, { as: "walk", seconds: 2, size: "256x160" }).cached, true);
+  // a new take with the same file name must not reuse the old render
+  fs.writeFileSync(take, fs.readFileSync(take, "utf8").replace(/\n$/, "\n\n"));
+  assert.equal(renderPreviz(p, scene, { as: "walk", seconds: 2, size: "256x160" }).cached, false);
+});
+
 test("up: a dropped connection is retried once; a failed up stops the VM instead of leaving it to the budget", () => {
   const vm = freshVm();
   process.env.FAKE_EXEC_DROPS = "1";

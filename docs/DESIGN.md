@@ -232,6 +232,11 @@ FFmpeg は解析・抽出・検査・後処理に使う。
   視線は目→頭→胸の順に遅れて回る。アクターがいるシーンは OpenPose body-18 の pose パスも出し（`<name>_pose`、
   `pose.json`）、`--control` に深度の代わりに渡せる。ビートはタイムラインマーカーとして `previz.json` に残る。
   選び方は `skills/previz-performance/SKILL.md`。
+- **体の動きは生成モーションも使える。** 歩いて立ち位置に着く・振り向く・立ち止まるといった全身の動きは、NVIDIA Kimodo
+  （700 時間のモーキャプで学習、テキスト＋経路の拘束、SOMA 骨格の BVH）で生成し、`python/previz_motion.py` が
+  `rig.actor` に方向だけ写す（骨の長さは人形のまま）。立ち位置は `blocking_constraints` で Kimodo の root2d 拘束に
+  変換し、`align="canonical"` で印の上に着く。読み込んだテイクは `previz.json` の `inputs` に内容ハッシュで残し、
+  変われば描き直す。手指・楽器・音楽同期は対象外（H3 に任せる）。手順は `skills/previz-motion/SKILL.md`。
 - **アップスケールは最後に一度。** `vos gen upscale` はタイムラインが実際に使う生成テイクだけを、キャンバスを覆う
   最小サイズへ Real-ESRGAN（BSD）で拡大し、alias を差し替える（タイムラインは不変、旧内容は `replaced` に残る）。
   フレームを 1 枚ずつ流す（decode→拡大→encode）ので長さに関係なくメモリ一定。ComfyUI グラフで全フレームを
