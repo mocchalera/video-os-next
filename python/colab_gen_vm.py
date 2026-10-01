@@ -196,8 +196,17 @@ def graph(r):
     model = node("unet", "UNETLoader", unet_name=r["unet"], weight_dtype="default")
     if r.get("lora"):
         model = node("lora", "LoraLoaderModelOnly", model=model, lora_name=r["lora"], strength_model=r.get("lora_strength", 1.0))
+    if r.get("sol_tau") is not None:
+        # dynamic combo = flat dotted keys; other inputs are the node defaults at COMFY_REV
+        model = node("sparse", "BlockSparseAttention", model=model, **{
+            "selection": "sol-attn", "selection.tau": r["sol_tau"], "start_percent": 0.2, "end_percent": 1.0,
+            "dense_blocks": "", "min_tokens": 12288, "extra_tokens": 256,
+            "sink_conditioning": "exact_kv_and_rows", "verbose": False})
     if r.get("control_video"):
-        # stock template video_minimax_h3_fun_controlnet_union: depth / canny / pose video → model patch (guidance 1.0)
+        # stock template video_minimax_h3_fun_controlnet_union: depth / canny / pose video → model patch (guidance 1.0).
+        # Must come AFTER BlockSparseAttention: at COMFY_REV the sparse node replaces every ("double_block", i) patch
+        # without chaining, which silently dropped the ControlNet hooks (live: controlled == uncontrolled, 2026-10-01).
+        # The ControlNet apply keeps and calls an existing block patch, so this order keeps both.
         cv = node("ctl_load", "LoadVideo", file=r["control_video"])
         g["ctl_parts"] = {"class_type": "GetVideoComponents", "inputs": {"video": cv}}
         frames_in = node("ctl_size", "ImageScale", image=["ctl_parts", 0], upscale_method="lanczos",
@@ -206,12 +215,6 @@ def graph(r):
         model = node("control", "MiniMaxH3FunControlNetApply", model=model, model_patch=patch, vae=["vvae", 0],
                      strength=r["control"]["strength"], start_percent=0.0, end_percent=r["control"]["end"],
                      control_video=frames_in)
-    if r.get("sol_tau") is not None:
-        # dynamic combo = flat dotted keys; other inputs are the node defaults at COMFY_REV
-        model = node("sparse", "BlockSparseAttention", model=model, **{
-            "selection": "sol-attn", "selection.tau": r["sol_tau"], "start_percent": 0.2, "end_percent": 1.0,
-            "dense_blocks": "", "min_tokens": 12288, "extra_tokens": 256,
-            "sink_conditioning": "exact_kv_and_rows", "verbose": False})
     clip = node("clip", "CLIPLoader", clip_name=r["text_encoder"], type="minimax", device="default")
     vvae = node("vvae", "VAELoader", vae_name=r["video_vae"])
     avae = node("avae", "VAELoader", vae_name=r["audio_vae"])

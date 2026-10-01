@@ -37,6 +37,10 @@ export const H3 = {
   weights_rev: "1c41cfca8ebba91d0af792a05c5761fb2c3a7975",
 } as const;
 
+/** Revision of the ControlNet part of the worker graph; part of the request id of controlled clips only.
+ * 2: ControlNet applied after BlockSparseAttention — before it (1) the control hooks were dropped (2026-10-01). */
+export const CONTROL_GRAPH = 2;
+
 export const SIZES: Record<string, [number, number]> = {
   "768p": [1344, 768], // official 768p, ~81 s per 5 s clip on A100-40GB
   draft: [864, 480], // ~12 s per 2 s clip
@@ -68,6 +72,7 @@ export interface GenRequest {
   guides?: GuideRef[]; // <Picture n+1..>, pinned to output seconds
   ref_image_size?: "match" | "max";
   control?: ControlRef; // Fun ControlNet (depth/canny/pose video); absent otherwise
+  control_graph?: number; // with control only: CONTROL_GRAPH (a graph fix must not reuse takes made by the broken one)
 }
 
 export interface ControlRef {
@@ -191,7 +196,7 @@ export function buildRequest(o: ClipOptions): GenRequest {
       sol_tau: o.dense ? null : H3.sol_tau, unet: H3_REF.unet, text_encoder: H3.text_encoder, video_vae: H3.video_vae,
       audio_vae: H3.audio_vae, comfy_rev: H3.comfy_rev, weights_rev: H3.weights_rev,
       refs: o.refs ?? [], guides: o.guides ?? [], ref_image_size: o.refSize ?? "match",
-      ...(o.control ? { control: o.control } : {}),
+      ...(o.control ? { control: o.control, control_graph: CONTROL_GRAPH } : {}),
     };
     return { id: sha256(stableStringify(body)).slice(0, 16), ...body };
   }
@@ -201,7 +206,7 @@ export function buildRequest(o: ClipOptions): GenRequest {
     video_vae: H3.video_vae, audio_vae: H3.audio_vae, comfy_rev: H3.comfy_rev, weights_rev: H3.weights_rev,
     ...(o.firstFrame ? { first_frame: o.firstFrame } : {}),
     ...(o.lastFrame ? { last_frame: o.lastFrame } : {}),
-    ...(o.control ? { control: o.control } : {}),
+    ...(o.control ? { control: o.control, control_graph: CONTROL_GRAPH } : {}),
   };
   return { id: sha256(stableStringify(body)).slice(0, 16), ...body };
 }
