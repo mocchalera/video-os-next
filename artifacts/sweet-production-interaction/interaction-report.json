@@ -1,0 +1,95 @@
+{
+  "blocked_reasons": [],
+  "checks": [
+    {
+      "name": "href-validity",
+      "state": "normal",
+      "status": "pass"
+    },
+    {
+      "name": "href-validity",
+      "state": "javascript-disabled",
+      "status": "pass"
+    },
+    {
+      "name": "fragment-targets",
+      "state": "normal",
+      "status": "pass"
+    },
+    {
+      "name": "fragment-targets",
+      "state": "javascript-disabled",
+      "status": "pass"
+    },
+    {
+      "name": "fragment-navigation",
+      "state": "normal",
+      "status": "pass"
+    },
+    {
+      "name": "fragment-navigation",
+      "state": "javascript-disabled",
+      "status": "pass"
+    },
+    {
+      "name": "hover-affordance",
+      "state": "normal",
+      "status": "pass"
+    },
+    {
+      "name": "form-contract",
+      "state": "normal",
+      "status": "pass"
+    },
+    {
+      "name": "form-contract",
+      "state": "javascript-disabled",
+      "status": "pass"
+    },
+    {
+      "name": "keyboard-tab",
+      "state": "normal",
+      "status": "pass"
+    },
+    {
+      "name": "keyboard-enter",
+      "state": "normal",
+      "status": "pass"
+    },
+    {
+      "name": "focus-visible",
+      "state": "normal",
+      "status": "pass"
+    },
+    {
+      "name": "critical-visibility",
+      "state": "normal",
+      "status": "pass"
+    },
+    {
+      "name": "critical-visibility",
+      "state": "reduced-motion",
+      "status": "pass"
+    },
+    {
+      "name": "critical-visibility",
+      "state": "javascript-disabled",
+      "status": "pass"
+    }
+  ],
+  "findings": [],
+  "manifest_sha256": "1439fbab5b607901483cf1c03dbdfb0bab8b84505a189cdf925f1db90d97230f",
+  "mode": "browser",
+  "schemaVersion": "interaction-report/v1",
+  "status": "pass",
+  "summary": {
+    "checks_failed": 0,
+    "checks_passed": 15,
+    "checks_skipped": 0,
+    "errors": 0,
+    "warnings": 0
+  },
+  "target": {
+    "url": "https://sweet-lesson.mocchalera.app/?qa=1&nogl=1"
+  }
+}

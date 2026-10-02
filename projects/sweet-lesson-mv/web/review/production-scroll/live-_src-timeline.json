@@ -1,0 +1,95 @@
+{
+ "format": "vos.timeline/1",
+ "name": "sweet-lesson",
+ "canvas": {
+  "width": 1920,
+  "height": 1080,
+  "fps": 24
+ },
+ "duration": 214.8,
+ "grid": {
+  "bpm": 88.89,
+  "offset": 0.567
+ },
+ "tracks": [
+  {
+   "id": "W",
+   "kind": "graphics",
+   "clips": [
+    {
+     "id": "room",
+     "src": "graphics/room.html",
+     "at": 0,
+     "dur": 214.8,
+     "props": {
+      "t0": 0,
+      "cam": {
+       "$data": "data/camera.json"
+      },
+      "credits": {
+       "$data": "data/credits.json"
+      },
+      "lyrics": {
+       "$data": "data/lyrics.json"
+      },
+      "lyricSpace": {
+       "$data": "data/lyric_space.json"
+      },
+      "inventory": {
+       "$data": "data/inventory.json"
+      },
+      "grade": {
+       "$data": "data/grade.json"
+      },
+      "look": {
+       "name": "fadecross",
+       "mix": 1,
+       "halation": 0.3,
+       "grain": 0.06
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "A1",
+   "kind": "audio",
+   "clips": [
+    {
+     "id": "m",
+     "asset": "music",
+     "at": 0,
+     "dur": 214.8,
+     "fade": {
+      "out": 2.5
+     }
+    }
+   ]
+  },
+  {
+   "id": "A2",
+   "kind": "audio",
+   "clips": [
+    {
+     "id": "foley",
+     "asset": "sfx",
+     "at": 0,
+     "dur": 214.8,
+     "gain_db": 8
+    }
+   ]
+  }
+ ],
+ "markers": [
+  {
+   "at": 37.12,
+   "dur": 0.4,
+   "label": "LED → monitor",
+   "kind": "expect-flash"
+  }
+ ],
+ "master": {
+  "loudness": -14,
+  "true_peak": -1.5
+ }
+}

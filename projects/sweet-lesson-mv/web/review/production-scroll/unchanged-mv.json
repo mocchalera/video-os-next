@@ -1,0 +1,27 @@
+[
+  {
+    "file": "graphics/room.html",
+    "sha256": "f96b2df06f6368e56212a1b1f686ebb3cd6be2eb42f44d4efbf4998a1e6a4cd1",
+    "original_match": true
+  },
+  {
+    "file": "timeline.json",
+    "sha256": "15e6266061f0cabe415054ff3cce971767ef340c5968236ea8af9cbc93456903",
+    "original_match": true
+  },
+  {
+    "file": "data/camera.json",
+    "sha256": "7599c5562ea5c0a094c1acbc8b5b5f4f396f41977e88d2be9df5556446b47440",
+    "original_match": true
+  },
+  {
+    "file": "data/lyrics.json",
+    "sha256": "1e60fcc31feadcd9cc23f7aa676fc3057183815c6e5b44f6f212299891155cd1",
+    "original_match": true
+  },
+  {
+    "file": "refs/Sweet Lesson.mp3",
+    "sha256": "4a1d07647ff7fb351db4d8c3b406989b5098d4895d01a970214da54ec3d40365",
+    "original_match": true
+  }
+]

@@ -1,0 +1,25 @@
+{
+  "base": "https://sweet-lesson.mocchalera.app",
+  "results": [
+    {
+      "name": "before entry Tab reaches Enter rather than inactive room",
+      "status": "pass"
+    },
+    {
+      "name": "Tab from header scrolls room into view and retains stage focus",
+      "status": "pass"
+    },
+    {
+      "name": "keyboard walking works after Tab arrival",
+      "status": "pass"
+    },
+    {
+      "name": "intentional wheel releases stage and reading cannot walk",
+      "status": "pass"
+    },
+    {
+      "name": "WebGL fallback excludes unavailable room from Tab sequence",
+      "status": "pass"
+    }
+  ]
+}
