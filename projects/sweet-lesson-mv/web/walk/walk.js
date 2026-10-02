@@ -1,5 +1,6 @@
 // Sweet Lesson web — M2: the room as a work. Audio position = song time; the flow is the MV's camera; the viewer may leave it (M1);
 // and now: the context number, the time line, captions, Esc, traces (dust, steps, breath), and the epilogue at the window.
+import { installRoomSnap } from "./page-snap.js";
 import { FreeCam, P, portraitFov } from "./freecam.js";
 import { floorPoint } from "./pick.js";
 import { Cursor } from "./cursor.js";
@@ -28,6 +29,10 @@ const keyDown = new Set();
 const roomView = document.getElementById("room-view"), stage = document.getElementById("stage");
 const player = document.getElementById("player"), playToggle = document.getElementById("play-toggle"), replayBtn = document.getElementById("replay"), volume = document.getElementById("volume"), muteBtn = document.getElementById("mute"), roomMode = document.getElementById("room-mode"), playerStatus = document.getElementById("player-status");
 player.hidden = false;
+// Native proximity snapping handles scrolling. Measure only the fixed bar so the entire room fits above it.
+const fitPlayer = () => document.documentElement.style.setProperty("--player-height", `${Math.ceil(player.getBoundingClientRect().height)}px`);
+fitPlayer(); new ResizeObserver(fitPlayer).observe(player);
+installRoomSnap(roomView);
 let roomInteracting = false, replaying = false;
 function updatePlayer() {
   playToggle.disabled = !started || W.noRoom || epiOn;

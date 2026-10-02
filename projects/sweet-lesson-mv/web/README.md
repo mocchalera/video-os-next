@@ -5,8 +5,9 @@
 
 ## 作品ページ
 
-短いヘッダー → ほぼ一画面の部屋 → 歌詞 → 制作背景 → クレジット。ページ全体は通常の縦スクロールで、部屋だけをクリップする。スクロール演出・スクロールによるシーク・自動スクロールはない。
+短いヘッダー → ほぼ一画面の部屋 → 歌詞 → 制作背景 → クレジット。ページ全体は通常の縦スクロールで、部屋だけをクリップする。部屋に近づくと弱いスナップで一画面に収め、続けてスクロールすれば本文へ抜ける。スクロールによるシーク・自動スクロールはない。
 
+- 部屋の高さは `100dvh` から常設バーの実測高を引く。本文を読んでいる間はスナップを解除し、reduced-motionではスナップを無効にする。詳細と検証は `m4-snap-report.md`。
 - ヘッダーの「部屋へ」はアンカー移動だけ。音は既存の「入る」から明示的に開始する。
 - 常設バーで再生／一時停止、最初から再生、ミュート、音量、部屋へ戻る操作ができる。最初の入室前にバーから音を開始しない。
 - スクロール・本文から戻る操作は音源、canvas、カメラのコントローラを作り直さない。自然終了は audio.ended を待ち、既存の静かなエピローグを維持する。
@@ -22,6 +23,7 @@
 node projects/sweet-lesson-mv/web/build.mjs
 node projects/sweet-lesson-mv/web/serve.mjs 8876
 node projects/sweet-lesson-mv/web/qa/scroll.browser.mjs
+node projects/sweet-lesson-mv/web/qa/snap.browser.mjs
 ```
 
 `scroll.browser.mjs` はインストール済みChromeを別の一時プロファイルで起動し、低解像度の部屋を一つずつ検証する。既存のタブやブラウザ設定は変更しない。`web/review/scroll/browser-results.json` に結果と画像を保存する。実機iPhoneの音量／音声ポリシーは別途確認が必要（HTMLMediaElement.volumeに端末側の制限がある）。
