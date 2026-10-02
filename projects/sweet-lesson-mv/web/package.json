@@ -1,0 +1,13 @@
+{
+  "name": "sweet-lesson-web",
+  "private": true,
+  "description": "Sweet Lesson — 入れる部屋 (static web version of the MV). Deployed as a Workers static-assets project.",
+  "scripts": {
+    "build": "node build.mjs",
+    "deploy": "cf deploy"
+  },
+  "devDependencies": {
+    "cf": "^1.0.0-beta.10",
+    "wrangler": "^4.145.0"
+  }
+}

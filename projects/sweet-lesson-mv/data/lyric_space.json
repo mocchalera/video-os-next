@@ -1,0 +1,406 @@
+{
+ "note": "Where each lyric line lives in the scene (graphics/room.html §lyrics). show:false = the picture already carries the words, or silence serves better. scene: world|white|dc. mode: air (card facing the camera at ref, depth d, offset ox/oy in half-frames, glyph height h of the frame) | flat (lying on a surface at pos=top-left, oriented to the camera at ref, em metres) | wall (on the left wall). exit: drift (back to dust) | wind | blink (with the monitor).",
+ "lines": [
+  {
+   "i": 0,
+   "d": 0.9,
+   "h": 0.04,
+   "ox": 0.38,
+   "oy": 0.45
+  },
+  {
+   "i": 1,
+   "d": 0.9,
+   "h": 0.04,
+   "ox": 0.42,
+   "oy": 0.22
+  },
+  {
+   "i": 2,
+   "d": 1.3,
+   "ox": -0.5,
+   "oy": 0.45
+  },
+  {
+   "i": 3,
+   "ox": 0.35,
+   "oy": 0.42
+  },
+  {
+   "i": 4,
+   "ox": -0.52,
+   "oy": -0.45
+  },
+  {
+   "i": 5,
+   "ox": 0.32,
+   "oy": -0.42
+  },
+  {
+   "i": 6,
+   "ox": -0.5,
+   "oy": 0.42
+  },
+  {
+   "i": 7,
+   "mode": "flat",
+   "ox": -0.35,
+   "oy": 0.1,
+   "em": 0.07,
+   "ref": 25.8
+  },
+  {
+   "i": 8,
+   "ox": 0.35,
+   "oy": 0.45
+  },
+  {
+   "i": 9,
+   "ox": -0.5,
+   "oy": -0.42
+  },
+  {
+   "i": 10,
+   "d": 30,
+   "h": 0.06,
+   "ox": -0.42,
+   "oy": 0.38,
+   "ref": 34.3
+  },
+  {
+   "i": 11,
+   "d": 1.2,
+   "ox": -0.45,
+   "oy": -0.4,
+   "show": false
+  },
+  {
+   "i": 12,
+   "mode": "flat",
+   "ox": 0.0,
+   "oy": 0.25,
+   "em": 0.14,
+   "ref": 42.2
+  },
+  {
+   "i": 13,
+   "mode": "flat",
+   "ox": 0.05,
+   "oy": -0.05,
+   "em": 0.14,
+   "ref": 44.0
+  },
+  {
+   "i": 14,
+   "mode": "flat",
+   "ox": -0.35,
+   "oy": -0.3,
+   "em": 0.06,
+   "ref": 50.2,
+   "airOx": 0.4,
+   "airOy": -0.42
+  },
+  {
+   "i": 15,
+   "ox": -0.45,
+   "oy": 0.4
+  },
+  {
+   "i": 16,
+   "ox": 0.3,
+   "oy": -0.45
+  },
+  {
+   "i": 17,
+   "scene": "white",
+   "ox": -0.42,
+   "oy": 0.35,
+   "ref": 60.6
+  },
+  {
+   "i": 18,
+   "scene": "white",
+   "ox": 0.35,
+   "oy": 0.4,
+   "ref": 62.9
+  },
+  {
+   "i": 19,
+   "scene": "white",
+   "ox": -0.45,
+   "oy": 0.4,
+   "ref": 64.8
+  },
+  {
+   "i": 20,
+   "scene": "white",
+   "d": 4,
+   "h": 0.07,
+   "ox": -0.3,
+   "oy": 0.35,
+   "lag": 0.2
+  },
+  {
+   "i": 21,
+   "show": false
+  },
+  {
+   "i": 22,
+   "show": false
+  },
+  {
+   "i": 23,
+   "show": false
+  },
+  {
+   "i": 24,
+   "show": false
+  },
+  {
+   "i": 25,
+   "scene": "white",
+   "d": 5,
+   "h": 0.07,
+   "ox": 0.0,
+   "oy": 0.15,
+   "ref": 84.3,
+   "lag": 0.1
+  },
+  {
+   "i": 26,
+   "scene": "white",
+   "ox": -0.4,
+   "oy": 0.35,
+   "ref": 87.5,
+   "exit": "wind",
+   "windDir": [
+    0.3,
+    0.35,
+    1.8
+   ],
+   "lag": 0.2
+  },
+  {
+   "i": 27,
+   "d": 1.0,
+   "ox": -0.5,
+   "oy": -0.42
+  },
+  {
+   "i": 28,
+   "d": 1.0,
+   "ox": -0.45,
+   "oy": 0.4
+  },
+  {
+   "i": 29,
+   "show": false
+  },
+  {
+   "i": 30,
+   "d": 0.55,
+   "h": 0.045,
+   "ox": -0.45,
+   "oy": 0.45,
+   "ref": 101.3
+  },
+  {
+   "i": 31,
+   "mode": "wall",
+   "pos": [
+    -1.343,
+    1.95,
+    -0.85
+   ],
+   "em": 0.085,
+   "exit": "blink",
+   "tone": "cool"
+  },
+  {
+   "i": 32,
+   "mode": "wall",
+   "pos": [
+    -1.343,
+    1.95,
+    -0.85
+   ],
+   "em": 0.085,
+   "exit": "blink",
+   "tone": "cool"
+  },
+  {
+   "i": 33,
+   "mode": "wall",
+   "pos": [
+    -1.343,
+    1.95,
+    -0.85
+   ],
+   "em": 0.085,
+   "exit": "blink",
+   "tone": "cool"
+  },
+  {
+   "i": 34,
+   "mode": "wall",
+   "pos": [
+    -1.343,
+    1.95,
+    -0.85
+   ],
+   "em": 0.085,
+   "exit": "blink",
+   "tone": "cool"
+  },
+  {
+   "i": 35,
+   "mode": "wall",
+   "pos": [
+    -1.343,
+    1.95,
+    -0.85
+   ],
+   "em": 0.085,
+   "exit": "blink",
+   "tone": "cool"
+  },
+  {
+   "i": 36,
+   "d": 1.0,
+   "ox": 0.42,
+   "oy": -0.45,
+   "tone": "cool"
+  },
+  {
+   "i": 37,
+   "show": false
+  },
+  {
+   "i": 38,
+   "show": false
+  },
+  {
+   "i": 39,
+   "mode": "flat",
+   "ox": -0.2,
+   "oy": 0.1,
+   "y": 0.7232,
+   "em": 0.06,
+   "ref": 129.6,
+   "tone": "ink"
+  },
+  {
+   "i": 40,
+   "mode": "flat",
+   "ox": 0.0,
+   "oy": 0.25,
+   "em": 0.14,
+   "ref": 42.2
+  },
+  {
+   "i": 41,
+   "mode": "flat",
+   "ox": 0.05,
+   "oy": -0.05,
+   "em": 0.14,
+   "ref": 44.0
+  },
+  {
+   "i": 42,
+   "mode": "flat",
+   "ox": -0.35,
+   "oy": -0.3,
+   "em": 0.06,
+   "ref": 50.2,
+   "airOx": 0.4,
+   "airOy": -0.42
+  },
+  {
+   "i": 43,
+   "ox": -0.45,
+   "oy": 0.4
+  },
+  {
+   "i": 44,
+   "ox": 0.3,
+   "oy": -0.45
+  },
+  {
+   "i": 45,
+   "show": false
+  },
+  {
+   "i": 46,
+   "show": false
+  },
+  {
+   "i": 47,
+   "d": 0.7,
+   "h": 0.045,
+   "ox": -0.45,
+   "oy": 0.4,
+   "ref": 159.7,
+   "tone": "dawn"
+  },
+  {
+   "i": 48,
+   "show": false
+  },
+  {
+   "i": 49,
+   "d": 0.35,
+   "h": 0.04,
+   "ox": -0.5,
+   "oy": 0.42,
+   "ref": 165.5,
+   "tone": "dawn"
+  },
+  {
+   "i": 50,
+   "d": 1.0,
+   "ox": 0.55,
+   "oy": 0.45,
+   "ref": 168.6,
+   "tone": "dawn"
+  },
+  {
+   "i": 51,
+   "d": 1.0,
+   "ox": -0.45,
+   "oy": -0.4,
+   "ref": 171.0,
+   "tone": "dawn"
+  },
+  {
+   "i": 52,
+   "d": 0.6,
+   "ox": -0.45,
+   "oy": 0.42,
+   "ref": 178.7,
+   "tone": "dawn"
+  },
+  {
+   "i": 53,
+   "d": 0.5,
+   "ox": 0.4,
+   "oy": 0.42,
+   "ref": 181.0,
+   "tone": "dawn"
+  },
+  {
+   "i": 54,
+   "d": 0.35,
+   "ox": -0.5,
+   "oy": 0.42,
+   "ref": 186.8
+  },
+  {
+   "i": 55,
+   "show": false
+  },
+  {
+   "i": 56,
+   "show": false
+  }
+ ]
+}

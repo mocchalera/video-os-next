@@ -1,0 +1,279 @@
+{
+ "note": "Foley for the invisible hands, synthesized by tools/sfx.py (no sampled material). Times are song seconds; db is the event gain before the stem gain.",
+ "events": [
+  {
+   "t": 0.9,
+   "kind": "bed_creak",
+   "db": -18
+  },
+  {
+   "t": 8.56,
+   "kind": "monitor_on",
+   "db": -14
+  },
+  {
+   "t": 16.45,
+   "kind": "paper_flutter",
+   "db": -20
+  },
+  {
+   "t": 16.8,
+   "kind": "paper_flutter",
+   "db": -22
+  },
+  {
+   "t": 17.3,
+   "kind": "paper_tap",
+   "db": -24
+  },
+  {
+   "t": 17.9,
+   "kind": "paper_tap",
+   "db": -26
+  },
+  {
+   "t": 21.64,
+   "kind": "can_open",
+   "db": -12
+  },
+  {
+   "t": 27.04,
+   "kind": "phone_buzz",
+   "db": -23
+  },
+  {
+   "t": 37.12,
+   "kind": "whoosh_in",
+   "db": -18
+  },
+  {
+   "t": 43.0,
+   "kind": "can_set",
+   "db": -20
+  },
+  {
+   "t": 43.4,
+   "kind": "can_roll",
+   "db": -22
+  },
+  {
+   "t": 73.4,
+   "kind": "button",
+   "db": -14
+  },
+  {
+   "t": 74.75,
+   "kind": "button",
+   "db": -14
+  },
+  {
+   "t": 75.25,
+   "kind": "button",
+   "db": -14
+  },
+  {
+   "t": 79.6,
+   "kind": "paper_crumble",
+   "db": -20
+  },
+  {
+   "t": 81.6,
+   "kind": "paper_crumble",
+   "db": -20
+  },
+  {
+   "t": 83.45,
+   "kind": "paper_crumble",
+   "db": -20
+  },
+  {
+   "t": 87.3,
+   "kind": "wind",
+   "db": -14
+  },
+  {
+   "t": 91.0,
+   "kind": "room_tone",
+   "dur": 3.4,
+   "db": -26
+  },
+  {
+   "t": 91.3,
+   "kind": "book_lift",
+   "db": -10
+  },
+  {
+   "t": 91.9,
+   "kind": "paper_slide",
+   "db": -10
+  },
+  {
+   "t": 92.6,
+   "kind": "tape_creak",
+   "db": -14
+  },
+  {
+   "t": 94.34,
+   "kind": "throw",
+   "db": -14
+  },
+  {
+   "t": 97.36,
+   "kind": "paper_tap",
+   "db": -12
+  },
+  {
+   "t": 100.6,
+   "kind": "tape_creak",
+   "db": -14
+  },
+  {
+   "t": 111.5,
+   "kind": "box_set",
+   "db": -12
+  },
+  {
+   "t": 116.7,
+   "kind": "chair_roll",
+   "db": -18
+  },
+  {
+   "t": 134.42,
+   "kind": "key_click",
+   "db": -8
+  },
+  {
+   "t": 138.8,
+   "kind": "bag_open",
+   "db": -12
+  },
+  {
+   "t": 140.1,
+   "kind": "can_drop",
+   "db": -16
+  },
+  {
+   "t": 140.6,
+   "kind": "paper_drop",
+   "db": -18
+  },
+  {
+   "t": 141.2,
+   "kind": "can_drop",
+   "db": -16
+  },
+  {
+   "t": 142.0,
+   "kind": "paper_drop",
+   "db": -18
+  },
+  {
+   "t": 143.9,
+   "kind": "box_set",
+   "db": -14
+  },
+  {
+   "t": 144.5,
+   "kind": "can_drop",
+   "db": -16
+  },
+  {
+   "t": 145.05,
+   "kind": "box_drop",
+   "db": -14
+  },
+  {
+   "t": 145.75,
+   "kind": "bag_tie",
+   "db": -12
+  },
+  {
+   "t": 146.2,
+   "kind": "door_open",
+   "db": -10
+  },
+  {
+   "t": 147.9,
+   "kind": "door_close",
+   "db": -10
+  },
+  {
+   "t": 149.3,
+   "kind": "can_set",
+   "db": -16
+  },
+  {
+   "t": 153.5,
+   "kind": "can_open",
+   "db": -8
+  },
+  {
+   "t": 153.6,
+   "kind": "fizz",
+   "db": -14
+  },
+  {
+   "t": 160.3,
+   "kind": "sip",
+   "db": -16
+  },
+  {
+   "t": 161.8,
+   "kind": "can_set",
+   "db": -14
+  },
+  {
+   "t": 171.6,
+   "kind": "sip",
+   "db": -18
+  },
+  {
+   "t": 172.9,
+   "kind": "can_set",
+   "db": -16
+  },
+  {
+   "t": 176.45,
+   "kind": "phone_buzz",
+   "db": -19
+  },
+  {
+   "t": 185.9,
+   "kind": "breath",
+   "db": -12
+  },
+  {
+   "t": 188.4,
+   "kind": "breath",
+   "db": -12
+  },
+  {
+   "t": 190.6,
+   "kind": "breath",
+   "db": -14
+  },
+  {
+   "t": 191.0,
+   "kind": "squeak",
+   "dur": 2.2,
+   "db": -18
+  },
+  {
+   "t": 193.4,
+   "kind": "squeak",
+   "dur": 1.7,
+   "db": -18
+  },
+  {
+   "t": 195.6,
+   "kind": "window_slide",
+   "db": -10
+  },
+  {
+   "t": 196.2,
+   "kind": "morning_air",
+   "dur": 18.6,
+   "db": -20
+  }
+ ]
+}

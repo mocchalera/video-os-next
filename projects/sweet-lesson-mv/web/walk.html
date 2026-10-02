@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sweet Lesson — 入れる部屋</title>
+<meta name="description" content="every frame rendered. except you.">
+<link rel="canonical" href="https://sweet-lesson.mocchalera.app/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Sweet Lesson">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:url" content="https://sweet-lesson.mocchalera.app/">
+<meta property="og:title" content="Sweet Lesson — 入れる部屋">
+<meta property="og:description" content="every frame rendered. except you.">
+<meta property="og:image" content="https://sweet-lesson.mocchalera.app/assets/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Sweet Lesson — 入れる部屋">
+<meta name="twitter:description" content="every frame rendered. except you.">
+<meta name="twitter:image" content="https://sweet-lesson.mocchalera.app/assets/og.jpg">
+<meta name="theme-color" content="#000000">
+<link rel="stylesheet" href="/_src/design/room-fonts.css">
+<link rel="stylesheet" href="/fonts.css">
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;color:#8a8a8a;font:12px/1.6 "Room Mono","Room Sans","Hiragino Sans",ui-monospace,monospace;-webkit-user-select:none;user-select:none}
+#stage{position:fixed;inset:0;touch-action:none;-webkit-tap-highlight-color:transparent}
+@media (prefers-reduced-motion:reduce){#hint,#gate button{transition:none !important}}
+#gate{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:5;background:#000;text-align:center}
+#gate h1{font:400 40px "Room Serif",serif;color:#ddd;margin:0 0 4px;letter-spacing:.1em}
+#gate .sub{color:#7a7a7a}
+#gate button{all:unset;color:#a8a8a8;border-bottom:1px solid #444;padding:2px 0;margin-top:14px;opacity:0;transition:opacity .6s}
+#gate button.on{opacity:1}
+#hint{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:4;color:#c4c4c4;font-size:clamp(13px,1.1vw,16px);text-shadow:0 0 6px #000,0 0 3px #000;opacity:0;transition:opacity 1.2s;pointer-events:none;white-space:nowrap}
+#hint.on{opacity:1}
+#hud{position:fixed;left:8px;top:8px;z-index:6;white-space:pre;pointer-events:none;color:#9a9;text-shadow:0 0 3px #000;display:none}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="gate"><h1>Sweet Lesson</h1><div class="sub">every frame rendered. except you.</div><div id="gate-status" class="sub">rendering…</div><button id="enter" data-cur="block" disabled>▶ 入る — enter　（音が出ます / sound on）</button></div>
+<div id="hint"></div>
+<div id="hud"></div>
+<audio id="song" src="/_src/refs/audio/Sweet%20Lesson.mp3" preload="auto" playsinline></audio>
+<script>if (/[?&]glmem=1/.test(location.search)) document.write('<script src="/qa/glmem.js"><\/script>'); // QA: a ledger of GPU allocations (qa/glmem.js)</script>
+<script src="/_vendor/three.js"></script>
+<script src="/shim/vos-shim.js"></script>
+<script type="module" src="/walk/walk.js"></script>
+</body>
+</html>

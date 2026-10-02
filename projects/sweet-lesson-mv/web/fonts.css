@@ -1,0 +1,3 @@
+/* Web-only: "Room Sans" (Noto Sans JP, the MV's own face) re-subset with the web UI's Japanese strings and the log's characters.
+   Declared after design/room-fonts.css, it replaces that file's "Room Sans" for this page (design/ is untouched). Built by tools/build-fonts.py. */
+@font-face{font-family:"Room Sans";src:url(/fonts/RoomSans-web.woff2) format("woff2");font-weight:100 900;font-display:swap}
