@@ -249,9 +249,10 @@ function escTick(T) {
   if (T < ESC0 - 0.001 || T > ESC_MV + 6) { if (escAt !== null || escSounded) { escAt = null; escSounded = false; shim.dbg.web.escAt = null; } return; }
   const at = escAt ?? ESC_MV; if (!escSounded && T >= at) { escSounded = true; if (escAt === null && T < at + 0.3 && !foley.sounding) sfx.escClick(); } // the stem has the MV's own Esc click at 134.42; ours only if the stem is not playing (not when a seek lands past it)
 }
+function inEscWindow() { return running && !epiOn && audio.currentTime >= ESC0 && audio.currentTime < ESC_MV; }
 function anyInput() {
-  if (!running || epiOn || escAt !== null) return false;
-  const T = audio.currentTime; if (T < ESC0 || T >= ESC_MV) return false;
+  if (!inEscWindow() || escAt !== null) return false;
+  const T = audio.currentTime;
   escAt = T; escSounded = true; shim.dbg.web.escAt = T; sfx.escClick(); return true;
 }
 
@@ -319,7 +320,12 @@ addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (ui && ui.logOpen) { if (e.code === "Escape") ui.closeLog(); return; }
   if (!running || e.target !== stage) return;
-  if (e.code === "Escape") { setRoomMode(false); roomMode.focus({ preventScroll: true }); return; }
+  if (e.code === "Escape") {
+    // In the work's cue, Esc cancels compacting before it can exit page controls.
+    // A repeat/second press in this same cue neither retriggers nor loses focus.
+    if (inEscWindow()) { if (!e.repeat) anyInput(); e.preventDefault(); return; }
+    setRoomMode(false); roomMode.focus({ preventScroll: true }); return;
+  }
   if (!e.repeat) anyInput();
   if (e.shiftKey && SHIFT_LOOK[e.code]) { SHIFT_LOOK[e.code](); e.preventDefault(); }
   else if (KEYS[e.code]) { keyDown.add(e.code); recomputeKeys(); e.preventDefault(); }
