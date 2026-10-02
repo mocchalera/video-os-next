@@ -25,3 +25,13 @@ yawの更新はatan2の目標角から現在yawを直接引き、最短角度差
 ## 参考画像
 
 [Esc直前](review/esc/before-esc.png) ／ [Esc後](review/esc/after-esc.png) ／ [モニタのキャンセル表示](review/esc/monitor-cancelled.png)
+
+## 本番反映
+
+ユーザーの追加承認「うん、お願いします」に基づき、実装commit `2c253ba` を既存本番へ反映。変更アップロードはwalk/walk.jsの1ファイルのみ。Worker Version `6180de76-b705-4742-8d79-1ae90eea465f` を100%配信。
+
+デプロイID: 79241b74-e8e4-4d0a-98aa-df24e09e5124。[配信記録](review/esc/deployment.json)、[デプロイ成功ログ](review/esc/deploy.log)、[公開JSとビルドの一致](review/esc/live-hash.json)。即時前版 `64915163-4f49-453e-bc8e-41791e384f35` の参照を保存した。Git push・main統合は静的直接配信には不要なので行っていない。新料金・認証・権限変更なし。
+
+[本番実キー7項目](review/esc/live/results.json)すべてpass。シークせず加速再生で133秒の区間へ進み、その区間では通常速度に戻して確認した。入力欄のEscは捕捉せず、stageの実キーEsc（isTrusted=true）はT=133.063402で作品演出へ届く。フォーカスと操作モードを維持し、再押下は追加クリックなし。モニタが早くcancelledとなり、134.6秒以後のEscは操作退出。ページ・ランタイムエラーなし。音声出力を耳で聴いた確認、実機Safari/iPhoneは未確認。
+
+[本番のキャンセル表示](review/esc/live/cancelled.png)。公開確認を終え、専用Chromeは終了済み。KAZEのブラウザ操作・測定やユーザーの既存タブには触れていない。

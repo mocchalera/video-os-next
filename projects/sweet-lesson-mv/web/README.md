@@ -1,7 +1,7 @@
 # Sweet Lesson — web（入れる部屋）
 
 状態: **M4 通常の縦スクロール＋部屋スナップ（2026-10-02 本番反映済み）**（M0 試走は `m0-report.md`、M1 は `m1-report.md`、M2 は `m2-report.md`、M3 は `m3-report.md`）。`graphics/room.html` を shim 経由で、音声の再生位置に同期してブラウザで動かす。
-このリポジトリの `projects/` は gitignore 済み。本番反映の識別子・検証・ロールバックは `m4-production-report.md`。
+このリポジトリの `projects/` は gitignore 済み。スクロール本番反映は `m4-production-report.md`、最新のEsc回帰修正・配信識別子・実キー検証は `m4-esc-report.md`。
 
 ## 作品ページ
 

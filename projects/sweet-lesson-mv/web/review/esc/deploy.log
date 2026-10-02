@@ -1,0 +1,16 @@
+
+ ⛅️ wrangler 4.145.0
+────────────────────
+🌀 Building list of assets...
+✨ Read 103 files from the assets directory /Users/mocchalera/Documents/Codex/2026-10-02/task/sweet-lesson-scroll-worktree/projects/sweet-lesson-mv/web/dist
+🌀 Starting asset upload...
+🌀 Found 1 new or modified static asset to upload. Proceeding with upload...
++ /walk/walk.js
+Uploaded 1 of 1 asset
+✨ Success! Uploaded 1 file (87 already uploaded) (0.88 sec)
+
+Total Upload: 0.38 KiB / gzip: 0.25 KiB
+Uploaded sweet-lesson (4.28 sec)
+Deployed sweet-lesson triggers (2.25 sec)
+  sweet-lesson.mocchalera.app (custom domain)
+Current Version ID: 6180de76-b705-4742-8d79-1ae90eea465f
