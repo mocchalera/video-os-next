@@ -79,7 +79,7 @@ const cursor = new Cursor({ ctx: () => document.getElementById("ctx"), epi: () =
 const NO_ROOM = "この端末では部屋を描けませんでした。 — this device couldn't render the room.";
 function noRoom() { // Only the room fails; the ordinary page remains readable.
   W.noRoom = true; running = false; cancelAnimationFrame(raf); try { audio.pause(); if (foley) foley.halt(); if (sfx) sfx.suspend(); } catch { /* ok */ }
-  setRoomMode(false); updatePlayer(); gate.style.display = "flex"; gate.innerHTML = `<div class="sub" id="gate-status" role="status">${NO_ROOM}</div>`; W.noRoom = true;
+  stage.tabIndex = -1; setRoomMode(false); updatePlayer(); gate.style.display = "flex"; gate.innerHTML = `<div class="sub" id="gate-status" role="status">${NO_ROOM}</div>`; W.noRoom = true;
 }
 function glSupported() { // WebGL2 and a float render target: what the post chain needs. (?qa=1&nogl=1 pretends it is not there.)
   if (QA && Q.get("nogl") === "1") return false;
@@ -213,7 +213,7 @@ async function start(o = {}) {
   if (o.t) await seek(o.t);
   try { await audio.play(); } catch (e) { W.errors.push("play: " + e.message); audio.muted = true; sfx.setMuted(true); await audio.play().catch(() => {}); }
   running = true; last = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
-  updatePlayer(); stage.focus({ preventScroll: true });
+  updatePlayer(); stage.tabIndex = 0; stage.focus({ preventScroll: true });
   hint.textContent = matchMedia("(pointer:coarse)").matches ? "スクロールで読む。見回すときは「部屋を操作する」" : "drag — 見る　WASD — 歩く　離すと、流れに戻る";
   hint.classList.add("on"); setTimeout(() => hint.classList.remove("on"), 6000);
 }
@@ -343,7 +343,16 @@ function abortGesture(all) {
 addEventListener("blur", () => setRoomMode(false));
 stage.addEventListener("focusout", (e) => { abortGesture(true); if (e.relatedTarget !== roomMode) setRoomMode(false); });
 // A page scroll never seeks, changes playback, or resets the camera. It just releases any held input.
-addEventListener("scroll", () => { setRoomMode(false); if (document.activeElement === stage) stage.blur(); }, { passive: true });
+// Tab focus may itself scroll the room into view. Preserve that focus until the
+// native movement ends; actual page input still releases room keys immediately.
+let tabArrival = false, tabFocusScroll = false;
+document.addEventListener("keydown", (e) => { tabArrival = e.code === "Tab"; if (!tabArrival) tabFocusScroll = false; }, true);
+stage.addEventListener("focus", () => { tabFocusScroll = tabArrival; tabArrival = false; });
+document.addEventListener("focusin", (e) => { if (e.target !== stage) { tabArrival = false; tabFocusScroll = false; } });
+addEventListener("pointerdown", () => { tabArrival = false; tabFocusScroll = false; }, { capture: true, passive: true });
+addEventListener("wheel", (e) => { if (!e.ctrlKey && e.deltaY) { tabFocusScroll = false; setRoomMode(false); if (document.activeElement === stage) stage.blur(); } }, { passive: true });
+addEventListener("scrollend", () => { tabFocusScroll = false; }, { passive: true });
+addEventListener("scroll", () => { setRoomMode(false); if (document.activeElement === stage && !tabFocusScroll) stage.blur(); }, { passive: true });
 
 stage.addEventListener("pointerdown", (e) => {
   if (!running || (e.pointerType === "mouse" && e.button !== 0) || (e.pointerType === "touch" && !roomInteracting)) return;

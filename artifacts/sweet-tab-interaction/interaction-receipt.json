@@ -1,0 +1,17 @@
+{
+  "algorithm": "sha256",
+  "manifest": {
+    "file": "interaction-manifest.json",
+    "sha256": "9035a8895f8d2db38c18bc1bfc3c3edd3d5c5e704e57b9281053718a6fb2ba91"
+  },
+  "report": {
+    "file": "interaction-report.json",
+    "sha256": "56ee6c344efe7ae4334c051acf58a00327cbb8281cd8c1ccc86fc94431782719"
+  },
+  "schemaVersion": "interaction-receipt/v1",
+  "specialistReport": {
+    "contract": "interaction-report/v1",
+    "path": "artifacts/sweet-tab-interaction/interaction-report.json",
+    "sha256": "56ee6c344efe7ae4334c051acf58a00327cbb8281cd8c1ccc86fc94431782719"
+  }
+}
