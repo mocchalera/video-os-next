@@ -56,11 +56,23 @@
     mount: mount,
     finalize: function () {
       master.set({}, {}, cfg.duration);
-      master.eventCallback("onUpdate", render);
+      // Render hooks, unlike onUpdate events, also run on suppressEvents seeks.
+      // Run after the child timelines so handlers see their current frame state.
+      // Lazy tweens would otherwise flush only after this render hook returns.
+      var tweens = master.getChildren(true, true, false);
+      for (var i = 0; i < tweens.length; i++) tweens[i].vars.lazy = false;
+      // A renderer may proxy timeline methods. The duration set guarantees a
+      // direct child whose parent is the actual GSAP timeline, even in that case.
+      var timeline = master.getChildren(false, true, false)[0].parent;
+      var timelineRender = timeline.render;
+      timeline.render = function () {
+        var result = timelineRender.apply(this, arguments);
+        render();
+        return result;
+      };
       window.__timelines = window.__timelines || {};
       window.__timelines["main"] = master;
       master.seek(0);
-      render();
     },
   };
 })();
