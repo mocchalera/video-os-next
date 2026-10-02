@@ -179,6 +179,18 @@ export class Epilogue {
     this.o.scenes.world.remove(this.mesh2); this.mat2.dispose(); this.tex2.dispose(); this.mesh2.geometry.dispose(); this.cv2.width = 1; this.cv2.height = 1;
     this.o.onOpened();
   }
+  dispose() {
+    this.abort();
+    const disposed = new Set();
+    for (const mesh of [this.mesh, this.mesh2, this.veil]) {
+      mesh?.parent?.remove(mesh);
+      for (const r of [mesh?.geometry, mesh?.material]) if (r && !disposed.has(r)) { r.dispose(); disposed.add(r); }
+    }
+    for (const tex of [this.tex, this.tex2, this.emTex, this.flatTex, this.veilTex]) if (tex && !disposed.has(tex)) { tex.dispose(); disposed.add(tex); }
+    if (this.lace && this.lace0) { this.lace.position.x = this.lace0.x; this.lace.position.z = this.lace0.z; this.lace.scale.x = this.lace0.sx; this.lace.rotation.y = this.lace.rotation.z = 0; }
+    for (const c of [this.cv, this.base, this.rim, this.core, this.inn, this.tmp, this.emiCv, this.cv2]) if (c) c.width = c.height = 1;
+    this.drips.length = 0;
+  }
   /** where the eye is relative to the glass (for the cues) */
   nearGlass(eye, fwd) { return eye.z < -0.15 && fwd.z < -0.2 && eye.x > -1.2 && eye.x < 0.8; }
 }

@@ -38,7 +38,7 @@ export class Foley {
   /** per frame. T = the song's clock; playing = the song is running */
   update(T, playing) {
     const a = this.a; if (!a || !this.loaded) return;
-    a.muted = this.m.muted || (this.escEarly() && T > ESC_DUCK[0] && T < ESC_DUCK[1]);
+    a.volume = this.m.volume ?? 1; a.muted = this.m.muted || (this.escEarly() && T > ESC_DUCK[0] && T < ESC_DUCK[1]);
     if (!playing) { this.want = false; if (!a.paused) a.pause(); return; }
     if (!this.want) { this.want = true; this.gen++; this.needSync = true; } // a real start: any older unlock() promise no longer owns the element
     if (a.paused) {

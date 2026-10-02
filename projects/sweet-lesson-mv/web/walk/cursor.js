@@ -7,7 +7,7 @@
 // once this one is alive (html.cur-on), so there is never a state with no cursor at all.
 // Room Mono has no ▍ glyph (99 glyphs, no block elements) and no other typeface may come in, so the block is drawn as a box of the same proportions.
 const CSS = `
-html.cur-on,html.cur-on *{cursor:none !important}
+html.cur-on #room-view,html.cur-on #room-view *{cursor:none !important}
 #cur{position:fixed;left:0;top:0;width:0;height:0;z-index:60;pointer-events:none;will-change:transform;contain:layout style;transform:translate3d(-100px,-100px,0)}
 #cur i{position:absolute;display:block;opacity:0;transition:opacity .22s}
 #cur .ring{left:-7px;top:-7px;width:14px;height:14px;box-sizing:border-box;border:1px solid rgba(214,214,214,.55);border-radius:50%;filter:blur(.4px);box-shadow:0 0 3px rgba(190,190,190,.22)}
@@ -59,6 +59,7 @@ export class Cursor {
     return "ring";
   }
   _move(e) {
+    if (!e.target?.closest?.("#room-view")) { this._off(true); return; }
     if (!this._live(e)) { this._off(true); return; } // a finger: nothing to show
     if (this.down && e.pointerType === "mouse" && e.buttons === 0) { this.down = false; this.lock = null; this.el.classList.remove("down"); } // the release was lost: this move says no button is held
     this._alive(); this.x = e.clientX; this.y = e.clientY; this.target = e.target; this.el.style.transform = `translate3d(${this.x}px,${this.y}px,0)`;
@@ -71,11 +72,13 @@ export class Cursor {
   /** a few times a second: the entrance goes away, the camera drifts, the window opens under a resting pointer — so the mode is asked again (room → the ring, which then goes after 2 s) */
   tick(now) {
     if (!this.alive || this.lock || this.el.classList.contains("off") || now - (this._tk || 0) < 200) return; this._tk = now;
-    const m = this.modeAt(this.x, this.y, document.elementFromPoint(this.x, this.y) || this.target); if (m === this.mode) return;
+    const target = document.elementFromPoint(this.x, this.y) || this.target; if (!target?.closest?.("#room-view")) { this._off(true); return; }
+    const m = this.modeAt(this.x, this.y, target); if (m === this.mode) return;
     this._set(m); this._warm(m === "fog" ? { x: this.x, y: this.y } : null);
     clearTimeout(this.idle); if (m === "ring") this.idle = setTimeout(() => this.el.classList.add("off"), 2000);
   }
   _press(e, on) {
+    if (!e.target?.closest?.("#room-view")) { this._release(); return; }
     if (!this._live(e)) { if (on) this._off(true); return; }
     this._alive(); this.down = on; this.el.classList.toggle("down", on);
     if (on) { this.lock = this.modeAt(e.clientX, e.clientY, e.target); this._set(this.lock); if (this.lock === "ring") this._off(false); }

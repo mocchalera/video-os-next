@@ -46,12 +46,12 @@ export const dbToGain = (db) => Math.pow(10, db / 20);
 
 /** browser engine: created on the first tap (the entrance's "enter"), muted with the song */
 export class Sfx {
-  constructor() { this.ctx = null; this.steps = []; this.esc = null; this.muted = false; this.quiet = false; this.k = 0; }
+  constructor() { this.ctx = null; this.steps = []; this.esc = null; this.muted = false; this.volume = 1; this.quiet = false; this.k = 0; }
   init() {
     if (this.ctx) return;
     const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
     this.ctx = new C(); const sr = this.ctx.sampleRate;
-    this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination);
+    this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination); this.master.gain.value = this.muted ? 0 : this.volume;
     const mk = (a) => { const b = this.ctx.createBuffer(1, a.length, sr); b.copyToChannel(a, 0); return b; };
     this.steps = [0, 1, 2, 3].map((v) => mk(synthStep(sr, v))); this.esc = mk(synthEsc(sr));
     // iOS: the context is only allowed to sound after something has been started inside a tap — this is that tap (the entrance's "enter")
@@ -61,7 +61,8 @@ export class Sfx {
   /** the page went to the background: the clock of the sounds stops with it (nothing already scheduled plays on behind a hidden page) */
   suspend() { try { if (this.ctx && this.ctx.state === "running") this.ctx.suspend(); } catch { /* ok */ } }
   resume() { try { if (this.ctx && this.ctx.state !== "running") this.ctx.resume(); } catch { /* ok */ } }
-  setMuted(m) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : 1; }
+  setVolume(v) { this.volume = Math.max(0, Math.min(1, v)); if (this.master) this.master.gain.value = this.muted ? 0 : this.volume; }
+  setMuted(m) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : this.volume; }
   _play(buf, peakDb, pan = 0, rate = 1) {
     if (!this.ctx || this.muted) return;
     if (this.ctx.state === "suspended") this.ctx.resume();

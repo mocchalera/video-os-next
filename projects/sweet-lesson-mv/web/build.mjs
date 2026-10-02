@@ -13,10 +13,15 @@ const put = (src, dst) => { fs.mkdirSync(path.dirname(path.join(dist, dst)), { r
 const tree = (srcDir, dstDir, filter = () => true) => { for (const f of fs.readdirSync(srcDir)) { const s = path.join(srcDir, f); if (fs.statSync(s).isDirectory()) tree(s, path.join(dstDir, f), filter); else if (filter(f)) put(s, path.join(dstDir, f)); } };
 // the site
 // the page: the QA-only inline loader (?glmem=1 → qa/glmem.js, which is not shipped) is removed — a CSP without 'unsafe-inline' for scripts must not meet an inline script
+const escape = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const lyrics = JSON.parse(fs.readFileSync(path.join(project, "data/lyrics.json"), "utf8"));
+const sections = [0, 8.6, 38.3, 58.4, 91.1, 103.4, 132.7, 152.9, 176.3, Infinity];
+const lyricHtml = sections.slice(0, -1).map((at, i) => `<div class="stanza">${lyrics.filter((l) => l.at >= at - 0.1 && l.at < sections[i + 1] - 0.1).map((l) => `<p>${escape(l.text)}</p>`).join("\n")}</div>`).join("\n");
 const page = fs.readFileSync(path.join(here, "walk.html"), "utf8").replace(/<script>if \(\/\[\?&\]glmem=1\/[^\n]*<\/script>\n/, "");
-if (/<script>(?!<)/.test(page)) throw new Error("walk.html still has an inline script");
-for (const f of ["index.html", "walk.html"]) { fs.mkdirSync(dist, { recursive: true }); fs.writeFileSync(path.join(dist, f), page); }
-put(path.join(here, "fonts.css"), "fonts.css"); put(path.join(here, "favicon.svg"), "favicon.svg");
+const pageWithLyrics = page.replace(/<!-- site-lyrics -->[\s\S]*?<!-- \/site-lyrics -->/, `<!-- site-lyrics -->${lyricHtml}<!-- /site-lyrics -->`);
+if (/<script>(?!<)/.test(pageWithLyrics)) throw new Error("walk.html still has an inline script");
+for (const f of ["index.html", "walk.html"]) { fs.mkdirSync(dist, { recursive: true }); fs.writeFileSync(path.join(dist, f), pageWithLyrics); }
+put(path.join(here, "page.css"), "page.css"); put(path.join(here, "fonts.css"), "fonts.css"); put(path.join(here, "favicon.svg"), "favicon.svg");
 const only = (...ext) => (f) => !f.startsWith(".") && ext.some((e) => f.endsWith(e)); // dot-files (hook state, editors) and anything unexpected never ship
 tree(path.join(here, "walk"), "walk", only(".js")); tree(path.join(here, "shim"), "shim", only(".js")); tree(path.join(here, "fonts"), "fonts", only(".woff2")); tree(path.join(here, "assets"), "assets", only(".m4a", ".jpg"));
 // the MV's own files, read in place (what serve.mjs mounts at /_src/…)
@@ -39,7 +44,7 @@ const LONG = "Cache-Control: public, max-age=2592000"; // the song, the textures
 // Pages MERGES the headers of every rule that matches (same name → joined), so Cache-Control is given in rules that do not overlap
 const rules = [
   ["/*", [`Content-Security-Policy: ${CSP}`, "X-Content-Type-Options: nosniff", "Referrer-Policy: no-referrer", `Permissions-Policy: ${PERMISSIONS}`, "Cross-Origin-Opener-Policy: same-origin", "Cross-Origin-Resource-Policy: same-origin", "X-Frame-Options: DENY"]],
-  ["/", [SHORT]], ["/index.html", [SHORT]], ["/walk.html", [SHORT]], ["/fonts.css", [SHORT]], ["/favicon.svg", [SHORT]],
+  ["/", [SHORT]], ["/index.html", [SHORT]], ["/walk.html", [SHORT]], ["/page.css", [SHORT]], ["/fonts.css", [SHORT]], ["/favicon.svg", [SHORT]],
   ["/walk/*", [SHORT]], ["/shim/*", [SHORT]], ["/_vendor/*", [SHORT]],
   ["/_src/room.html", [SHORT]], ["/_src/timeline.json", [SHORT]], ["/_src/assets.json", [SHORT]], ["/_src/data/*", [SHORT]], ["/_src/design/room-fonts.css", [SHORT]], ["/_src/out/*", [SHORT]],
   ["/_src/design/fonts/*", [LONG]], ["/fonts/*", [LONG]], ["/_src/refs/*", [LONG]],

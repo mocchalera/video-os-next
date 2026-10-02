@@ -25,6 +25,44 @@ const THREE = window.THREE;
 let shim = null, ctrl = null, ui = null, sfx = null, foley = null, traces = null, epi = null, raf = 0, last = 0, running = false;
 const inp = { fw: 0, st: 0, turn: 0 };
 const keyDown = new Set();
+const roomView = document.getElementById("room-view"), stage = document.getElementById("stage");
+const player = document.getElementById("player"), playToggle = document.getElementById("play-toggle"), replayBtn = document.getElementById("replay"), volume = document.getElementById("volume"), muteBtn = document.getElementById("mute"), roomMode = document.getElementById("room-mode"), playerStatus = document.getElementById("player-status");
+player.hidden = false;
+let roomInteracting = false, replaying = false;
+function updatePlayer() {
+  playToggle.disabled = !started || W.noRoom || epiOn;
+  replayBtn.disabled = !started || W.noRoom || replaying;
+  roomMode.disabled = !started || W.noRoom;
+  playToggle.textContent = audio.paused ? "再生" : "一時停止";
+  playerStatus.textContent = W.noRoom ? "部屋の描画不可" : epiOn ? "曲終了・余韻" : !started ? "入室前" : audio.paused ? "一時停止中" : "再生中";
+  muteBtn.textContent = audio.muted ? "音を出す" : "ミュート";
+  muteBtn.setAttribute("aria-pressed", String(audio.muted));
+}
+function setRoomMode(on, focus = false) {
+  roomInteracting = !!on && started && !W.noRoom;
+  roomView.classList.toggle("interacting", roomInteracting);
+  roomMode.setAttribute("aria-pressed", String(roomInteracting));
+  roomMode.textContent = roomInteracting ? "操作を終える（スクロール）" : "部屋を操作する";
+  if (!roomInteracting) abortGesture(true);
+  if (focus && roomInteracting) stage.focus({ preventScroll: true });
+}
+async function togglePlayback() {
+  if (!started || W.noRoom || epiOn) return;
+  if (audio.paused) { sfx.resume(); await audio.play().catch(() => { playerStatus.textContent = "再生できませんでした。再生ボタンで再試行できます。"; }); }
+  else { audio.pause(); foley.halt(); }
+}
+function setVolume() {
+  const v = Number(volume.value); audio.volume = v;
+  if (foley?.a) foley.a.volume = v;
+  if (sfx) sfx.setVolume(v);
+}
+playToggle.addEventListener("click", togglePlayback);
+replayBtn.addEventListener("click", replay);
+roomMode.addEventListener("click", () => setRoomMode(!roomInteracting, true));
+volume.addEventListener("input", setVolume);
+muteBtn.addEventListener("click", () => { audio.muted = !audio.muted; if (sfx) sfx.setMuted(audio.muted); if (foley?.a) foley.a.muted = audio.muted; updatePlayer(); });
+for (const ev of ["play", "pause", "volumechange", "ended"]) audio.addEventListener(ev, updatePlayer);
+
 // Esc (BRIEF §1-5): the machine offers to forget (monitor, 132.9 →). Any key or tap in 133.0 … 134.38 is the Esc, at that very moment; none: the MV's own at 134.38.
 const ESC0 = 133.0, ESC_MV = 134.38;
 let escAt = null, escSounded = false;
@@ -34,9 +72,9 @@ let epiOn = false, epiT0 = 0, epiOpenAt = null, epiCuePhase = "", epiStartedAt =
 const cursor = new Cursor({ ctx: () => document.getElementById("ctx"), epi: () => (epiOn ? epi : null) }); W.cursor = cursor;
 
 const NO_ROOM = "この端末では部屋を描けませんでした。 — this device couldn't render the room.";
-function noRoom() { // Room Mono, grey, one line; the entrance (black) stays and nothing else is offered
-  running = false; cancelAnimationFrame(raf); try { audio.pause(); if (foley) foley.halt(); if (sfx) sfx.suspend(); } catch { /* ok */ }
-  gate.style.display = "flex"; gate.innerHTML = `<div class="sub" id="gate-status" role="status">${NO_ROOM}</div>`; W.noRoom = true;
+function noRoom() { // Only the room fails; the ordinary page remains readable.
+  W.noRoom = true; running = false; cancelAnimationFrame(raf); try { audio.pause(); if (foley) foley.halt(); if (sfx) sfx.suspend(); } catch { /* ok */ }
+  setRoomMode(false); updatePlayer(); gate.style.display = "flex"; gate.innerHTML = `<div class="sub" id="gate-status" role="status">${NO_ROOM}</div>`; W.noRoom = true;
 }
 function glSupported() { // WebGL2 and a float render target: what the post chain needs. (?qa=1&nogl=1 pretends it is not there.)
   if (QA && Q.get("nogl") === "1") return false;
@@ -49,7 +87,7 @@ function glSupported() { // WebGL2 and a float render target: what the post chai
 async function boot() {
   if (!glSupported()) return noRoom();
   const rm = matchMedia("(prefers-reduced-motion: reduce)"); P.reduced = rm.matches; rm.addEventListener?.("change", () => { P.reduced = rm.matches; applyReduced(); });
-  const onResize = () => { const vv = window.visualViewport; P.viewAspect = (vv ? vv.width : innerWidth) / Math.max(1, vv ? vv.height : innerHeight); }; onResize(); addEventListener("resize", onResize); addEventListener("orientationchange", onResize); if (window.visualViewport) visualViewport.addEventListener("resize", onResize);
+  const onResize = () => { const r = stage.getBoundingClientRect(); P.viewAspect = r.width / Math.max(1, r.height); }; onResize(); addEventListener("resize", onResize); addEventListener("orientationchange", onResize); if (window.visualViewport) visualViewport.addEventListener("resize", onResize); new ResizeObserver(onResize).observe(stage);
   const pick = Q.get("res") ? { tier: { ...TIERS[0], res: Number(Q.get("res")) }, why: "?res=" } : pickTier(); W.tier = pick.tier; W.tierWhy = pick.why;
   shim = await SweetShim.load({ host: document.getElementById("stage"), res: pick.tier.res, q: pick.tier.q, tex: pick.tier.tex, dprCap: 1 });
   W.shim = shim;
@@ -72,7 +110,7 @@ async function boot() {
   if (audio.readyState < 3) await new Promise((r) => { audio.addEventListener("canplaythrough", r, { once: true }); setTimeout(r, 1500); }); // iOS does not preload before a tap: do not wait for it
   W.readyMs = Math.round(performance.now()); W.ready = true;
   gateStatus.textContent = gateStatus.dataset.n ? `rendering… ${gateStatus.dataset.n} objects` : "";
-  enterBtn.disabled = false; enterBtn.classList.add("on"); try { enterBtn.focus({ preventScroll: true }); } catch { /* ok */ }
+  enterBtn.disabled = false; enterBtn.classList.add("on");
   if (Q.get("auto") === "1") start({ t: Number(Q.get("t") || 0), muted: Q.get("muted") === "1" });
 }
 
@@ -127,7 +165,7 @@ function frame(now) {
   let T, Tv;
   if (!epiOn) {
     T = Tv = audio.currentTime; if (pendingSeek !== null) tryPendingSeek();
-    if (T >= SONG_END - 0.12 || audio.ended) { startEpilogue(); return; }
+    if (audio.ended) { startEpilogue(); return; }
     escTick(T);
     foley.update(T, !audio.paused && !document.hidden);
   } else {
@@ -165,12 +203,13 @@ let started = false; // the entrance's start is once: a second tap (or key) whil
 async function start(o = {}) {
   if (started || !W.ready) return; started = true;
   gate.style.display = "none"; W.t0 = performance.now() / 1000;
-  sfx.init(); foley.unlock(); // the first tap: audio may start now
+  sfx.init(); foley.unlock(); setVolume(); // the first tap: audio may start now
   if (o.muted !== undefined) { audio.muted = !!o.muted; sfx.setMuted(!!o.muted); }
   if (o.t) await seek(o.t);
   try { await audio.play(); } catch (e) { W.errors.push("play: " + e.message); audio.muted = true; sfx.setMuted(true); await audio.play().catch(() => {}); }
   running = true; last = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
-  hint.textContent = matchMedia("(pointer:coarse)").matches ? "drag — 見る　二本指 — 歩く　離すと、流れに戻る" : "drag — 見る　WASD — 歩く　離すと、流れに戻る";
+  updatePlayer(); stage.focus({ preventScroll: true });
+  hint.textContent = matchMedia("(pointer:coarse)").matches ? "スクロールで読む。見回すときは「部屋を操作する」" : "drag — 見る　WASD — 歩く　離すと、流れに戻る";
   hint.classList.add("on"); setTimeout(() => hint.classList.remove("on"), 6000);
 }
 function seek(T) { return new Promise((res) => { if (Math.abs(audio.currentTime - T) < 0.01) return res(); audio.addEventListener("seeked", () => res(), { once: true }); audio.currentTime = T; setTimeout(res, 3000); }); }
@@ -218,8 +257,27 @@ function startEpilogue() {
   ui.fade(1, 1); ui.cueClear(); ui.hide();
   epi = new Epilogue({ scenes: shim.dbg.web.scenes, canvas: shim.canvas, ui, reduced: () => P.reduced, pose: () => { const L = ctrl.last; return { p: L.p, q: L.q, fov: L.fov || P.fovEpi }; }, onOpened: () => { epiOpenAt = performance.now(); epiCuePhase = "saved"; epiCueT = performance.now(); } });
   W.epi = epi;
+  updatePlayer(); foley.halt();
   ctrl.epiStart({ x: 0.0, y: 1.5, z: 0.35, yaw: 0.05, pitch: -0.04 }); sfx.quiet = true;
   setTimeout(() => ui.fade(0, 2600), 80);
+}
+async function replay() {
+  if (!started || !W.ready || W.noRoom || replaying) return;
+  replaying = true; updatePlayer();
+  try {
+    audio.pause(); foley.halt(); abortGesture(true);
+    epi?.dispose(); epi = null; W.epi = null; epiOn = false;
+    epiOpenAt = null; epiCuePhase = epiCueLast = "";
+    ctrl.epi = null; ctrl.reset(); ctrl.lastT = null;
+    pendingSeek = null; escAt = null; escSounded = false;
+    shim.dbg.noLyr = false;
+    for (const k of ["escAt", "monT", "dustT", "frame", "me"]) delete shim.dbg.web[k];
+    sfx.quiet = false; sfx.resume(); traces.clear();
+    ui.cueClear(); ui.hide(); ui.fade(0, 1);
+    applySeek(0); shim.update(0); await audio.play();
+    // frame() already owns the only animation loop, even while paused or in the epilogue.
+  } catch (e) { W.errors.push("replay: " + e.message); }
+  finally { replaying = false; updatePlayer(); }
 }
 let epiCueT = 0;
 function epiCues(now, L) {
@@ -237,11 +295,11 @@ function epiCues(now, L) {
   else ui.cueClear();
 }
 let epiCueLast = "";
-const doAct = (a) => { if (ui && ui.logOpen) return; if (a === "again") location.reload(); else if (a === "log") ui.openLog(shim.props.credits.events || []); };
+const doAct = (a) => { if (ui && ui.logOpen) return; if (a === "again") replay(); else if (a === "log") ui.openLog(shim.props.credits.events || []); };
 document.addEventListener("pointerdown", (e) => doAct(e.target?.dataset?.a));
 document.addEventListener("keydown", (e) => { const a = e.target?.dataset?.a; if (a && (e.code === "Enter" || e.code === "Space")) { e.preventDefault(); e.stopPropagation(); doAct(a); } }, true);
 // the same two as keys: R again, L log
-function epiKey(code) { if (!epiOn) return false; if (epiCuePhase === "after") { if (code === "KeyR") location.reload(); else if (code === "KeyL") ui.openLog(shim.props.credits.events || []); } if (code === "Enter" && epi.state !== "gone") epi.openKey(); return false; }
+function epiKey(code) { if (!epiOn) return false; if (epiCuePhase === "after") { if (code === "KeyR") replay(); else if (code === "KeyL") ui.openLog(shim.props.credits.events || []); } if (code === "Enter" && epi.state !== "gone") epi.openKey(); return false; }
 
 // ---- input: drag = look, WASD / arrows = walk, Q/E = turn, two fingers = walk, Space = pause, M = mute, C = captions, tap = time line
 // keyboard only, to the end: arrows / WASD walk, Q E turn; Shift + arrows look (turn, up, down); T the time line, [ ] seek ∓10 s, C captions, Space, M; in the epilogue Enter opens the window, R again, L log
@@ -255,18 +313,20 @@ function recomputeKeys() {
 addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (ui && ui.logOpen) { if (e.code === "Escape") ui.closeLog(); return; }
+  if (!running || e.target !== stage) return;
+  if (e.code === "Escape") { setRoomMode(false); roomMode.focus({ preventScroll: true }); return; }
   if (!e.repeat) anyInput();
   if (e.shiftKey && SHIFT_LOOK[e.code]) { SHIFT_LOOK[e.code](); e.preventDefault(); }
   else if (KEYS[e.code]) { keyDown.add(e.code); recomputeKeys(); e.preventDefault(); }
-  else if (e.code === "Space" && running && !epiOn) { e.preventDefault(); if (!e.repeat) (audio.paused ? audio.play() : audio.pause()); }
-  else if (e.code === "KeyM" && !e.repeat) { audio.muted = !audio.muted; sfx.setMuted(audio.muted); }
+  else if (e.code === "Space" && running && !epiOn) { e.preventDefault(); if (!e.repeat) togglePlayback(); }
+  else if (e.code === "KeyM" && !e.repeat) { audio.muted = !audio.muted; sfx.setMuted(audio.muted); updatePlayer(); }
   else if (e.code === "KeyC" && !e.repeat && !epiOn && ui) ui.cycleCC();
   else if (e.code === "KeyT" && !e.repeat && !epiOn && ui) ui.toggle();
   else if ((e.code === "BracketLeft" || e.code === "BracketRight") && running && !epiOn) { seekTo(audio.currentTime + (e.code === "BracketLeft" ? -10 : 10)); ui.show(); }
   else if (!e.repeat) epiKey(e.code);
 });
 addEventListener("keyup", (e) => { if (keyDown.delete(e.code)) recomputeKeys(); });
-const stage = document.getElementById("stage"), touches = new Map();
+const touches = new Map();
 let joy0 = null, down0 = null, epiTake = false, lastTap = null, owner = null; // owner = { id, kind } of the pointer that owns the single-finger gesture (look / brush / sash)
 /** every interruption of a gesture (a second finger, focus lost, the capture lost, a cancel, the page hidden) ends in here: nothing is left half-done — and an interruption never opens the window */
 function abortGesture(all) {
@@ -275,9 +335,14 @@ function abortGesture(all) {
   if (ctrl) { ctrl.in.dragging = false; ctrl.in.dragDx = ctrl.in.dragDy = 0; }
   if (all) { keyDown.clear(); touches.clear(); } recomputeKeys(); inp.fw = inp.st = 0; recomputeKeys();
 }
-addEventListener("blur", () => abortGesture(true));
+addEventListener("blur", () => setRoomMode(false));
+stage.addEventListener("focusout", (e) => { abortGesture(true); if (e.relatedTarget !== roomMode) setRoomMode(false); });
+// A page scroll never seeks, changes playback, or resets the camera. It just releases any held input.
+addEventListener("scroll", () => { setRoomMode(false); if (document.activeElement === stage) stage.blur(); }, { passive: true });
+
 stage.addEventListener("pointerdown", (e) => {
-  if (!running || (e.pointerType === "mouse" && e.button !== 0)) return;
+  if (!running || (e.pointerType === "mouse" && e.button !== 0) || (e.pointerType === "touch" && !roomInteracting)) return;
+  stage.focus({ preventScroll: true });
   try { stage.setPointerCapture(e.pointerId); } catch { /* ok */ } touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (touches.size === 1) { down0 = { x: e.clientX, y: e.clientY, t: performance.now(), moved: false };
     if (epiOn && epi && epi.pointerDown(e.clientX, e.clientY)) { epiTake = true; owner = { id: e.pointerId, kind: "epi" }; return; }
@@ -315,7 +380,7 @@ stage.addEventListener("contextmenu", (e) => e.preventDefault());
 
 // ---- QA / automation (window.__walk): only with ?qa=1
 if (QA) Object.assign(W, {
-  start, seek, seekTo, audio, P, FORCED, startEpilogue, anyInput, benchMeasure,
+  start, replay, seek, seekTo, audio, P, FORCED, startEpilogue, anyInput, benchMeasure,
   key(code, down = true) { if (down) { if (!keyDown.has(code)) anyInput(); keyDown.add(code); } else keyDown.delete(code); recomputeKeys(); },
   /** synthetic drag in CSS px, applied on the next tick (no pointer events needed) */
   drag(dx, dy, hold = true) { ctrl.in.dragDx += dx; ctrl.in.dragDy += dy; ctrl.in.dragging = hold; },
@@ -330,4 +395,4 @@ if (QA) Object.assign(W, {
   getEpiState() { return epi ? { state: epi.state, open: epi.open, strokeLen: epi.strokeLen, canOpen: !!epi.canOpen } : null; },
   getCueText() { return document.getElementById("cues")?.textContent || ""; },
 });
-boot().catch((e) => { W.errors.push(e.stack || e.message); console.error(e); if (/webgl|context/i.test(String(e && e.message))) noRoom(); else gateStatus.textContent = "error: " + e.message; });
+boot().catch((e) => { W.errors.push(e.stack || e.message); console.error(e); if (/webgl|context/i.test(String(e && e.message))) noRoom(); else { noRoom(); console.error("room initialization failed", e); } });

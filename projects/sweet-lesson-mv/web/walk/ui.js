@@ -47,8 +47,8 @@ export class UI {
     const css = document.createElement("style");
     css.textContent = `
 #ctx,#tl,#cc,#cues,#log,#fade{font:11px/1.5 "Room Mono","Room Sans","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",ui-monospace,monospace;color:#7d7d7d;letter-spacing:.03em}
-#ctx{position:fixed;left:calc(16px + env(safe-area-inset-left));bottom:calc(10px + env(safe-area-inset-bottom));z-index:4;pointer-events:none}
-#tl{position:fixed;left:calc(16px + env(safe-area-inset-left));right:calc(16px + env(safe-area-inset-right));bottom:calc(44px + env(safe-area-inset-bottom));height:44px;z-index:5;opacity:0;pointer-events:none;visibility:hidden;transition:opacity .35s,visibility 0s .35s}
+#ctx{position:absolute;left:calc(16px + env(safe-area-inset-left));bottom:calc(10px + env(safe-area-inset-bottom));z-index:4;pointer-events:none}
+#tl{position:absolute;left:calc(16px + env(safe-area-inset-left));right:calc(16px + env(safe-area-inset-right));bottom:calc(44px + env(safe-area-inset-bottom));height:44px;z-index:5;opacity:0;pointer-events:none;visibility:hidden;transition:opacity .35s,visibility 0s .35s}
 #tl.on{opacity:1;pointer-events:auto;visibility:visible;transition:opacity .35s}
 #tl .line{position:absolute;left:0;right:0;bottom:12px;height:1px;background:#4a4a4a}
 #tl .prog{position:absolute;left:0;bottom:12px;height:1px;background:#bdbdbd;width:0}
@@ -59,15 +59,15 @@ export class UI {
 #tl .when{position:absolute;bottom:22px;transform:translateX(-50%);font-size:10px;color:#c4c4c4;white-space:nowrap}
 #tl .end{position:absolute;bottom:22px;font-size:10px;color:#626262}
 #tl .ccbtn{position:absolute;right:0;bottom:-26px;color:#8a8a8a;padding:2px 0}
-#cc{position:fixed;left:50%;bottom:calc(78px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:3;max-width:72%;text-align:center;color:#e8e8e8;font-size:17px;line-height:1.5;text-shadow:0 0 6px #000,0 0 2px #000;pointer-events:none;white-space:pre-line;opacity:0;transition:opacity .2s;letter-spacing:.04em}
+#cc{position:absolute;left:50%;bottom:calc(78px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:3;max-width:72%;text-align:center;color:#e8e8e8;font-size:17px;line-height:1.5;text-shadow:0 0 6px #000,0 0 2px #000;pointer-events:none;white-space:pre-line;opacity:0;transition:opacity .2s;letter-spacing:.04em}
 #cc.on{opacity:1}
 #cc.ja{font-family:"Room Serif","Hiragino Mincho ProN","Yu Mincho",serif}
 #cc.en{font-family:"Room Sans","Hiragino Sans",sans-serif;font-size:15px}
-#cues{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom));max-width:94vw;transform:translateX(-50%);z-index:4;text-align:center;font-size:clamp(14px,1.25vw,18px);color:#cfcfcf;opacity:0;transition:opacity 1.4s;white-space:nowrap;text-shadow:0 0 6px #000,0 0 3px #000;letter-spacing:.05em}
+#cues{position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom));max-width:94vw;transform:translateX(-50%);z-index:4;text-align:center;font-size:clamp(14px,1.25vw,18px);color:#cfcfcf;opacity:0;transition:opacity 1.4s;white-space:nowrap;text-shadow:0 0 6px #000,0 0 3px #000;letter-spacing:.05em}
 #cues.on{opacity:1}
 #cues:not(.on) .act{pointer-events:none}
 #cues .act{pointer-events:auto;color:#e2e2e2;margin:0 16px;border-bottom:1px solid #6a6a6a;padding:2px 0}
-#fade{position:fixed;inset:0;background:#000;z-index:3;opacity:0;pointer-events:none;transition:opacity 2.4s ease}
+#fade{position:absolute;inset:0;background:#000;z-index:3;opacity:0;pointer-events:none;transition:opacity 2.4s ease}
 #log{position:fixed;inset:0;z-index:9;background:#050505;color:#b5b5b5;padding:56px 7vw 40px;overflow:auto;display:none;font-size:13px;line-height:1.7;-webkit-user-select:text;user-select:text}
 #log.on{display:block}
 #log .x{position:fixed;right:22px;top:16px;color:#8a8a8a;font-size:18px}
@@ -79,7 +79,7 @@ export class UI {
 @media (prefers-reduced-motion:reduce){#cues,#tl,#cc,#fade,#gate button{transition:none !important}}
 `;
     document.head.appendChild(css);
-    const mk = (id, cls = "") => { const e = document.createElement("div"); e.id = id; if (cls) e.className = cls; document.body.appendChild(e); return e; };
+    const mk = (id, cls = "") => { const e = document.createElement("div"); e.id = id; if (cls) e.className = cls; (id === "log" ? document.body : document.getElementById("room-view")).appendChild(e); return e; };
     this.elCtx = mk("ctx"); this.elCap = mk("cc"); this.elCues = mk("cues"); this.elFade = mk("fade");
     this.elTl = mk("tl"); this.elTl.innerHTML = `<div class="line"></div><div class="prog"></div><div class="head"></div><div class="when"></div><span class="end" style="left:0">5:00</span><span class="end" style="right:0">7:12</span><div class="ccbtn" role="button" tabindex="0" data-cur="block" aria-label="closed captions">CC</div><div class="hit" data-cur="bar"></div>`;
     for (const s of SECTIONS) { const t = document.createElement("div"); t.className = "tick"; t.style.left = (s.t / SONG_END) * 100 + "%"; const n = document.createElement("div"); n.className = "name"; n.textContent = s.name; n.style.left = (s.t / SONG_END) * 100 + "%"; n.style.transform = "translateX(3px)"; this.elTl.append(t, n); }

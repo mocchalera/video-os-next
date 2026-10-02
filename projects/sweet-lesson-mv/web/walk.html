@@ -23,25 +23,46 @@
 <meta name="theme-color" content="#000000">
 <link rel="stylesheet" href="/_src/design/room-fonts.css">
 <link rel="stylesheet" href="/fonts.css">
-<style>
-html,body{margin:0;height:100%;background:#000;overflow:hidden;color:#8a8a8a;font:12px/1.6 "Room Mono","Room Sans","Hiragino Sans",ui-monospace,monospace;-webkit-user-select:none;user-select:none}
-#stage{position:fixed;inset:0;touch-action:none;-webkit-tap-highlight-color:transparent}
-@media (prefers-reduced-motion:reduce){#hint,#gate button{transition:none !important}}
-#gate{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:5;background:#000;text-align:center}
-#gate h1{font:400 40px "Room Serif",serif;color:#ddd;margin:0 0 4px;letter-spacing:.1em}
-#gate .sub{color:#7a7a7a}
-#gate button{all:unset;color:#a8a8a8;border-bottom:1px solid #444;padding:2px 0;margin-top:14px;opacity:0;transition:opacity .6s}
-#gate button.on{opacity:1}
-#hint{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:4;color:#c4c4c4;font-size:clamp(13px,1.1vw,16px);text-shadow:0 0 6px #000,0 0 3px #000;opacity:0;transition:opacity 1.2s;pointer-events:none;white-space:nowrap}
-#hint.on{opacity:1}
-#hud{position:fixed;left:8px;top:8px;z-index:6;white-space:pre;pointer-events:none;color:#9a9;text-shadow:0 0 3px #000;display:none}
-</style>
+<link rel="stylesheet" href="/page.css">
 </head>
 <body>
-<div id="stage"></div>
-<div id="gate"><h1>Sweet Lesson</h1><div class="sub">every frame rendered. except you.</div><div id="gate-status" class="sub">rendering…</div><button id="enter" data-cur="block" disabled>▶ 入る — enter　（音が出ます / sound on）</button></div>
-<div id="hint"></div>
-<div id="hud"></div>
+<a class="skip" href="#reading">歌詞・作品について読む</a>
+<header class="work-header" data-qa-critical>
+  <p class="eyebrow">mocchalera / music &amp; room</p>
+  <h1>Sweet Lesson</h1>
+  <p>every frame rendered. except you.</p>
+  <nav aria-label="作品内の移動"><a href="#room">部屋へ</a><a href="#lyrics">歌詞</a><a href="#about">制作背景</a><a href="#credits">クレジット</a></nav>
+</header>
+<main>
+  <section id="room" aria-labelledby="room-title" tabindex="-1">
+    <h2 id="room-title" class="sr-only">入れる部屋</h2>
+    <div id="room-view">
+      <div id="stage" tabindex="0" role="region" aria-label="部屋の視点と歩行" aria-describedby="room-help"></div>
+      <div id="gate"><p class="gate-title">Sweet Lesson</p><p class="sub">every frame rendered. except you.</p><p id="gate-status" role="status">rendering…</p><button id="enter" data-cur="block" disabled>▶ 入る — enter　（音が出ます / sound on）</button><noscript><p>部屋の再生にはJavaScriptが必要です。歌詞と作品説明はこの下で読めます。</p></noscript></div>
+      <div id="hint"></div><div id="hud"></div>
+    </div>
+    <p id="room-help">ドラッグで見る。部屋にフォーカスして WASD・矢印で歩く。Esc で操作を離れる。スマホでは「部屋を操作する」を選ぶと、ドラッグで見る・二本指で歩く操作ができます。</p>
+  </section>
+  <div id="reading" class="reading" tabindex="-1">
+    <section id="lyrics" aria-labelledby="lyrics-title" data-qa-critical><h2 id="lyrics-title">歌詞</h2><div class="lyrics"><!-- site-lyrics --><!-- /site-lyrics --></div></section>
+    <section id="about" aria-labelledby="about-title" data-qa-critical><h2 id="about-title">制作背景</h2>
+      <p>AIが題材の曲だけど、AIの技術の話じゃない。人間の側の話。</p>
+      <p>DevDay明けの午前5時から翌朝まで、ワンルームの一日をワンテイクで。部屋も光も街も歌詞も、全部 three.js でリアルタイムに計算して描いた。描かれていないのは、主人公だけ。</p>
+      <p>エンドロールに流れるのは、このMVをAIエージェントと作ったときの実際の制作ログ。</p>
+    </section>
+    <section id="credits" aria-labelledby="credits-title" data-qa-critical><h2 id="credits-title">クレジット</h2>
+      <dl><dt>Music &amp; Lyrics</dt><dd>mocchalera（Suno）</dd><dt>Direction / Scene</dt><dd>mocchalera × Claude（AIエージェント）</dd><dt>Made with</dt><dd>three.js + video-os-next</dd></dl>
+    </section>
+  </div>
+</main>
+<footer class="work-footer"><p>Sweet Lesson / mocchalera</p><a href="#room">部屋へ戻る</a></footer>
+<div id="player" role="group" aria-label="音楽と部屋の操作" hidden>
+  <span id="player-status" role="status">入室前</span>
+  <button id="play-toggle" disabled>再生</button><button id="replay" disabled>最初から再生</button>
+  <button id="mute" aria-pressed="false">ミュート</button>
+  <label class="volume">音量 <input id="volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="音量"></label>
+  <a href="#room">部屋へ戻る</a><button id="room-mode" aria-pressed="false" disabled>部屋を操作する</button>
+</div>
 <audio id="song" src="/_src/refs/audio/Sweet%20Lesson.mp3" preload="auto" playsinline></audio>
 <script>if (/[?&]glmem=1/.test(location.search)) document.write('<script src="/qa/glmem.js"><\/script>'); // QA: a ledger of GPU allocations (qa/glmem.js)</script>
 <script src="/_vendor/three.js"></script>

@@ -1,0 +1,25 @@
+{
+  "audit": {
+    "critical_selectors": [
+      "[data-qa-critical]",
+      "a.cta[href]",
+      "a[class*='cta' i][href]",
+      "form",
+      "main h1"
+    ],
+    "states": [
+      "normal",
+      "reduced-motion",
+      "javascript-disabled"
+    ],
+    "timeout_ms": 10000
+  },
+  "checker": {
+    "name": "lp-interaction-qa",
+    "version": "1.0.0"
+  },
+  "schemaVersion": "interaction-manifest/v1",
+  "target": {
+    "url": "http://127.0.0.1:8876/?qa=1&nogl=1"
+  }
+}
