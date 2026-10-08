@@ -4,7 +4,7 @@ import type { Project } from "../core/project.ts";
 import { readJson, VosError, writeJson } from "../core/util.ts";
 import { attach, D1_PIN, d1Paths, RUNNER_PIN, startServer, verifyModel, verifyRunner, type Endpoint } from "./d1.ts";
 import { buildPool, type Pool } from "./pool.ts";
-import { compare, labelsTemplate, reportMarkdown, type Labels } from "./report.ts";
+import { boundLabel, boundMeasurable, compare, labelsTemplate, reportMarkdown, type Labels } from "./report.ts";
 import { loadRubric } from "./rubric.ts";
 import { runBaseline, runD1, writeResult, type RunResult } from "./score.ts";
 
@@ -121,9 +121,10 @@ export async function judgeCommand(p: () => Project, a: Record<string, any>, res
       }
     } else throw new VosError("usage", "--runner baseline | d1");
     const f = writeResult(dir, r);
-    out({ result: f, runner: r.runner, top: r.ranked.slice(0, 10).map((j) => ({ rank: j.rank, candidate: j.candidate, source: j.source, score: j.score, in: j.bounds.in, out: j.bounds.out })), resources: r.resources }, () => {
+    out({ result: f, runner: r.runner, top: r.ranked.slice(0, 10).map((j) => ({ rank: j.rank, candidate: j.candidate, source: j.source, score: j.score, in: j.bounds.in, out: j.bounds.out, in_found: boundMeasurable(j, "in").ok, out_found: boundMeasurable(j, "out").ok, ...(j.refine ? { refine_status: j.refine.status } : {}) })), resources: r.resources }, () => {
       console.log(`${r.runner}: ${r.ranked.length} candidates ranked → ${f}`);
-      for (const j of r.ranked.slice(0, 10)) console.log(`  ${String(j.rank).padStart(3)}  ${(j.score ?? NaN).toFixed(3).padStart(7)}  ${j.source}  ${j.bounds.in ?? "?"}–${j.bounds.out ?? "?"}s  [${j.origins.join("+")}] ${j.decision}${j.reason ? `  (${j.reason})` : ""}`);
+      if (r.ranked.slice(0, 10).some((j) => !boundMeasurable(j, "in").ok || !boundMeasurable(j, "out").ok)) console.log("  [edge] = edge of the window looked at, not a found cut");
+      for (const j of r.ranked.slice(0, 10)) console.log(`  ${String(j.rank).padStart(3)}  ${(j.score ?? NaN).toFixed(3).padStart(7)}  ${j.source}  ${boundLabel(j, "in")}–${boundLabel(j, "out")}s  [${j.origins.join("+")}] ${j.decision}${j.refine?.status === "uninformative" ? "  (refine uninformative: no cut found, in/out are window edges)" : ""}${j.reason ? `  (${j.reason})` : ""}`);
     });
     return;
   }

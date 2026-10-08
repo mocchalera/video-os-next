@@ -37,6 +37,29 @@ function proposals(r: RunResult, k: number): Judged[] {
   return r.ranked.filter((j) => j.decision === "judged").slice(0, k);
 }
 
+/**
+ * Whether a runner's in (or out) is a boundary it found, or only the edge of what it looked at. An open side (the
+ * run above the threshold reached the window edge) and an "uninformative" refine (every frame above the threshold)
+ * carry window edges set by refinePad — they are excluded from boundary shifts and from human in/out error, and
+ * counted separately (never folded in as 0). Ranking / adoption are evaluated independently of this.
+ */
+export function boundMeasurable(j: Judged, side: "in" | "out"): { ok: true } | { ok: false; why: string } {
+  if (j.refine?.status === "uninformative") return { ok: false, why: "refine_uninformative" };
+  if (j.bounds.open?.includes(side)) return { ok: false, why: `open_${side}` };
+  if (j.bounds[side] === null) return { ok: false, why: "no_bound" };
+  return { ok: true };
+}
+
+/** "8.34" for a found boundary, "≥8.34 (window edge)" style markers otherwise — window edges never look like cuts. */
+export function boundLabel(j: Judged, side: "in" | "out"): string {
+  const v = j.bounds[side];
+  if (v === null) return "?";
+  const m = boundMeasurable(j, side);
+  return m.ok ? String(v) : `${v}[edge]`;
+}
+
+const tally = (xs: string[]) => xs.reduce((m: Record<string, number>, x) => ((m[x] = (m[x] ?? 0) + 1), m), {});
+
 /** Labels are checked before any number is computed from them. */
 export function validateLabels(pool: Pool, labels: Labels): void {
   const bad = (why: string): never => {
@@ -113,12 +136,17 @@ function humanMetrics(pool: Pool, runs: RunResult[], labels: Labels | null, k: n
     const yes = judged.filter((j) => lab.get(j.candidate)!.adopt);
     const topIds = new Set(top.map((j) => j.candidate));
     const errs = (side: "in" | "out") => {
-      const e = yes.map((j) => {
-        const h = lab.get(j.candidate)![side];
-        const m = j.bounds[side];
-        return h === null || h === undefined || m === null ? null : Math.abs(h - m);
-      }).filter((x): x is number => x !== null);
-      return e.length ? { value: round(e.reduce((a, b) => a + b, 0) / e.length, 3), n: e.length, status: "measured" } : { ...NM, reason: "no adopted candidate with a human in/out" };
+      const withHuman = yes.filter((j) => typeof lab.get(j.candidate)![side] === "number");
+      const excluded: string[] = [];
+      const e: number[] = [];
+      for (const j of withHuman) {
+        const m = boundMeasurable(j, side);
+        if (!m.ok) excluded.push(m.why);
+        else e.push(Math.abs((lab.get(j.candidate)![side] as number) - j.bounds[side]!));
+      }
+      const ex = { excluded: excluded.length, excluded_reasons: tally(excluded) };
+      if (e.length) return { value: round(e.reduce((a, b) => a + b, 0) / e.length, 3), n: e.length, ...ex, status: "measured" };
+      return { ...NM, ...ex, reason: withHuman.length ? `every adopted candidate's ${side} is a window edge, not a found boundary` : "no adopted candidate with a human in/out" };
     };
     const t = (labels.time as any)?.[r.runner];
     const measured = (x: unknown) => (typeof x === "number" ? { value: x, status: "measured" } : { ...NM, reason: "time not recorded" });
@@ -165,7 +193,7 @@ export function compare(pool: Pool, runs: RunResult[], o: { k?: number; labels?:
       code: m.vos ? { git_head: m.vos.git_head, worktree_clean: m.vos.worktree_clean, judge_code_dirty: m.vos.judge_code_dirty } : null,
       judged_in_top_k: proposals(r, k).length,
       decisions: r.ranked.reduce((m: Record<string, number>, j) => ((m[j.decision] = (m[j.decision] ?? 0) + 1), m), {}),
-      top_k: top.map((j) => ({ rank: j.rank, candidate: j.candidate, source: j.source, origins: j.origins, score: j.score, in: j.bounds.in, out: j.bounds.out, basis: j.bounds.basis })),
+      top_k: top.map((j) => ({ rank: j.rank, candidate: j.candidate, source: j.source, origins: j.origins, score: j.score, in: j.bounds.in, out: j.bounds.out, basis: j.bounds.basis, in_found: boundMeasurable(j, "in").ok, out_found: boundMeasurable(j, "out").ok, ...(j.refine ? { refine_status: j.refine.status } : {}) })),
       coverage_in_top_k: top.filter((j) => cov.has(j.candidate)).length,
       coverage_only_in_top_k: top.filter((j) => covOnly.has(j.candidate)).map((j) => j.candidate),
       criterion_statuses: statuses,
@@ -181,13 +209,26 @@ export function compare(pool: Pool, runs: RunResult[], o: { k?: number; labels?:
     const base = new Map(by.baseline.ranked.map((j) => [j.candidate, j]));
     const shifts = by.d1.ranked.filter((j) => j.bounds.basis === "frames" || j.bounds.basis === "transcript").map((j) => {
       const bj = base.get(j.candidate)!;
-      return { candidate: j.candidate, d_in: bj.bounds.in === null || j.bounds.in === null ? null : round(j.bounds.in - bj.bounds.in, 3), d_out: bj.bounds.out === null || j.bounds.out === null ? null : round(j.bounds.out - bj.bounds.out, 3), in_range: j.bounds.in_range, out_range: j.bounds.out_range, open: j.bounds.open };
+      const d = (side: "in" | "out") => {
+        const m = boundMeasurable(j, side);
+        if (!m.ok) return { d: null, excluded: m.why };
+        return { d: bj.bounds[side] === null ? null : round(j.bounds[side]! - bj.bounds[side]!, 3), excluded: bj.bounds[side] === null ? "no_baseline_bound" : null };
+      };
+      const di = d("in"), dout = d("out");
+      return { candidate: j.candidate, refine_status: j.refine?.status ?? null, d_in: di.d, d_out: dout.d, excluded_in: di.excluded, excluded_out: dout.excluded, in_range: j.bounds.in_range, out_range: j.bounds.out_range, open: j.bounds.open };
     });
     const mean = (xs: (number | null)[]) => {
       const v = xs.filter((x): x is number => x !== null).map(Math.abs);
       return v.length ? round(v.reduce((s, x) => s + x, 0) / v.length, 3) : null;
     };
-    bounds = { refined: shifts.length, mean_abs_shift_in: mean(shifts.map((s) => s.d_in)), mean_abs_shift_out: mean(shifts.map((s) => s.d_out)), items: shifts, note: "how far d1 moved in/out from the artifact span; a change, not an error (no ground truth)" };
+    const exIn = shifts.map((x) => x.excluded_in).filter((x): x is string => !!x), exOut = shifts.map((x) => x.excluded_out).filter((x): x is string => !!x);
+    bounds = {
+      refined: shifts.length,
+      mean_abs_shift_in: mean(shifts.map((x) => x.d_in)), measured_in: shifts.filter((x) => x.d_in !== null).length, excluded_in: exIn.length, excluded_in_reasons: tally(exIn),
+      mean_abs_shift_out: mean(shifts.map((x) => x.d_out)), measured_out: shifts.filter((x) => x.d_out !== null).length, excluded_out: exOut.length, excluded_out_reasons: tally(exOut),
+      items: shifts,
+      note: "how far d1 moved a FOUND in/out from the artifact span; a change, not an error (no ground truth). Window edges (open side / uninformative refine) are excluded and counted; null means nothing measurable, not 0",
+    };
   }
   const pts = pool.sources.map((s) => ({
     source: s.alias, content_id: s.content_id, vfr: s.frames.vfr.vfr, frames: s.frames.frame_count, decoded: s.frames.decoded_frames, anomalies: s.frames.anomaly_count, trusted: s.frames.trusted,
@@ -240,7 +281,16 @@ export function reportMarkdown(rep: ReturnType<typeof compare>): string {
   for (const [name, r] of Object.entries(pr)) if (r.code && (!r.code.worktree_clean || r.code.judge_code_dirty)) L.push(`⚠ ${name}: made from a checkout with uncommitted changes (${r.code.git_head?.slice(0, 12)})`);
   L.push("");
   const b = rep.model_proxy.bounds as any;
-  if (b.refined !== undefined) L.push(`bounds: ${b.refined} refined; mean |Δin| ${b.mean_abs_shift_in} s, mean |Δout| ${b.mean_abs_shift_out} s vs the artifact span (a change, not an error)`, "");
+  if (b.refined !== undefined) {
+    const side = (n: string) => `mean |Δ${n}| ${b[`mean_abs_shift_${n}`] === null ? "null" : `${b[`mean_abs_shift_${n}`]} s`} (${b[`measured_${n}`]} measured, ${b[`excluded_${n}`]} excluded${b[`excluded_${n}`] ? ` ${JSON.stringify(b[`excluded_${n}_reasons`])}` : ""})`;
+    L.push(`bounds: ${b.refined} refined; ${side("in")}; ${side("out")} vs the artifact span — a change, not an error; window edges are excluded, null ≠ 0`, "");
+  }
+  for (const [name, r] of Object.entries(pr)) {
+    if (!r.top_k?.length) continue;
+    L.push(`${name} top-k bounds (\`[edge]\` = edge of the window looked at, no cut found):`);
+    for (const t of r.top_k) L.push(`- ${t.rank}. ${t.candidate} ${t.source} ${t.in ?? "?"}${t.in_found ? "" : "[edge]"}–${t.out ?? "?"}${t.out_found ? "" : "[edge]"} s (${t.basis}${t.refine_status ? `, refine ${t.refine_status}` : ""})`);
+    L.push("");
+  }
   L.push("## Human measures", "");
   for (const [name, h] of Object.entries(rep.human as Record<string, any>)) L.push(`- ${name}: ` + Object.entries(h).map(([k, v]: [string, any]) => `${k} ${v.value === null ? `null (${v.status})` : v.value}`).join(" · "));
   L.push("", "## Pool coverage", "", "| source | share of the source inside any candidate | inside coverage windows |", "|---|---|---|");

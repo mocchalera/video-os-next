@@ -22,6 +22,11 @@ Nothing here measures selection quality or editing time; those need a person's l
    bound shifts, latency, RSS, disk, provenance, pool coverage share) and human numbers (adoption, misses, in/out
    error, time) which stay `null / not_measured` without a validated labels file a person filled in. Top-k means
    judged candidates only. `miss_rate` counts misses among labeled spans; spans outside the pool cannot be seen.
+   d1's refined in/out on a side that reached the edge of the window looked at (`open`), or from a refine where every
+   frame was above the threshold (`uninformative`), is a window edge, not a found cut: it is shown as `[edge]` and
+   excluded (and counted) in boundary shifts and human in/out error; null there means "nothing measurable", not 0.
+   A closed side's range brackets where the model's subjective reading crosses the threshold, assuming one crossing
+   between adjacent samples — an estimate, not an editorial cut.
 
 ## Answers are the model's reading, not facts
 

@@ -280,7 +280,7 @@ async function refine(ctx: Ctx, c: Candidate, j: Judged): Promise<void> {
     note: `frames ${first.index}–${last.index} hold ${purpose.peak} ≥ ${thr} (peak ${vmax} at ${seen[pk].ref.t}s); ` +
       (open.length === 2
         ? "every frame looked at is above the threshold: in/out are only the edges of the window looked at, not a found cut"
-        : `a closed side's cut lies inside its range (frames between samples were not looked at)${open.length ? `; the ${open[0]} side reached the window edge, so its range is unbounded (null)` : ""}`),
+        : `on a closed side the range brackets where the model's reading crosses the threshold, assuming a single crossing between adjacent samples (frames between samples were not looked at); it is an estimate from the model's subjective values, not an editorial cut${open.length ? `; the ${open[0]} side reached the window edge, so its range is unbounded (null) and its value is only that edge` : ""}`),
   };
 }
 

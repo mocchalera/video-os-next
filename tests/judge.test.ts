@@ -13,7 +13,7 @@ import { writeJson } from "../src/core/util.ts";
 import { assertLoopback, attach, checkDisk, D1_PIN, decide, runnerEnv, startServer, validateReply, verifyModel, verifyRunner, type Endpoint } from "../src/judge/d1.ts";
 import { buildPool, checkPoolFresh, poolDigest } from "../src/judge/pool.ts";
 import { extractFrame, frameTable, framesIn, nominalError, snap, trustedTimes, type FrameTable } from "../src/judge/pts.ts";
-import { compare, labelsTemplate, validateLabels } from "../src/judge/report.ts";
+import { compare, labelsTemplate, reportMarkdown as reportMd, validateLabels } from "../src/judge/report.ts";
 import { aggregate, interpret, loadRubric, questionsFor, RUBRIC_FILE, type Question } from "../src/judge/rubric.ts";
 import { runBaseline, runD1 } from "../src/judge/score.ts";
 import { fixtureProject } from "./helpers.ts";
@@ -21,6 +21,7 @@ import { fixtureProject } from "./helpers.ts";
 process.env.VOS_EMBED_MOCK = "1"; // deterministic search vectors; no model needed
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "vos-judge-"));
+const round3 = (x: number) => Math.round(x * 1000) / 1000;
 const ff = (args: string[]) => execFileSync("ffmpeg", ["-v", "error", "-y", ...args]);
 
 // ---------------- frame times ----------------
@@ -616,4 +617,56 @@ test("refine: when every frame looked at is above the threshold, in/out are wind
   assert.equal(j.bounds.in_range![0], null);
   assert.equal(j.bounds.out_range![1], null);
   assert.match(j.bounds.note!, /not a found cut/);
+});
+
+test("window edges are not effects: open / uninformative sides are excluded from shifts and human in/out error, counted, never 0", async () => {
+  const p = judgeProject();
+  const pool = buildPool(p, { purpose: "action", aliases: ["clip"], seed: 3 });
+  const base = runBaseline(p, pool);
+  const fake = await fakeD1({ flat: true });
+  const ep: Endpoint = { url: fake.url, mode: "attached", exposure: "tcp_loopback", provenance_gaps: ["test"], model_id: "/x/m.gguf", modalities: { input: ["text", "image"], output: ["decisions"] }, maxRssKiB: () => null, stop: async () => {} };
+  const d1 = await runD1(p, pool, ep, { outDir: tmp(), refineTop: 1, minFreeBytes: 1 });
+  await fake.close();
+  const j = d1.ranked.find((x) => x.refine)!;
+  assert.equal(j.refine!.status, "uninformative");
+  const labels = (items: any[]) => ({ format: "vos.judge-labels/1" as const, pool_digest: pool.digest, labeler: "t", items });
+  const L = labels([{ candidate: j.candidate, adopt: true, in: 1.0, out: 2.0 }]);
+
+  // all open / uninformative: nothing measurable on either side — null with the exclusions counted
+  const all = compare(pool, [base, d1], { k: 5, labels: L });
+  const b = all.model_proxy.bounds as any;
+  assert.equal(b.mean_abs_shift_in, null);
+  assert.equal(b.mean_abs_shift_out, null);
+  assert.deepEqual([b.measured_in, b.excluded_in, b.excluded_in_reasons], [0, 1, { refine_uninformative: 1 }]);
+  assert.deepEqual([b.measured_out, b.excluded_out], [0, 1]);
+  const h = (all.human as any).d1;
+  assert.equal(h.in_abs_err_sec.value, null);
+  assert.equal(h.out_abs_err_sec.value, null);
+  assert.deepEqual([h.in_abs_err_sec.excluded, h.in_abs_err_sec.status], [1, "not_measured"]);
+  assert.equal(h.adoption_at_k.value, 1, "adoption / ranking are judged apart from the bounds");
+  assert.match(reportMd(all), /\[edge\]/);
+  assert.match(reportMd(all), /mean \|Δin\| null \(0 measured, 1 excluded/);
+
+  // only the in side open: the closed out side keeps its measurement
+  const oneSide: typeof d1 = structuredClone(d1);
+  const k1 = oneSide.ranked.find((x) => x.candidate === j.candidate)!;
+  k1.refine!.status = "ok";
+  k1.bounds.open = ["in"];
+  k1.bounds.out_range = [k1.bounds.out!, k1.bounds.out! + 0.5];
+  const one = compare(pool, [base, oneSide], { k: 5, labels: L });
+  const b1 = one.model_proxy.bounds as any;
+  assert.deepEqual([b1.mean_abs_shift_in, b1.excluded_in, b1.excluded_in_reasons], [null, 1, { open_in: 1 }]);
+  assert.equal(b1.measured_out, 1);
+  assert.equal(typeof b1.mean_abs_shift_out, "number");
+  const h1 = (one.human as any).d1;
+  assert.equal(h1.in_abs_err_sec.value, null);
+  assert.deepEqual([h1.out_abs_err_sec.value, h1.out_abs_err_sec.n, h1.out_abs_err_sec.excluded], [round3(Math.abs(2.0 - k1.bounds.out!)), 1, 0]);
+
+  // both sides closed: both measured, nothing excluded
+  k1.bounds.open = undefined;
+  k1.bounds.in_range = [k1.bounds.in! - 0.5, k1.bounds.in!];
+  const closed = compare(pool, [base, oneSide], { k: 5, labels: L });
+  const bc = closed.model_proxy.bounds as any;
+  assert.deepEqual([bc.measured_in, bc.measured_out, bc.excluded_in, bc.excluded_out], [1, 1, 0, 0]);
+  assert.equal((closed.human as any).d1.in_abs_err_sec.value, round3(Math.abs(1.0 - k1.bounds.in!)));
 });
