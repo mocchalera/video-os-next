@@ -204,7 +204,7 @@ test("d1 endpoint: loopback only; disk floor; missing / unpinned model and old r
 });
 
 /** A stand-in decision server for tests: deterministic, well-formed answers derived from the request. */
-function fakeD1(opts: { status?: number; body?: string; models?: any; log?: any[] } = {}): Promise<{ url: string; close: () => Promise<void> }> {
+function fakeD1(opts: { status?: number; body?: string; models?: any; log?: any[]; flat?: boolean } = {}): Promise<{ url: string; close: () => Promise<void> }> {
   const srv = http.createServer((req, res) => {
     let raw = "";
     req.on("data", (c) => (raw += c));
@@ -226,7 +226,7 @@ function fakeD1(opts: { status?: number; body?: string; models?: any; log?: any[
       }
       const reqJ = JSON.parse(raw);
       opts.log?.push(reqJ);
-      const seed = createHash("sha256").update(String(reqJ.images?.[0] ?? reqJ.state)).digest();
+      const seed = createHash("sha256").update(opts.flat ? "flat" : String(reqJ.images?.[0] ?? reqJ.state)).digest();
       const answers: Record<string, any> = {};
       Object.entries(reqJ.questions as Record<string, Question>).forEach(([name, q], qi) => {
         const r = (k: number) => (seed[(qi * 7 + k) % 32] + 1) / 257;
@@ -339,8 +339,11 @@ test("runners on one pool: baseline = existing search; d1 = rubric on checked fr
   const refined = r.ranked.filter((j) => j.refine);
   assert.ok(refined.length >= 1 && refined.length <= 3);
   for (const j of refined.filter((x) => x.bounds.basis === "frames")) {
-    assert.ok(j.bounds.in_range![0] <= j.bounds.in! && j.bounds.in! <= j.bounds.in_range![1], "the estimate sits inside its range");
-    assert.ok(j.bounds.out_range![0] <= j.bounds.out_range![1]);
+    const [ilo, ihi] = j.bounds.in_range!, [olo, ohi] = j.bounds.out_range!;
+    assert.ok((ilo === null || ilo <= j.bounds.in!) && j.bounds.in! <= ihi, "the estimate sits inside its range");
+    assert.ok(ohi === null || olo <= ohi);
+    assert.equal(ilo === null, !!j.bounds.open?.includes("in"), "only an open side is unbounded");
+    assert.equal(ohi === null, !!j.bounds.open?.includes("out"));
   }
   assert.equal(r.manifest.rubric && (r.manifest.rubric as any).sha256, pool.rubric.sha256);
   assert.ok((r.resources as any).d1_calls > 0);
@@ -598,4 +601,19 @@ test("baseline without any search is marked degenerate; labels are validated; 0 
   assert.deepEqual((rep.human as any).baseline.search_sec, { value: 0, status: "measured" });
   assert.equal((rep.human as any).baseline.fix_sec.value, null);
   assert.equal((rep.model_proxy.per_runner as any).baseline.judged_in_top_k, 0, "undeterminable candidates are not proposals");
+});
+
+test("refine: when every frame looked at is above the threshold, in/out are window edges with unbounded ranges, not a found cut", async () => {
+  const p = judgeProject();
+  const pool = buildPool(p, { purpose: "action", aliases: ["clip"], seed: 3 });
+  const fake = await fakeD1({ flat: true }); // the same answer for every frame
+  const ep: Endpoint = { url: fake.url, mode: "attached", exposure: "tcp_loopback", provenance_gaps: ["test"], model_id: "/x/m.gguf", modalities: { input: ["text", "image"], output: ["decisions"] }, maxRssKiB: () => null, stop: async () => {} };
+  const r = await runD1(p, pool, ep, { outDir: tmp(), refineTop: 1, minFreeBytes: 1 });
+  await fake.close();
+  const j = r.ranked.find((x) => x.refine)!;
+  assert.equal(j.refine!.status, "uninformative");
+  assert.deepEqual(j.bounds.open, ["in", "out"]);
+  assert.equal(j.bounds.in_range![0], null);
+  assert.equal(j.bounds.out_range![1], null);
+  assert.match(j.bounds.note!, /not a found cut/);
 });

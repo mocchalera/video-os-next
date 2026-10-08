@@ -32,9 +32,10 @@ export interface Bounds {
   in: number | null;
   out: number | null;
   basis: "artifact_span" | "frames" | "transcript" | "none";
-  /** where the true boundary can lie given what was observed (estimate, not an observation) */
-  in_range?: [number, number];
-  out_range?: [number, number];
+  /** where the true boundary can lie given the frames looked at (estimate, not an observation). null on a side
+   *  that is `open`: the run reached the edge of what was looked at, so the cut may lie anywhere beyond it */
+  in_range?: [number | null, number];
+  out_range?: [number, number | null];
   open?: ("in" | "out")[]; // the good run touched the edge of what was looked at
   note?: string;
 }
@@ -264,17 +265,22 @@ async function refine(ctx: Ctx, c: Candidate, j: Judged): Promise<void> {
   while (b < vals.length - 1 && vals[b + 1] >= thr) b++;
   const first = seen[a].ref, last = seen[b].ref;
   const lastEnd = snap(table, last.t).next_t;
-  const prevEnd = a > 0 ? snap(table, seen[a - 1].ref.t).next_t : lo;
-  const nextStart = b < seen.length - 1 ? seen[b + 1].ref.t : hi;
   const open: ("in" | "out")[] = [];
   if (a === 0) open.push("in");
   if (b === seen.length - 1) open.push("out");
-  j.refine = { frames: seen, peak: seen[pk].ref, vmax, threshold: thr, status: "ok" };
+  // closed side: the cut lies between the last frame below the threshold and the first one above it (both real
+  // frames that were looked at); open side: nothing beyond the window was looked at → unbounded (null)
+  const inLo = a > 0 ? round(snap(table, seen[a - 1].ref.t).next_t, 6) : null;
+  const outHi = b < seen.length - 1 ? round(Math.max(lastEnd, seen[b + 1].ref.t), 6) : null;
+  j.refine = { frames: seen, peak: seen[pk].ref, vmax, threshold: thr, status: open.length === 2 ? "uninformative" : "ok" };
   j.bounds = {
     in: first.t, out: lastEnd, basis: "frames",
-    in_range: [round(prevEnd, 6), first.t], out_range: [lastEnd, round(Math.max(lastEnd, nextStart), 6)],
+    in_range: [inLo, first.t], out_range: [lastEnd, outHi],
     ...(open.length ? { open } : {}),
-    note: `frames ${first.index}–${last.index} hold ${purpose.peak} ≥ ${thr} (peak ${vmax} at ${seen[pk].ref.t}s); the true cut lies inside the ranges (frames between samples were not looked at)`,
+    note: `frames ${first.index}–${last.index} hold ${purpose.peak} ≥ ${thr} (peak ${vmax} at ${seen[pk].ref.t}s); ` +
+      (open.length === 2
+        ? "every frame looked at is above the threshold: in/out are only the edges of the window looked at, not a found cut"
+        : `a closed side's cut lies inside its range (frames between samples were not looked at)${open.length ? `; the ${open[0]} side reached the window edge, so its range is unbounded (null)` : ""}`),
   };
 }
 
