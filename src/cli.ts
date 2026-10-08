@@ -26,6 +26,7 @@ import { exportFcp7 } from "./export/fcp7.ts";
 import { inspect } from "./inspect/inspect.ts";
 import { evenTimes, look } from "./inspect/look.ts";
 import { latestRender, render } from "./render/render.ts";
+import { judgeCommand } from "./judge/cli.ts";
 
 const HELP = `vos — a video editing toolbox for capable agents (video-os-next v0.1)
 
@@ -38,6 +39,7 @@ eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--w
          vos find "<query>" [--channels …] [--image f.jpg] [--limit 10] [--on colab]   fused text/visual/audio + lexical search
          vos find "<event>" --asset alias           Marlin temporal find inside one clip
          vos models [pull <visual|audio>]           embedding models: status / download (network)
+judge    vos judge pool|score|report|rubric|doctor   rank candidate spans per use + in/out with evidence (d1 PoC; vos judge help)
 ears     vos beats <alias> [--hint 120]
          vos transcribe <alias…> [--model small] [--lang ja] [--vocab "紙の船, 路地"] [--singing] [--force]   speech → segments + word times (local faster-whisper; --singing: sung vocals over music)
 make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait] [--light --gpu T4]   rent a guarded Colab GPU (costs money: ask the human for N)
@@ -534,6 +536,11 @@ async function main() {
         for (const [k, v] of Object.entries(report)) console.log(`${k.padEnd(16)} ${typeof v === "object" ? JSON.stringify(v) : v}`);
         if (Object.keys(found).length && !a.write) console.log("\nrun `vos doctor --write` to save discovered tools");
       });
+      return;
+    }
+
+    case "judge": {
+      await judgeCommand(() => proj(a), a, rest, out);
       return;
     }
 
