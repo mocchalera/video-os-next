@@ -1,9 +1,10 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import * as fs from "node:fs";
-import * as net from "node:net";
+import * as http from "node:http";
+import * as os from "node:os";
 import * as path from "node:path";
 import { loadConfig } from "../core/config.ts";
-import { sha256File } from "../core/hash.ts";
+import { sha256, sha256File } from "../core/hash.ts";
 import { readJsonIf, round, VosError, writeJson } from "../core/util.ts";
 import type { Answer, Question } from "./rubric.ts";
 
@@ -12,10 +13,17 @@ import type { Answer, Question } from "./rubric.ts";
  * Everything is pinned and checked; anything unexpected stops the run (fail closed, no fallback):
  *   model files missing / wrong size / wrong sha256      → model_missing / model_hash_mismatch
  *   runner older than the d1 support or unrecognised      → runner_unsupported
+ *   runner that is not exactly the pinned release        → runner_unpinned (unless explicitly allowed)
  *   endpoint not on this machine (loopback only)          → remote_endpoint_refused
+ *   an HTTP redirect from the endpoint (never followed)   → endpoint_redirect_refused
  *   endpoint without decisions / image input / 404 / 501  → endpoint_unsupported
  *   reply that does not answer exactly what was asked     → invalid_reply
  *   too little free space where frames are written        → low_disk
+ *
+ * Exposure: a spawned llama-server listens on a UNIX socket inside a private (0700) temporary directory, not on a
+ * TCP port. Browsers cannot open UNIX sockets, so web pages (CORS, DNS rebinding) cannot reach it, other users
+ * cannot connect, and there is no port to race for. No API key is needed for this. Its environment is stripped of
+ * LLAMA_* variables (they would silently enable tools, static paths, CORS settings …); only explicit flags apply.
  */
 
 export const D1_PIN = {
@@ -62,7 +70,7 @@ export interface VerifiedFile {
 }
 
 /** sha256 is checked once and remembered in a stamp keyed by size + mtime (a changed file is hashed again). */
-function verifyFile(dir: string, want: { name: string; size: number; sha256: string }): VerifiedFile {
+function verifyFile(dir: string, want: { name: string; size: number; sha256: string }, rehash = false): VerifiedFile {
   const f = path.join(dir, want.name);
   if (!fs.existsSync(f)) {
     throw new VosError("model_missing", `${want.name} is not in ${dir}`, `official file: ${hfUrl(want.name)} (${want.size} bytes, sha256 ${want.sha256}); fetch with scripts/d1/fetch.sh <dir> after the human approves where it may be stored`);
@@ -71,16 +79,20 @@ function verifyFile(dir: string, want: { name: string; size: number; sha256: str
   if (st.size !== want.size) throw new VosError("model_hash_mismatch", `${want.name}: ${st.size} bytes, expected ${want.size}`, "incomplete or different file; re-fetch the pinned revision");
   const stamp = `${f}.vos-verified.json`;
   const s = readJsonIf<{ size: number; mtime_ms: number; sha256: string } | null>(stamp, null);
-  if (s && s.size === st.size && s.mtime_ms === st.mtimeMs && s.sha256 === want.sha256) return { name: want.name, size: st.size, sha256: s.sha256, verified: "stamp" };
+  if (!rehash && s && s.size === st.size && s.mtime_ms === st.mtimeMs && s.sha256 === want.sha256) return { name: want.name, size: st.size, sha256: s.sha256, verified: "stamp" };
   const h = sha256File(f);
   if (h !== want.sha256) throw new VosError("model_hash_mismatch", `${want.name}: sha256 ${h}, expected ${want.sha256}`, "not the pinned file; re-fetch it from the pinned revision");
   writeJson(stamp, { size: st.size, mtime_ms: st.mtimeMs, sha256: h });
   return { name: want.name, size: st.size, sha256: h, verified: "hashed" };
 }
 
-export function verifyModel(dir: string | null): { dir: string; model: VerifiedFile; mmproj: VerifiedFile } {
+/**
+ * `rehash` reads every byte again. Without it a stamp (size + mtime + sha256 written after an earlier full read) is
+ * trusted, and the result says so (`verified: "stamp"`) — a stamp can be forged, a full read cannot.
+ */
+export function verifyModel(dir: string | null, o: { rehash?: boolean } = {}): { dir: string; model: VerifiedFile; mmproj: VerifiedFile } {
   if (!dir) throw new VosError("model_missing", "no d1 model directory configured", "pass --model-dir, or set VOS_D1_MODEL_DIR / config `d1_model_dir` to the folder holding the pinned GGUF files");
-  return { dir, model: verifyFile(dir, D1_PIN.files.model), mmproj: verifyFile(dir, D1_PIN.files.mmproj) };
+  return { dir, model: verifyFile(dir, D1_PIN.files.model, o.rehash), mmproj: verifyFile(dir, D1_PIN.files.mmproj, o.rehash) };
 }
 
 export interface RunnerInfo {
@@ -94,7 +106,7 @@ export interface RunnerInfo {
 
 export function verifyRunner(bin: string | null): RunnerInfo {
   if (!bin || !fs.existsSync(bin)) throw new VosError("runner_missing", `llama-server not found${bin ? ` at ${bin}` : ""}`, `use the official ${RUNNER_PIN.project} release ${RUNNER_PIN.tag} (${RUNNER_PIN.asset}, sha256 ${RUNNER_PIN.asset_sha256}); set --llama-server / VOS_LLAMA_SERVER`);
-  const r = spawnSync(bin, ["--version"], { encoding: "utf8", timeout: 30_000 });
+  const r = spawnSync(bin, ["--version"], { encoding: "utf8", timeout: 30_000, env: runnerEnv().env });
   const text = `${r.stdout}\n${r.stderr}`;
   const m = text.match(/version:\s*(\S+)\s*\(build\s*(\d+),\s*commit\s*([0-9a-f]+)\)/);
   if (!m) throw new VosError("runner_unsupported", `could not read the llama-server version: ${text.trim().slice(0, 200)}`);
@@ -103,9 +115,11 @@ export function verifyRunner(bin: string | null): RunnerInfo {
   return { bin, version_line: text.match(/version:.*$/m)![0].trim(), build, commit: m[3], sha256: sha256File(bin), pinned: build === Number(RUNNER_PIN.tag.slice(1)) && RUNNER_PIN.commit.startsWith(m[3]) };
 }
 
+// ---------------- where the model listens ----------------
+
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
-/** Frames never leave this machine: only a loopback endpoint is accepted. */
+/** Frames never leave this machine: only a loopback http endpoint is accepted. */
 export function assertLoopback(endpoint: string): URL {
   let u: URL;
   try {
@@ -114,9 +128,84 @@ export function assertLoopback(endpoint: string): URL {
     throw new VosError("usage", `not a URL: ${endpoint}`);
   }
   if (u.protocol !== "http:" || !LOOPBACK.has(u.hostname)) {
-    throw new VosError("remote_endpoint_refused", `${endpoint} is not a loopback http endpoint`, "d1 runs on this machine only (127.0.0.1 / ::1); frames are never uploaded");
+    throw new VosError("remote_endpoint_refused", `${endpoint} is not a loopback http endpoint`, "d1 runs on this machine only (127.0.0.1 / ::1 or unix:/path.sock); frames are never uploaded");
   }
   return u;
+}
+
+export type Address = { kind: "unix"; socketPath: string; text: string } | { kind: "tcp"; host: string; port: number; text: string };
+
+/** `unix:/abs/path.sock` (a socket owned by this user) or a loopback `http://` URL. Anything else is refused. */
+export function parseEndpoint(endpoint: string): Address {
+  if (endpoint.startsWith("unix:")) {
+    const socketPath = endpoint.slice(5);
+    if (!path.isAbsolute(socketPath)) throw new VosError("usage", `unix endpoint needs an absolute path: ${endpoint}`);
+    return { kind: "unix", socketPath, text: endpoint };
+  }
+  const u = assertLoopback(endpoint);
+  return { kind: "tcp", host: u.hostname.replace(/^\[|\]$/g, ""), port: Number(u.port || 80), text: u.origin };
+}
+
+const MAX_REPLY_BYTES = 16 * 2 ** 20;
+
+/**
+ * One HTTP exchange with the local endpoint (node:http; no proxy, no redirects — a 3xx is an error, never followed,
+ * so a frame cannot be forwarded elsewhere). A timeout is `timeout`, a refused connection `endpoint_unreachable`.
+ */
+export function httpCall(endpoint: string, method: "GET" | "POST", urlPath: string, body?: string, timeoutMs = 10_000): Promise<{ status: number; text: string }> {
+  const a = parseEndpoint(endpoint);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (err: Error | null, v?: { status: number; text: string }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (err) reject(err);
+      else resolve(v!);
+    };
+    const req = http.request({
+      ...(a.kind === "unix" ? { socketPath: a.socketPath } : { host: a.host, port: a.port }),
+      method, path: urlPath, agent: false,
+      headers: { Host: "localhost", ...(body !== undefined ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } : {}) },
+    });
+    const timer = setTimeout(() => {
+      req.destroy();
+      done(new VosError("timeout", `${a.text}${urlPath}: no answer within ${timeoutMs} ms`));
+    }, timeoutMs);
+    req.on("response", (res) => {
+      const status = res.statusCode ?? 0;
+      if (status >= 300 && status < 400) {
+        res.resume();
+        req.destroy();
+        return done(new VosError("endpoint_redirect_refused", `${a.text}${urlPath} answered ${status} → ${res.headers.location ?? "?"}`, "redirects are never followed: frames stay with the endpoint that was checked"));
+      }
+      const chunks: Buffer[] = [];
+      let n = 0;
+      res.on("data", (c: Buffer) => {
+        n += c.length;
+        if (n > MAX_REPLY_BYTES) {
+          req.destroy();
+          return done(new VosError("invalid_reply", `${a.text}${urlPath}: reply larger than ${MAX_REPLY_BYTES} bytes`));
+        }
+        chunks.push(c);
+      });
+      res.on("end", () => done(null, { status, text: Buffer.concat(chunks).toString("utf8") }));
+      res.on("error", (e) => done(new VosError("endpoint_unreachable", `${a.text}${urlPath}: ${e.message}`)));
+    });
+    req.on("error", (e) => done(new VosError("endpoint_unreachable", `${a.text}${urlPath}: ${e.message}`)));
+    req.end(body);
+  });
+}
+
+async function getJson(endpoint: string, urlPath: string, timeoutMs = 10_000): Promise<{ status: number; body: any }> {
+  const r = await httpCall(endpoint, "GET", urlPath, undefined, timeoutMs);
+  let body: any = null;
+  try {
+    body = JSON.parse(r.text);
+  } catch {
+    body = r.text;
+  }
+  return { status: r.status, body };
 }
 
 export function checkDisk(dir: string, minBytes: number): { free: number } {
@@ -127,83 +216,147 @@ export function checkDisk(dir: string, minBytes: number): { free: number } {
   return { free };
 }
 
-async function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const s = net.createServer();
-    s.unref();
-    s.on("error", reject);
-    s.listen(0, "127.0.0.1", () => {
-      const port = (s.address() as net.AddressInfo).port;
-      s.close(() => resolve(port));
-    });
-  });
-}
+export type Exposure = "unix_socket_private_dir" | "unix_socket" | "tcp_loopback";
 
 export interface Endpoint {
-  url: string;
+  url: string; // `unix:/…/d1.sock` or `http://127.0.0.1:PORT`
   mode: "spawned" | "attached";
+  exposure: Exposure;
   model_id: string;
   modalities: { input: string[]; output: string[] };
+  /** what could not be verified about this endpoint; a comparison run refuses a non-empty list unless allowed */
+  provenance_gaps: string[];
   runner?: RunnerInfo;
   pid?: number;
   maxRssKiB: () => number | null;
   stop: () => Promise<void>;
 }
 
-async function getJson(url: string, timeoutMs = 10_000): Promise<{ status: number; body: any }> {
-  const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-  const text = await r.text();
-  let body: any = null;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    body = text;
-  }
-  return { status: r.status, body };
-}
-
-async function describeEndpoint(url: string): Promise<{ model_id: string; modalities: { input: string[]; output: string[] } }> {
-  let m: { status: number; body: any };
-  try {
-    m = await getJson(`${url}/v1/models`);
-  } catch (e: any) {
-    throw new VosError("endpoint_unreachable", `${url}/v1/models: ${e.message}`);
-  }
+async function describeEndpoint(endpoint: string): Promise<{ model_id: string; modalities: { input: string[]; output: string[] } }> {
+  const m = await getJson(endpoint, "/v1/models");
   const d = m.body?.data?.[0];
-  if (m.status !== 200 || !d) throw new VosError("endpoint_unsupported", `${url}/v1/models answered ${m.status} without a model`);
+  if (m.status !== 200 || !d) throw new VosError("endpoint_unsupported", `${endpoint}/v1/models answered ${m.status} without a model`);
   const output: string[] = d.architecture?.output_modalities ?? [];
   const input: string[] = d.architecture?.input_modalities ?? [];
-  if (!output.includes("decisions")) throw new VosError("endpoint_unsupported", `${url} does not serve a native decision model (output_modalities: ${JSON.stringify(output)})`);
-  if (!input.includes("image")) throw new VosError("endpoint_unsupported", `${url} has no image input (no multimodal projector loaded?)`);
+  if (!output.includes("decisions")) throw new VosError("endpoint_unsupported", `${endpoint} does not serve a native decision model (output_modalities: ${JSON.stringify(output)})`);
+  if (!input.includes("image")) throw new VosError("endpoint_unsupported", `${endpoint} has no image input (no multimodal projector loaded?)`);
   return { model_id: String(d.id), modalities: { input, output } };
 }
 
-/** Attach to a llama-server already running on this machine; its model file must be the pinned one. */
+/**
+ * Attach to a llama-server already running on this machine; its model file must be the pinned one. What cannot be
+ * checked from outside (mmproj, runner build, flags, exposure of a TCP port) is listed in provenance_gaps.
+ */
 export async function attach(endpoint: string): Promise<Endpoint & { model_file: VerifiedFile }> {
-  const u = assertLoopback(endpoint);
-  const url = u.origin;
-  const info = await describeEndpoint(url);
+  const a = parseEndpoint(endpoint);
+  const gaps = ["attached: mmproj file not verified", "attached: runner build / flags not verified"];
+  let exposure: Exposure = "tcp_loopback";
+  if (a.kind === "unix") {
+    let st: fs.Stats;
+    try {
+      st = fs.statSync(a.socketPath);
+    } catch {
+      throw new VosError("endpoint_unreachable", `${a.socketPath} does not exist`);
+    }
+    if (!st.isSocket()) throw new VosError("usage", `${a.socketPath} is not a socket`);
+    if (typeof process.getuid === "function" && st.uid !== process.getuid()) throw new VosError("remote_endpoint_refused", `${a.socketPath} belongs to another user`);
+    exposure = "unix_socket";
+  } else gaps.push("attached over TCP loopback: reachable from web pages in a browser unless the server restricts CORS / Host");
+  const info = await describeEndpoint(a.text);
   // llama-server's model id is the -m path unless --alias hid it; without the path the file cannot be checked
   if (!path.isAbsolute(info.model_id) || !fs.existsSync(info.model_id)) {
     throw new VosError("model_unverified", `the endpoint reports model "${info.model_id}", not a local file that can be checked`, "start llama-server without --alias (so /v1/models shows the -m path), or let vos start it (--model-dir)");
   }
-  const vf = verifyFile(path.dirname(info.model_id), { ...D1_PIN.files.model, name: path.basename(info.model_id) } as any);
-  return { url, mode: "attached", ...info, model_file: vf, maxRssKiB: () => null, stop: async () => {} };
+  const vf = verifyFile(path.dirname(info.model_id), { ...D1_PIN.files.model, name: path.basename(info.model_id) });
+  if (vf.verified === "stamp") gaps.push("model verified by stamp (size + mtime), not re-read");
+  return { url: a.text, mode: "attached", exposure, ...info, provenance_gaps: gaps, model_file: vf, maxRssKiB: () => null, stop: async () => {} };
 }
 
-/** Start the pinned llama-server on 127.0.0.1 (offline, no web UI), wait until it serves decisions. */
-export async function startServer(o: { server: string | null; modelDir: string | null; logFile?: string; readyTimeoutMs?: number }): Promise<Endpoint & { model: ReturnType<typeof verifyModel> }> {
-  const runner = verifyRunner(o.server);
-  const model = verifyModel(o.modelDir);
-  const port = await freePort();
-  const args = [
-    "-m", path.join(model.dir, model.model.name), "--mmproj", path.join(model.dir, model.mmproj.name),
-    "--host", "127.0.0.1", "--port", String(port), "--offline", "--no-webui", "-np", "1", "-c", "8192",
+/** LLAMA_* variables configure llama-server (tools, static paths, CORS, API keys …); the child never inherits them. */
+export function runnerEnv(env: NodeJS.ProcessEnv = process.env): { env: NodeJS.ProcessEnv; removed: string[] } {
+  const out: NodeJS.ProcessEnv = {};
+  const removed: string[] = [];
+  for (const [k, v] of Object.entries(env)) {
+    if (/^LLAMA_/i.test(k)) removed.push(k);
+    else out[k] = v;
+  }
+  return { env: out, removed: removed.sort() };
+}
+
+/** Flags that close what llama-server opens by default (web UI, /slots, credentialed CORS for any origin). */
+export function runnerArgs(model: string, mmproj: string, socketPath: string): string[] {
+  return [
+    "-m", model, "--mmproj", mmproj,
+    "--host", socketPath, // a path ending in .sock: llama-server binds a UNIX socket instead of a TCP port
+    "--offline", "--no-webui", "--no-slots", "--no-cors-credentials", "--cors-origins", "http://vos-judge.invalid",
+    "-np", "1", "-c", "8192",
   ];
+}
+
+export interface StartOptions {
+  server: string | null;
+  modelDir: string | null;
+  logFile?: string;
+  pidFile?: string; // written while the server runs, removed when it stops (lets a supervisor check for leftovers)
+  readyTimeoutMs?: number;
+  rehash?: boolean; // re-read the model files (default true)
+  allowUnpinned?: boolean;
+  socketDir?: string; // for tests; default: a fresh 0700 directory under the OS temp dir
+}
+
+/**
+ * Start the pinned llama-server on a private UNIX socket (offline, no web UI, no /slots), wait until it serves
+ * decisions. The child is stopped on stop(), and also when this process gets SIGINT / SIGTERM / SIGHUP or exits.
+ */
+export async function startServer(o: StartOptions): Promise<Endpoint & { model: ReturnType<typeof verifyModel>; env_removed: string[]; args: string[] }> {
+  const runner = verifyRunner(o.server);
+  if (!runner.pinned && !o.allowUnpinned) throw new VosError("runner_unpinned", `llama-server build ${runner.build} (${runner.commit}) is not the pinned ${RUNNER_PIN.tag} (${RUNNER_PIN.commit.slice(0, 9)})`, "use the pinned release, or pass --allow-incomplete-provenance (the run is then marked)");
+  const model = verifyModel(o.modelDir, { rehash: o.rehash ?? true });
+  const gaps: string[] = [];
+  if (!runner.pinned) gaps.push(`runner build ${runner.build} is not the pinned ${RUNNER_PIN.tag}`);
+  if (model.model.verified === "stamp" || model.mmproj.verified === "stamp") gaps.push("model verified by stamp (size + mtime), not re-read");
+
+  const sockDir = o.socketDir ?? fs.mkdtempSync(path.join(os.tmpdir(), "vos-d1-"));
+  fs.chmodSync(sockDir, 0o700);
+  const socketPath = path.join(sockDir, "d1.sock");
+  if (Buffer.byteLength(socketPath) > 100) throw new VosError("usage", `socket path too long for a UNIX socket (${socketPath.length} bytes): ${socketPath}`);
+  fs.rmSync(socketPath, { force: true });
+  const args = runnerArgs(path.join(model.dir, model.model.name), path.join(model.dir, model.mmproj.name), socketPath);
+  const { env, removed } = runnerEnv();
   const log = o.logFile ? fs.openSync(o.logFile, "a") : "ignore";
-  const child: ChildProcess = spawn(runner.bin, args, { stdio: ["ignore", log, log], env: { ...process.env, LLAMA_ARG_OFFLINE: "1" } });
+  const child: ChildProcess = spawn(runner.bin, args, { stdio: ["ignore", log, log], env });
   let exited: number | null = null;
-  child.on("exit", (code) => (exited = code ?? -1));
+  const exitedP = new Promise<void>((res) => child.on("exit", (code, sig) => ((exited = code ?? (sig ? 128 : -1)), res())));
+  if (o.pidFile && child.pid) writeJson(o.pidFile, { pid: child.pid, bin: runner.bin, socket: socketPath, started_at: new Date().toISOString() }, false);
+
+  // ---- cleanup that also runs when this process is told to stop ----
+  let cleaned = false;
+  const cleanupFiles = () => {
+    if (o.pidFile) fs.rmSync(o.pidFile, { force: true });
+    fs.rmSync(socketPath, { force: true });
+    if (!o.socketDir) fs.rmSync(sockDir, { recursive: true, force: true });
+  };
+  const killNow = () => {
+    if (exited === null) {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        /* already gone */
+      }
+    }
+    cleanupFiles();
+  };
+  const onExit = () => killNow();
+  const onSignal = (sig: NodeJS.Signals) => {
+    void (async () => {
+      await stop();
+      process.exit(128 + (os.constants.signals[sig] ?? 15));
+    })();
+  };
+  const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM", "SIGHUP"];
+  for (const s of signals) process.on(s, onSignal);
+  process.on("exit", onExit);
+
   let maxRss = 0;
   const sample = () => {
     if (!child.pid || exited !== null) return;
@@ -213,35 +366,36 @@ export async function startServer(o: { server: string | null; modelDir: string |
   };
   const timer = setInterval(sample, 500);
   const stop = async () => {
+    if (cleaned) return;
+    cleaned = true;
     clearInterval(timer);
     sample();
+    for (const s of signals) process.off(s, onSignal);
+    process.off("exit", onExit);
     if (exited === null) {
       child.kill("SIGTERM");
-      await new Promise<void>((res) => {
-        const t = setTimeout(() => {
-          child.kill("SIGKILL");
-          res();
-        }, 10_000);
-        child.on("exit", () => {
-          clearTimeout(t);
-          res();
-        });
-      });
+      const t = setTimeout(() => exited === null && child.kill("SIGKILL"), 10_000);
+      await exitedP;
+      clearTimeout(t);
     }
     if (typeof log === "number") fs.closeSync(log);
+    cleanupFiles();
   };
-  const url = `http://127.0.0.1:${port}`;
+
+  const url = `unix:${socketPath}`;
   const deadline = Date.now() + (o.readyTimeoutMs ?? 300_000);
   for (;;) {
     if (exited !== null) {
       await stop();
       throw new VosError("runner_failed", `llama-server exited (${exited}) before it was ready`, o.logFile ? `see ${o.logFile}` : undefined);
     }
-    try {
-      const h = await getJson(`${url}/health`, 2000);
-      if (h.status === 200) break;
-    } catch {
-      /* not listening yet */
+    if (fs.existsSync(socketPath)) {
+      try {
+        const h = await getJson(url, "/health", 2000);
+        if (h.status === 200) break;
+      } catch {
+        /* not ready yet */
+      }
     }
     if (Date.now() > deadline) {
       await stop();
@@ -256,7 +410,7 @@ export async function startServer(o: { server: string | null; modelDir: string |
     await stop();
     throw e;
   }
-  return { url, mode: "spawned", ...info, runner, pid: child.pid, model, maxRssKiB: () => (maxRss ? maxRss : null), stop };
+  return { url, mode: "spawned", exposure: "unix_socket_private_dir", ...info, provenance_gaps: gaps, runner, pid: child.pid, model, env_removed: removed, args: args.map((x) => (path.isAbsolute(x) ? path.basename(x) : x)), maxRssKiB: () => (maxRss ? maxRss : null), stop };
 }
 
 // ---------------- one decision ----------------
@@ -317,18 +471,20 @@ export function validateReply(questions: Record<string, Question>, body: any): {
   return { answers: out, input_tokens: Number(body.usage?.input_tokens ?? NaN) };
 }
 
-export async function decide(url: string, state: unknown, questions: Record<string, Question>, images: Buffer[] = [], timeoutMs = 120_000): Promise<Decision> {
-  assertLoopback(url);
-  const payload = { state: state ?? null, questions, ...(images.length ? { images: images.map((b) => `data:image/jpeg;base64,${b.toString("base64")}`) } : {}) };
+export interface CallRecord {
+  ms: number;
+  status: number;
+  request_sha256: string;
+  reply_sha256: string; // sha256 of the raw reply text
+  usage: { present: boolean; input_tokens: number | null; output_tokens: number | null | "absent" };
+}
+
+export async function decide(url: string, state: unknown, questions: Record<string, Question>, images: Buffer[] = [], timeoutMs = 120_000): Promise<Decision & { call: CallRecord }> {
+  const payload = JSON.stringify({ state: state ?? null, questions, ...(images.length ? { images: images.map((b) => `data:image/jpeg;base64,${b.toString("base64")}`) } : {}) });
   const t0 = performance.now();
-  let r: Response;
-  try {
-    r = await fetch(`${url}/v1/systemone`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(timeoutMs) });
-  } catch (e: any) {
-    throw new VosError("endpoint_unreachable", `${url}/v1/systemone: ${e.message}`);
-  }
-  const text = await r.text();
+  const r = await httpCall(url, "POST", "/v1/systemone", payload, timeoutMs);
   const ms = round(performance.now() - t0, 2);
+  const text = r.text;
   if (r.status === 404 || r.status === 405 || r.status === 501) throw new VosError("endpoint_unsupported", `${url}/v1/systemone answered ${r.status}: ${text.slice(0, 200)}`, "needs a llama.cpp build with d1 support and the multimodal projector loaded");
   if (r.status === 400) throw new VosError("invalid_request", `d1 rejected the request: ${text.slice(0, 300)}`);
   if (r.status !== 200) throw new VosError("endpoint_error", `${url}/v1/systemone answered ${r.status}: ${text.slice(0, 200)}`);
@@ -339,5 +495,11 @@ export async function decide(url: string, state: unknown, questions: Record<stri
     throw new VosError("invalid_reply", `d1 reply is not JSON: ${text.slice(0, 120)}`);
   }
   const v = validateReply(questions, body);
-  return { answers: v.answers, input_tokens: v.input_tokens, ms };
+  const u = body.usage;
+  const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : null);
+  const call: CallRecord = {
+    ms, status: r.status, request_sha256: sha256(payload), reply_sha256: sha256(text),
+    usage: { present: !!u && typeof u === "object", input_tokens: num(u?.input_tokens), output_tokens: u && "output_tokens" in u ? num(u.output_tokens) : "absent" },
+  };
+  return { answers: v.answers, input_tokens: v.input_tokens, ms, call };
 }

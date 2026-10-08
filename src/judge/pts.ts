@@ -15,9 +15,21 @@ import { readJsonIf, round, run, runOk, VosError, writeJson } from "../core/util
 
 export interface PtsAnomaly {
   decoded_index: number;
-  kind: "non_finite" | "duplicate" | "backward";
+  /** non_finite: no time at all; duplicate / backward: the frame time does not move forward; duplicate_pts: the
+   *  stream PTS repeats even though the decoder's estimate moved on; ambiguous_previous: the trusted frame before an
+   *  anomaly shares its PTS, so which image belongs to that time is not certain (it is dropped as well) */
+  kind: "non_finite" | "duplicate" | "backward" | "duplicate_pts" | "ambiguous_previous";
   t: number | null;
   prev_t: number | null;
+  pts: number | null; // raw pts_time (container seconds), null = N/A
+  pkt_dts: number | null;
+}
+
+/** One decoded frame's timestamps as ffprobe reports them (container seconds; null = N/A). */
+export interface DecodedTs {
+  best_effort: number | null;
+  pts: number | null;
+  pkt_dts: number | null;
 }
 
 export interface FrameTable {
@@ -35,8 +47,11 @@ export interface FrameTable {
   /** frames whose packet PTS order differed from decode order (B-frame reorder evidence) */
   reordered_packets: number;
   vfr: { vfr: boolean; min_delta: number; max_delta: number; median_delta: number; distinct_deltas: number };
-  /** end of the last trusted frame's display: last t + the median delta */
+  /** ESTIMATE of when the last trusted frame stops being shown: its t + the median delta (not a measured time) */
   last_frame_end: number;
+  last_frame_end_basis: "last_t+median_delta";
+  /** where each trusted frame's time came from: the stream PTS, or only the decoder's best-effort estimate */
+  time_source: { pts: number; best_effort_only: number };
   decoded_frames: number; // every frame the decoder returned
   /** timestamps that were missing, repeated or went backwards; frames from the first one on are not in `t` */
   anomalies: PtsAnomaly[];
@@ -44,7 +59,28 @@ export interface FrameTable {
   trusted: "all" | "until_first_anomaly";
   digest: string; // sha256 of the t array (rounded to µs) — what "frame references" are checked against
   probed_with: string;
+  tools: ToolVersions;
 }
+
+export interface ToolVersions {
+  ffprobe: string | null;
+  ffmpeg: string | null;
+}
+
+let toolCache: ToolVersions | null = null;
+/** First version line of ffprobe / ffmpeg (PTS handling depends on them). */
+export function toolVersions(): ToolVersions {
+  if (toolCache) return toolCache;
+  const v = (bin: string) => {
+    const r = run(bin, ["-version"], { timeout: 30_000 });
+    return r.status === 0 ? r.stdout.split("\n")[0].trim() : null;
+  };
+  toolCache = { ffprobe: v("ffprobe"), ffmpeg: v("ffmpeg") };
+  return toolCache;
+}
+
+/** a full decode of a long clip is slow but bounded; past this it is an error, not a hang */
+const DECODE_TIMEOUT_MS = 30 * 60 * 1000;
 
 const num = (x: unknown): number | null => {
   const n = Number(x);
@@ -52,28 +88,54 @@ const num = (x: unknown): number | null => {
 };
 
 /**
- * Decoded frames come out in presentation order. A frame without a finite time, or one that does not move
- * forward (repeated or backwards), is an anomaly: frames from the first anomaly on are not trusted — never
- * re-sorted, never guessed. Times are returned in media seconds (minus the container start).
+ * Decoded frames come out in presentation order. A frame without a finite time, one that does not move forward
+ * (repeated or backwards), or one whose stream PTS repeats, is an anomaly: frames from the first anomaly on are not
+ * trusted — never re-sorted, never guessed. If the last trusted frame shares its PTS with the anomalous one, it is
+ * dropped too (which of the two images belongs to that time is not certain). A frame whose PTS is N/A but whose
+ * best-effort time is finite stays trusted and is counted as `best_effort_only`. Times are media seconds.
  */
-export function trustedTimes(decoded: (number | null)[], formatStart: number): { times: number[]; anomalies: PtsAnomaly[]; firstBad: number } {
+export function trustedTimes(decoded: (number | null | DecodedTs)[], formatStart: number): { times: number[]; anomalies: PtsAnomaly[]; firstBad: number; source: { pts: number; best_effort_only: number } } {
+  const recs: DecodedTs[] = decoded.map((d) => (d === null || typeof d === "number" ? { best_effort: d, pts: d, pkt_dts: null } : d));
   const times: number[] = [];
+  const fromPts: boolean[] = [];
   const anomalies: PtsAnomaly[] = [];
   let firstBad = -1;
   let last: number | null = null;
-  decoded.forEach((ts, i) => {
-    const rel = ts === null || !Number.isFinite(ts) ? null : ts - formatStart;
+  let lastPts: number | null = null;
+  const fin = (x: number | null) => (x !== null && Number.isFinite(x) ? x : null);
+  recs.forEach((r, i) => {
+    const be = fin(r.best_effort) ?? fin(r.pts);
+    const pts = fin(r.pts);
+    const rel = be === null ? null : be - formatStart;
     let kind: PtsAnomaly["kind"] | null = null;
     if (rel === null) kind = "non_finite";
     else if (last !== null && rel === last) kind = "duplicate";
     else if (last !== null && rel < last) kind = "backward";
+    else if (pts !== null && lastPts !== null && pts === lastPts) kind = "duplicate_pts";
+    const rec = (k: PtsAnomaly["kind"], idx: number, t: number | null, prev: number | null, rr: DecodedTs) => {
+      if (anomalies.length < 50) anomalies.push({ decoded_index: idx, kind: k, t: t === null ? null : round(t, 6), prev_t: prev === null ? null : round(prev, 6), pts: fin(rr.pts), pkt_dts: fin(rr.pkt_dts) });
+    };
     if (kind) {
-      if (anomalies.length < 50) anomalies.push({ decoded_index: i, kind, t: rel === null ? null : round(rel, 6), prev_t: last === null ? null : round(last, 6) });
-      if (firstBad < 0) firstBad = i;
-    } else if (firstBad < 0) times.push(rel!);
+      if (firstBad < 0) {
+        firstBad = i;
+        // the previous trusted frame has the same PTS as this one: its image/time pairing is ambiguous
+        if (pts !== null && lastPts !== null && pts === lastPts && times.length) {
+          times.pop();
+          fromPts.pop();
+          rec("ambiguous_previous", i - 1, last, null, recs[i - 1]);
+          firstBad = i - 1;
+        }
+      }
+      rec(kind, i, rel, last, r);
+    } else if (firstBad < 0) {
+      times.push(rel!);
+      fromPts.push(pts !== null);
+    }
     if (rel !== null) last = rel;
+    if (pts !== null) lastPts = pts;
   });
-  return { times, anomalies, firstBad };
+  const n = fromPts.filter(Boolean).length;
+  return { times, anomalies, firstBad, source: { pts: n, best_effort_only: fromPts.length - n } };
 }
 
 /** Probe streams + decode every video frame's timestamp. Cached by content id + size + mtime. */
@@ -82,7 +144,7 @@ export function frameTable(file: string, contentId: string, cacheDir?: string): 
   const cacheFile = cacheDir ? path.join(cacheDir, "pts", `${contentId}.json`) : null;
   if (cacheFile) {
     const c = readJsonIf<FrameTable | null>(cacheFile, null);
-    if (c && c.format === "vos.frames/1" && c.source.size === st.size && c.source.mtime_ms === st.mtimeMs) return c;
+    if (c && c.format === "vos.frames/1" && c.time_source && c.source.size === st.size && c.source.mtime_ms === st.mtimeMs) return c;
   }
   const s = JSON.parse(
     runOk("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "format=start_time,duration:stream=start_time,duration,r_frame_rate,avg_frame_rate,has_b_frames", "-of", "json", file]).stdout,
@@ -90,13 +152,13 @@ export function frameTable(file: string, contentId: string, cacheDir?: string): 
   const v = s.streams?.[0];
   if (!v) throw new VosError("no_video", `${path.basename(file)}: no video stream`);
   const fr = JSON.parse(
-    runOk("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "frame=best_effort_timestamp_time,pts_time,pkt_dts_time", "-of", "json", file]).stdout,
+    runOk("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "frame=best_effort_timestamp_time,pts_time,pkt_dts_time", "-of", "json", file], { timeout: DECODE_TIMEOUT_MS }).stdout,
   );
   const formatStart = num(s.format?.start_time) ?? 0;
-  const { times: raw, anomalies, firstBad } = trustedTimes((fr.frames ?? []).map((f: any) => num(f.best_effort_timestamp_time) ?? num(f.pts_time)), formatStart);
+  const { times: raw, anomalies, firstBad, source } = trustedTimes((fr.frames ?? []).map((f: any): DecodedTs => ({ best_effort: num(f.best_effort_timestamp_time), pts: num(f.pts_time), pkt_dts: num(f.pkt_dts_time) })), formatStart);
   const totalDecoded = (fr.frames ?? []).length;
   if (!raw.length) throw new VosError("no_frames", `${path.basename(file)}: the decoder returned no usable timed video frames`, anomalies.length ? `first anomaly: ${JSON.stringify(anomalies[0])}` : undefined);
-  const pk = JSON.parse(runOk("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time", "-of", "json", file]).stdout);
+  const pk = JSON.parse(runOk("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time", "-of", "json", file], { timeout: DECODE_TIMEOUT_MS }).stdout);
   const pts = (pk.packets ?? []).map((p: any) => num(p.pts_time)).filter((x: number | null): x is number => x !== null);
   let reordered = 0;
   for (let i = 1; i < pts.length; i++) if (pts[i] < pts[i - 1]) reordered++;
@@ -122,12 +184,15 @@ export function frameTable(file: string, contentId: string, cacheDir?: string): 
     reordered_packets: reordered,
     vfr: { vfr, min_delta: round(minD, 6), max_delta: round(maxD, 6), median_delta: round(median, 6), distinct_deltas: distinct },
     last_frame_end: round(t[t.length - 1] + (median || 0), 6),
+    last_frame_end_basis: "last_t+median_delta",
+    time_source: source,
     decoded_frames: totalDecoded,
     anomalies,
     anomaly_count: totalDecoded - raw.length,
     trusted: firstBad < 0 ? "all" : "until_first_anomaly",
     digest: sha256(JSON.stringify(t)),
-    probed_with: "ffprobe frame=best_effort_timestamp_time (decoded)",
+    probed_with: "ffprobe frame=best_effort_timestamp_time,pts_time,pkt_dts_time (decoded)",
+    tools: toolVersions(),
   };
   if (cacheFile) writeJson(cacheFile, table, false);
   return table;
@@ -220,7 +285,7 @@ export function extractFrame(file: string, table: FrameTable, index: number, out
   const r = run("ffmpeg", [
     "-v", "info", "-y", "-copyts", "-ss", seek.toFixed(6), "-i", file, "-frames:v", "1", "-an",
     "-vf", `showinfo,scale=${width}:-2:out_range=full,format=yuvj420p`, "-q:v", "3", tmp,
-  ]);
+  ], { timeout: 5 * 60 * 1000 });
   if (r.status !== 0 || !fs.existsSync(tmp)) throw new VosError("frame_extract_failed", `could not extract frame ${index} (t=${t}) of ${path.basename(file)}: ${r.stderr.trim().split("\n").slice(-3).join(" | ")}`);
   const m = r.stderr.match(/n:\s*0\s+pts:\s*-?\d+\s+pts_time:(-?[0-9.e+-]+)/);
   if (!m) {

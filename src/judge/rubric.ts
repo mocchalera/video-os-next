@@ -93,12 +93,24 @@ export interface Answer {
   probabilities?: Record<string, number>;
 }
 
-export type Status = "observed" | "low_confidence" | "abstained" | "unobserved" | "unknown";
+/**
+ * answered       — the model gave a usable answer. This is the model's subjective reading of a frame / text, not an
+ *                  observed fact (e.g. "action_peak" is inferred from a single still).
+ * low_confidence — answered, but undecided (noul inside the band, or the model's own confidence below the threshold)
+ * abstained      — the model chose an explicit "cannot tell" option
+ * unobserved     — the thing the criterion asks about is not there (no face, no text, no words in the span)
+ * unknown        — the criterion is not part of this purpose's rubric: not judged, not guessed
+ */
+export type Status = "answered" | "low_confidence" | "abstained" | "unobserved" | "unknown";
 
 export interface CriterionResult {
   status: Status;
-  value: number | null; // 0..1, null unless observed / low_confidence
+  value: number | null; // 0..1, null unless answered / low_confidence
+  /** the confidence the model reported (uncalibrated); null when it reports none (noul answers) */
   confidence: number | null;
+  /** noul only: |P(yes) − 0.5| × 2, derived here from the probability — not a model-reported confidence */
+  p_margin?: number;
+  kind?: "model_subjective";
   reason?: string;
   answer?: Answer; // the model's raw (subjective) reading
 }
@@ -109,20 +121,20 @@ export function interpret(r: Rubric, name: string, a: Answer): CriterionResult {
   if (a.type === "noul") {
     const p = a.noul!;
     const low = p > th.noul_low_band[0] && p < th.noul_low_band[1];
-    const conf = round(Math.abs(p - 0.5) * 2, 4);
-    return { status: low ? "low_confidence" : "observed", value: round(p, 4), confidence: conf, answer: a, ...(low ? { reason: `P(yes)=${round(p, 3)} is inside the undecided band` } : {}) };
+    const margin = round(Math.abs(p - 0.5) * 2, 4);
+    return { status: low ? "low_confidence" : "answered", kind: "model_subjective", value: round(p, 4), confidence: null, p_margin: margin, answer: a, ...(low ? { reason: `P(yes)=${round(p, 3)} is inside the undecided band` } : {}) };
   }
   if (a.type === "score") {
     const levels = (c.question.criteria as string[]).length;
     const v = round(a.score! / (levels - 1), 4);
     const conf = a.confidence ?? null;
     const low = conf !== null && conf < th.low_confidence;
-    return { status: low ? "low_confidence" : "observed", value: v, confidence: conf, answer: a, ...(low ? { reason: `confidence ${conf} < ${th.low_confidence}` } : {}) };
+    return { status: low ? "low_confidence" : "answered", kind: "model_subjective", value: v, confidence: conf, answer: a, ...(low ? { reason: `confidence ${conf} < ${th.low_confidence}` } : {}) };
   }
   const pick = a.choice!;
   const conf = a.confidence ?? null;
-  if (c.abstain?.includes(pick)) return { status: "abstained", value: null, confidence: conf, answer: a, reason: `model chose "${pick}"` };
-  if (c.unobserved?.[pick]) return { status: "unobserved", value: null, confidence: conf, answer: a, reason: c.unobserved[pick] };
+  if (c.abstain?.includes(pick)) return { status: "abstained", kind: "model_subjective", value: null, confidence: conf, answer: a, reason: `model chose "${pick}"` };
+  if (c.unobserved?.[pick]) return { status: "unobserved", kind: "model_subjective", value: null, confidence: conf, answer: a, reason: c.unobserved[pick] };
   const table = c.value as Record<string, number>;
   if (!(pick in table)) throw new VosError("bad_rubric", `${name}: option "${pick}" has no value`);
   // expected value over the valued options (the model's spread is part of the reading)
@@ -131,7 +143,7 @@ export function interpret(r: Rubric, name: string, a: Answer): CriterionResult {
   for (const [k, p] of Object.entries(probs)) if (k in table) { num += table[k] * p; den += p; }
   const v = den > 0 ? round(num / den, 4) : table[pick];
   const low = conf !== null && conf < th.low_confidence;
-  return { status: low ? "low_confidence" : "observed", value: v, confidence: conf, answer: a, ...(low ? { reason: `confidence ${conf} < ${th.low_confidence}` } : {}) };
+  return { status: low ? "low_confidence" : "answered", kind: "model_subjective", value: v, confidence: conf, answer: a, ...(low ? { reason: `confidence ${conf} < ${th.low_confidence}` } : {}) };
 }
 
 export interface Aggregate {
@@ -154,7 +166,7 @@ export function aggregate(r: Rubric, purpose: string, results: Record<string, Cr
     }
     const res = results[name] ?? { status: "unobserved" as Status, value: null, confidence: null, reason: "not evaluated" };
     out[name] = res;
-    if (res.value === null || (res.status !== "observed" && res.status !== "low_confidence")) continue;
+    if (res.value === null || (res.status !== "answered" && res.status !== "low_confidence")) continue;
     const ew = res.status === "low_confidence" ? w * r.thresholds.low_confidence_weight : w;
     num += ew * res.value;
     den += ew;

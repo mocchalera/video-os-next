@@ -1,12 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { find, type FindResult } from "../analyze/embed.ts";
+import { find, type Channel, type FindResult } from "../analyze/embed.ts";
 import { describePath, readDescribe } from "../analyze/marlin.ts";
 import { readTranscript, transcriptPath } from "../analyze/transcribe.ts";
 import { sha256, sha256File } from "../core/hash.ts";
 import { P, requireOnline, resolveAsset, type Project } from "../core/project.ts";
 import { readJsonIf, round, stableStringify, VosError, writeJson } from "../core/util.ts";
-import { frameTable, snap, type FrameTable, type Snap } from "./pts.ts";
+import { checkDisk } from "./d1.ts";
+import { frameTable, snap, toolVersions, type FrameTable, type Snap, type ToolVersions } from "./pts.ts";
 import { loadRubric, purposeOf } from "./rubric.ts";
 
 /**
@@ -15,6 +16,11 @@ import { loadRubric, purposeOf } from "./rubric.ts";
  * proposed (to see what the artifacts miss). Read-only towards the project: `find` reads indexes; the
  * per-clip Marlin find (which writes describe.json) is never used. Artifact hashes are taken before and after,
  * and the runners refuse a pool whose artifacts changed since.
+ *
+ * The digest covers the whole pool except `created_at` (purpose, query, seed, params, rubric, sources with their
+ * transcript text, search, candidates), so an edited pool.json, or one replaced with --force, no longer matches a
+ * result made from the original. The search embeds the query: by default only the light text channel (+ lexical)
+ * is used; the visual channel loads a ~4 GB model locally and must be asked for (--channels text,visual).
  */
 
 export type Origin = "event" | "asr" | "search" | "coverage";
@@ -56,11 +62,18 @@ export interface Pool {
   rubric: { id: string; version: string; sha256: string };
   params: { coverage_window: number; coverage_per_30s: number; coverage_max: number; search_limit: number; merge_iou: number };
   sources: PoolSource[];
-  search: { channels_used: string[]; channels_unavailable: FindResult["channels_unavailable"]; hits: number };
+  search: { channels_requested: string[]; channels_used: string[]; channels_unavailable: FindResult["channels_unavailable"]; hits: number };
+  tools: ToolVersions;
   candidates: Candidate[];
   artifacts_before: string; // digest of every source's artifact hashes before the search ran
   artifacts_after: string; // … and after; equal, or the pool is refused
-  digest: string; // sha256 of the candidate list
+  digest: string; // sha256 of the pool without created_at and digest (see poolDigest)
+}
+
+/** sha256 over everything a run depends on: the whole pool except when it was made and the digest itself. */
+export function poolDigest(pool: Omit<Pool, "digest"> & { digest?: string }): string {
+  const { created_at: _c, digest: _d, ...rest } = pool as any;
+  return sha256(stableStringify(rest));
 }
 
 /** Full-file SHA-256, remembered per content id + size + mtime. */
@@ -101,8 +114,9 @@ const iou = (a: [number, number], b: [number, number]) => {
   return uni > 0 ? inter / uni : a[0] === b[0] ? 1 : 0;
 };
 
-function bound(table: FrameTable, t: number): Bound {
-  const s = snap(table, t);
+/** Spans are half-open [start, end): an end exactly on a frame time belongs to the frame before it. */
+function bound(table: FrameTable, t: number, side: "start" | "end" = "start"): Bound {
+  const s = snap(table, side === "end" ? t - 1e-6 : t);
   const bad = s.flag === "past_trusted";
   return { claimed: round(t, 3), frame: bad ? null : { index: s.index, t: s.t, next_t: s.next_t }, ...(s.flag ? { flag: s.flag } : {}) };
 }
@@ -116,6 +130,8 @@ export interface PoolOptions {
   coveragePer30s?: number;
   coverageMax?: number;
   searchLimit?: number;
+  /** search channels to embed the query with (default ["text"]; "visual" loads a ~4 GB model locally) */
+  channels?: Channel[];
   cacheDir?: string;
   /** injected for tests; defaults to the project's fused search */
   search?: (p: Project, query: string, limit: number) => FindResult;
@@ -128,6 +144,8 @@ export function buildPool(p: Project, o: PoolOptions): Pool {
   const seed = o.seed ?? 1;
   const params = { coverage_window: o.coverageWindow ?? 2, coverage_per_30s: o.coveragePer30s ?? 1, coverage_max: o.coverageMax ?? 6, search_limit: o.searchLimit ?? 300, merge_iou: 0.8 };
   const cacheDir = o.cacheDir ?? path.join(P.cache(p.root), "judge");
+  checkDisk(cacheDir, 256 * 2 ** 20);
+  const channels: Channel[] = o.channels?.length ? o.channels : ["text"];
   const aliases = o.aliases?.length ? o.aliases : Object.entries(p.assets.assets).filter(([, a]) => a.kind === "video").map(([al]) => al);
   if (!aliases.length) throw new VosError("usage", "no video assets to judge");
 
@@ -150,7 +168,7 @@ export function buildPool(p: Project, o: PoolOptions): Pool {
   const before = sha256(stableStringify(sources.map((s) => [s.content_id, s.artifacts])));
 
   // the existing search, exactly as `vos find` would answer it (read-only)
-  const search = (o.search ?? ((pp, q, limit) => find(pp, q, { limit, perChannel: limit })))(p, query, params.search_limit);
+  const search = (o.search ?? ((pp, q, limit) => find(pp, q, { limit, perChannel: limit, channels })))(p, query, params.search_limit);
   const inPool = new Set(aliases.map((al) => resolveAsset(p, al).alias));
 
   type Raw = Omit<Candidate, "id" | "start" | "end"> & { s: number; e: number };
@@ -196,27 +214,32 @@ export function buildPool(p: Project, o: PoolOptions): Pool {
     .map((r, i) => {
       const table = tables.get(r.source)!;
       const { s, e, ...rest } = r;
-      return { id: `c${String(i).padStart(4, "0")}`, ...rest, start: bound(table, s), end: bound(table, Math.max(s, e)) };
+      return { id: `c${String(i).padStart(4, "0")}`, ...rest, start: bound(table, s), end: e > s ? bound(table, e, "end") : bound(table, s) };
     });
 
   const afterSources = sources.map((s) => [s.content_id, artifactHashes(p, s.content_id)]);
   const after = sha256(stableStringify(afterSources));
   if (after !== before) throw new VosError("artifacts_changed", "describe / transcript / index files changed while the pool was being built", "another process is writing the analysis; build the pool again when it is done");
-  return {
+  const pool: Omit<Pool, "digest"> = {
     format: "vos.judge-pool/1", created_at: new Date().toISOString(), purpose: o.purpose, query, seed, rubric: { id: ref.id, version: ref.version, sha256: ref.sha256 }, params,
-    sources, search: { channels_used: search.channels_used, channels_unavailable: search.channels_unavailable, hits: search.hits.length },
-    candidates, artifacts_before: before, artifacts_after: after, digest: sha256(stableStringify(candidates)),
+    sources, search: { channels_requested: channels, channels_used: search.channels_used, channels_unavailable: search.channels_unavailable, hits: search.hits.length },
+    tools: toolVersions(), candidates, artifacts_before: before, artifacts_after: after,
   };
+  return { ...pool, digest: poolDigest(pool) };
 }
 
 /** Refuse a pool whose sources or artifacts are no longer what it was built from. */
 export function checkPoolFresh(p: Project, pool: Pool): void {
-  if (sha256(stableStringify(pool.candidates)) !== pool.digest) throw new VosError("stale_pool", "pool.json was edited after it was built (candidate digest differs)");
+  if (poolDigest(pool) !== pool.digest) throw new VosError("stale_pool", "pool.json was edited after it was built (pool digest differs)", "build a new pool in a new run directory");
   for (const s of pool.sources) {
     const now = artifactHashes(p, s.content_id);
     if (stableStringify(now) !== stableStringify(s.artifacts)) throw new VosError("stale_pool", `the analysis of ${s.alias} changed since the pool was built`, "build a new pool; both runners must judge the same frozen inputs");
     const a = resolveAsset(p, s.alias);
     if (a.id !== s.content_id) throw new VosError("stale_pool", `${s.alias} now points to other content`);
+    // the transcript text a runner will read must be the one in transcript.json, not a copy that can drift
+    const tr = readTranscript(p, s.content_id);
+    const want = (tr?.segments ?? []).map((x) => ({ start: x.start, end: x.end, text: x.text }));
+    if (stableStringify(want) !== stableStringify(s.transcript_segments)) throw new VosError("stale_pool", `${s.alias}: the pool's transcript text differs from transcript.json`);
   }
 }
 

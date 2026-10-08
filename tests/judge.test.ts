@@ -10,10 +10,10 @@ import { indexAsset } from "../src/analyze/embed.ts";
 import { sha256File } from "../src/core/hash.ts";
 import { loadProject, P, type Project } from "../src/core/project.ts";
 import { writeJson } from "../src/core/util.ts";
-import { assertLoopback, attach, checkDisk, D1_PIN, decide, validateReply, verifyModel, verifyRunner, type Endpoint } from "../src/judge/d1.ts";
-import { buildPool, checkPoolFresh } from "../src/judge/pool.ts";
+import { assertLoopback, attach, checkDisk, D1_PIN, decide, runnerEnv, startServer, validateReply, verifyModel, verifyRunner, type Endpoint } from "../src/judge/d1.ts";
+import { buildPool, checkPoolFresh, poolDigest } from "../src/judge/pool.ts";
 import { extractFrame, frameTable, framesIn, nominalError, snap, trustedTimes, type FrameTable } from "../src/judge/pts.ts";
-import { compare, labelsTemplate } from "../src/judge/report.ts";
+import { compare, labelsTemplate, validateLabels } from "../src/judge/report.ts";
 import { aggregate, interpret, loadRubric, questionsFor, RUBRIC_FILE, type Question } from "../src/judge/rubric.ts";
 import { runBaseline, runD1 } from "../src/judge/score.ts";
 import { fixtureProject } from "./helpers.ts";
@@ -81,11 +81,25 @@ test("PTS: video shorter than the container / starting late → flagged, never i
 
 test("PTS: repeated / backwards / missing times → trusted only up to the first anomaly", () => {
   const r = trustedTimes([10, 10.033, 10.066, 10.066, 10.05, 10.1, null], 10);
-  assert.equal(r.times.length, 3);
-  assert.equal(r.firstBad, 3);
-  assert.deepEqual(r.anomalies.map((a) => a.kind), ["duplicate", "backward", "non_finite"]);
+  assert.equal(r.times.length, 2, "the frame before a repeated time is dropped too: which image is at 10.066 is ambiguous");
+  assert.equal(r.firstBad, 2);
+  assert.deepEqual(r.anomalies.map((a) => a.kind), ["ambiguous_previous", "duplicate", "backward", "non_finite"]);
   const table = { t: r.times.map((x) => Math.round(x * 1e6) / 1e6), last_frame_end: 0.099, trusted: "until_first_anomaly" } as unknown as FrameTable;
   assert.equal(snap(table, 0.2).flag, "past_trusted", "times after the anomaly cannot be tied to a frame");
+  // the screen-recording tail: two frames share pts 43.486667, the second's best-effort time goes back to 43.428333
+  const sr = trustedTimes([
+    { best_effort: 43.42, pts: 43.42, pkt_dts: 43.4 },
+    { best_effort: 43.486667, pts: 43.486667, pkt_dts: 43.45 },
+    { best_effort: 43.428333, pts: 43.486667, pkt_dts: 43.428333 },
+  ], 0);
+  assert.deepEqual(sr.times, [43.42], "the frame sharing the repeated pts is not trusted either (which image is 43.4867 is ambiguous)");
+  assert.deepEqual(sr.anomalies.map((a) => a.kind), ["ambiguous_previous", "backward"]);
+  assert.deepEqual([sr.anomalies[1].pts, sr.anomalies[1].pkt_dts], [43.486667, 43.428333], "pts and pkt_dts are kept with the anomaly");
+  // pts repeats while best-effort moves on → anomaly too; a frame with pts N/A but a best-effort time is counted
+  const dp = trustedTimes([{ best_effort: 0, pts: 0, pkt_dts: null }, { best_effort: 0.04, pts: null, pkt_dts: null }, { best_effort: 0.08, pts: 0.08, pkt_dts: null }, { best_effort: 0.12, pts: 0.08, pkt_dts: null }], 0);
+  assert.deepEqual(dp.anomalies.map((a) => a.kind), ["ambiguous_previous", "duplicate_pts"]);
+  assert.deepEqual(dp.times, [0, 0.04]);
+  assert.deepEqual(dp.source, { pts: 1, best_effort_only: 1 });
 });
 
 test("PTS: a table that disagrees with the decoder is refused, not silently substituted", () => {
@@ -109,12 +123,12 @@ test("rubric: fixed, hashed; purposes judge only their criteria, the rest is unk
   assert.notEqual(loadRubric(path.join(d, "r.json")).ref.sha256, ref.sha256, "any change is a new rubric");
   assert.deepEqual(Object.keys(questionsFor(rubric, "talk", "transcript")), ["utterance_complete"]);
   assert.ok(!("utterance_complete" in questionsFor(rubric, "talk", "frame")));
-  const agg = aggregate(rubric, "screen", { readability: { status: "observed", value: 1, confidence: 0.9 }, sharpness: { status: "observed", value: 1, confidence: 0.9 } });
+  const agg = aggregate(rubric, "screen", { readability: { status: "answered", value: 1, confidence: 0.9 }, sharpness: { status: "answered", value: 1, confidence: 0.9 } });
   assert.equal(agg.criteria.action_peak.status, "unknown");
   assert.equal(agg.criteria.utterance_complete.status, "unknown");
   assert.equal(agg.criteria.composition.status, "unobserved", "in the purpose but not evaluated");
   assert.equal(agg.decision, "judged");
-  assert.equal(aggregate(rubric, "screen", { sharpness: { status: "observed", value: 1, confidence: 1 } }).decision, "undeterminable", "too little of the rubric was judged");
+  assert.equal(aggregate(rubric, "screen", { sharpness: { status: "answered", value: 1, confidence: 1 } }).decision, "undeterminable", "too little of the rubric was judged");
 });
 
 test("rubric: abstain / unobserved / low confidence are kept apart from a value", () => {
@@ -125,8 +139,10 @@ test("rubric: abstain / unobserved / low confidence are kept apart from a value"
   assert.equal(nf.status, "unobserved");
   assert.equal(nf.value, null);
   assert.equal(interpret(rubric, "subject", { type: "noul", noul: 0.5 }).status, "low_confidence");
+  const n = interpret(rubric, "subject", { type: "noul", noul: 0.9 });
+  assert.deepEqual([n.status, n.kind, n.confidence, n.p_margin], ["answered", "model_subjective", null, 0.8], "noul: no model-reported confidence; the margin is derived and kept apart");
   const s = interpret(rubric, "action_peak", { type: "score", score: 3, confidence: 0.9, probabilities: { 0: 0, 1: 0, 2: 0, 3: 1 } });
-  assert.deepEqual([s.status, s.value], ["observed", 1]);
+  assert.deepEqual([s.status, s.value, s.kind], ["answered", 1, "model_subjective"], "a model answer is the model's subjective reading, not an observation");
   assert.equal(interpret(rubric, "action_peak", { type: "score", score: 1.5, confidence: 0.1, probabilities: { 0: 0.25, 1: 0.25, 2: 0.25, 3: 0.25 } }).status, "low_confidence");
 });
 
@@ -307,7 +323,7 @@ test("runners on one pool: baseline = existing search; d1 = rubric on checked fr
   const log: any[] = [];
   const fake = await fakeD1({ log });
   const run = tmp();
-  const ep: Endpoint = { url: fake.url, mode: "attached", model_id: "/x/d1-3B-Q8_0.gguf", modalities: { input: ["text", "image"], output: ["decisions"] }, maxRssKiB: () => null, stop: async () => {} };
+  const ep: Endpoint = { url: fake.url, mode: "attached", exposure: "tcp_loopback", provenance_gaps: ["test"], model_id: "/x/d1-3B-Q8_0.gguf", modalities: { input: ["text", "image"], output: ["decisions"] }, maxRssKiB: () => null, stop: async () => {} };
   const r = await runD1(p, pool, ep, { outDir: run, refineTop: 3, minFreeBytes: 1 });
   await fake.close();
   assert.equal(r.ranked.length, pool.candidates.length);
@@ -349,7 +365,7 @@ test("talk purpose: the transcript is judged as text; a span without words is un
   const pool = buildPool(p, { purpose: "talk", aliases: ["clip"], seed: 1 });
   const log: any[] = [];
   const fake = await fakeD1({ log });
-  const ep: Endpoint = { url: fake.url, mode: "attached", model_id: "/x/m.gguf", modalities: { input: ["text", "image"], output: ["decisions"] }, maxRssKiB: () => null, stop: async () => {} };
+  const ep: Endpoint = { url: fake.url, mode: "attached", exposure: "tcp_loopback", provenance_gaps: ["test"], model_id: "/x/m.gguf", modalities: { input: ["text", "image"], output: ["decisions"] }, maxRssKiB: () => null, stop: async () => {} };
   const r = await runD1(p, pool, ep, { outDir: tmp(), refineTop: 2, minFreeBytes: 1 });
   await fake.close();
   const textCalls = log.filter((q) => !q.images);
@@ -360,4 +376,226 @@ test("talk purpose: the transcript is judged as text; a span without words is un
   });
   if (silent) assert.equal(silent.criteria!.utterance_complete.status, "unobserved");
   for (const j of r.ranked.filter((x) => x.bounds.basis === "transcript")) assert.ok(j.bounds.in !== null && j.bounds.out! > j.bounds.in!);
+});
+
+// ---------------- review fixes: transport, server lifecycle, frozen pool, labels ----------------
+
+test("d1 transport: a redirect is refused and never followed; a timeout is `timeout`", async () => {
+  const got: string[] = [];
+  const other = http.createServer((req, res) => {
+    got.push(`${req.method} ${req.url}`);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ data: [{ id: "x", architecture: { input_modalities: ["image"], output_modalities: ["decisions"] } }], answers: { a: { type: "noul", noul: 0.9 } } }));
+  });
+  await new Promise<void>((r) => other.listen(0, "127.0.0.1", () => r()));
+  const front = http.createServer((req, res) => {
+    req.resume();
+    res.writeHead(307, { location: `http://127.0.0.1:${(other.address() as any).port}${req.url}` });
+    res.end();
+  });
+  await new Promise<void>((r) => front.listen(0, "127.0.0.1", () => r()));
+  const url = `http://127.0.0.1:${(front.address() as any).port}`;
+  await assert.rejects(decide(url, null, { a: { type: "noul", instructions: "q?" } }, [Buffer.from("FRAME")]), (e: any) => e.code === "endpoint_redirect_refused");
+  await assert.rejects(attach(url), (e: any) => e.code === "endpoint_redirect_refused");
+  assert.deepEqual(got, [], "the redirect target never received the frame (or anything else)");
+  const hang = http.createServer(() => {});
+  await new Promise<void>((r) => hang.listen(0, "127.0.0.1", () => r()));
+  await assert.rejects(decide(`http://127.0.0.1:${(hang.address() as any).port}`, "x", Q, [], 300), (e: any) => e.code === "timeout");
+  hang.closeAllConnections();
+  for (const s of [front, other, hang]) await new Promise((r) => s.close(r));
+});
+
+/** A stand-in llama-server (no model): --version, and an HTTP server on the --host UNIX socket that reports its env. */
+function fakeRunner(dir: string, build = 11491): string {
+  const f = path.join(dir, `fake-llama-server-${build}.mjs`);
+  fs.writeFileSync(f, `#!${process.execPath}
+import * as http from "node:http";
+import * as fs from "node:fs";
+const a = process.argv.slice(2);
+if (a.includes("--version")) { console.error("version: 0.6.0-dev (build ${build}, commit 9b4ed0ca5)"); process.exit(0); }
+const host = a[a.indexOf("--host") + 1], m = a[a.indexOf("-m") + 1];
+const llama = Object.keys(process.env).filter((k) => k.startsWith("LLAMA_"));
+http.createServer((req, res) => {
+  req.resume();
+  req.on("end", () => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    if (req.url === "/health") return res.end("{}");
+    if (req.url === "/v1/models") return res.end(JSON.stringify({ data: [{ id: m, architecture: { input_modalities: ["text", "image"], output_modalities: ["decisions"] } }] }));
+    if (req.url === "/fake/info") return res.end(JSON.stringify({ args: a, llama_env: llama }));
+    res.end(JSON.stringify({ answers: { a: { type: "noul", noul: 0.9 } }, usage: { input_tokens: 3, output_tokens: 0 } }));
+  });
+}).listen(host);
+setInterval(() => {}, 1 << 30);
+`);
+  fs.chmodSync(f, 0o755);
+  return f;
+}
+
+/** Sparse stand-ins for the pinned GGUF files with a stamp (no real model; rehash would — rightly — reject them). */
+function stampedModelDir(): string {
+  const d = tmp();
+  for (const w of [D1_PIN.files.model, D1_PIN.files.mmproj]) {
+    const f = path.join(d, w.name);
+    fs.closeSync(fs.openSync(f, "w"));
+    fs.truncateSync(f, w.size);
+    const st = fs.statSync(f);
+    fs.writeFileSync(`${f}.vos-verified.json`, JSON.stringify({ size: st.size, mtime_ms: st.mtimeMs, sha256: w.sha256 }));
+  }
+  return d;
+}
+
+const shortTmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "vj-"));
+
+test("d1 server: private UNIX socket (no TCP port), LLAMA_* env stripped, hardening flags, pid file, stamp is a provenance gap", async () => {
+  const d = shortTmp();
+  const runner = fakeRunner(d);
+  const models = stampedModelDir();
+  process.env.LLAMA_ARG_TOOLS = "all";
+  process.env.LLAMA_ARG_CORS_ORIGINS = "*";
+  const pidFile = path.join(d, "llama-server.pid");
+  let ep;
+  try {
+    assert.ok(runnerEnv().removed.includes("LLAMA_ARG_TOOLS"));
+    await assert.rejects(startServer({ server: runner, modelDir: models, rehash: true }), (e: any) => e.code === "model_hash_mismatch", "a full read rejects the stand-ins");
+    ep = await startServer({ server: runner, modelDir: models, rehash: false, pidFile, readyTimeoutMs: 20_000 });
+  } finally {
+    delete process.env.LLAMA_ARG_TOOLS;
+    delete process.env.LLAMA_ARG_CORS_ORIGINS;
+  }
+  try {
+    assert.match(ep.url, /^unix:\/.*\.sock$/);
+    assert.equal(ep.exposure, "unix_socket_private_dir");
+    const sock = ep.url.slice(5);
+    assert.ok(fs.statSync(sock).isSocket());
+    assert.equal(fs.statSync(path.dirname(sock)).mode & 0o777, 0o700, "only this user can reach the socket");
+    assert.ok(ep.provenance_gaps.some((g) => /stamp/.test(g)), "a stamp-only model check is reported as a gap");
+    assert.ok(fs.existsSync(pidFile) && JSON.parse(fs.readFileSync(pidFile, "utf8")).pid === ep.pid);
+    const info = JSON.parse((await (await import("../src/judge/d1.ts")).httpCall(ep.url, "GET", "/fake/info")).text);
+    assert.deepEqual(info.llama_env, [], "no LLAMA_* variable reaches the runner");
+    for (const flag of ["--offline", "--no-webui", "--no-slots", "--no-cors-credentials"]) assert.ok(info.args.includes(flag), flag);
+    assert.ok(!info.args.includes("--port"));
+    const dd = await decide(ep.url, null, { a: { type: "noul", instructions: "q?" } }, [Buffer.from("x")]);
+    assert.deepEqual(dd.call.usage, { present: true, input_tokens: 3, output_tokens: 0 });
+    assert.match(dd.call.reply_sha256, /^[0-9a-f]{64}$/);
+  } finally {
+    await ep.stop();
+  }
+  assert.ok(!fs.existsSync(pidFile), "pid file removed on stop");
+  assert.ok(!fs.existsSync(ep.url.slice(5)), "socket removed on stop");
+  assert.throws(() => process.kill(ep.pid!, 0), "runner stopped");
+  const old = fakeRunner(d, 11490);
+  await assert.rejects(startServer({ server: old, modelDir: models, rehash: false }), (e: any) => e.code === "runner_unpinned");
+});
+
+test("d1 server: SIGTERM to the vos process also stops the runner (no orphan)", async () => {
+  const d = shortTmp();
+  const runner = fakeRunner(d);
+  const models = stampedModelDir();
+  const script = path.join(d, "hold.ts");
+  fs.writeFileSync(script, `const { startServer } = await import(${JSON.stringify(path.resolve("src/judge/d1.ts"))});
+const ep = await startServer({ server: ${JSON.stringify(runner)}, modelDir: ${JSON.stringify(models)}, rehash: false, pidFile: ${JSON.stringify(path.join(d, "pid.json"))}, readyTimeoutMs: 20000 });
+console.log(JSON.stringify({ pid: ep.pid }));
+setInterval(() => {}, 1 << 30);
+`);
+  const { spawn } = await import("node:child_process");
+  const child = spawn(process.execPath, ["--no-warnings", script], { stdio: ["ignore", "pipe", "inherit"] });
+  const line: string = await new Promise((res, rej) => {
+    let b = "";
+    child.stdout!.on("data", (c) => {
+      b += c;
+      if (b.includes("\n")) res(b.split("\n")[0]);
+    });
+    child.on("exit", (c) => rej(new Error(`exited ${c}`)));
+  });
+  const runnerPid = JSON.parse(line).pid;
+  process.kill(runnerPid, 0);
+  child.kill("SIGTERM");
+  const code = await new Promise((r) => child.on("exit", (c, sig) => r(c ?? sig)));
+  assert.equal(code, 128 + 15);
+  let alive = true;
+  for (let i = 0; i < 50 && alive; i++) {
+    try {
+      process.kill(runnerPid, 0);
+      await new Promise((r) => setTimeout(r, 100));
+    } catch {
+      alive = false;
+    }
+  }
+  if (alive) process.kill(runnerPid, "SIGKILL");
+  assert.equal(alive, false, "the runner did not outlive vos");
+  assert.ok(!fs.existsSync(path.join(d, "pid.json")));
+});
+
+test("frozen pool: purpose / query / transcript edits, a replaced pool and mixed-purpose results are refused", async () => {
+  const p = judgeProject();
+  const pool = buildPool(p, { purpose: "talk", aliases: ["clip"], seed: 1 });
+  assert.equal(poolDigest(pool), pool.digest);
+  assert.deepEqual(pool.search.channels_requested, ["text"], "the heavy visual channel is not used unless asked for");
+  assert.ok(pool.tools.ffprobe && pool.tools.ffmpeg);
+  for (const edit of [(x: any) => (x.purpose = "action"), (x: any) => (x.query = "something else"), (x: any) => (x.sources[0].transcript_segments[0].text = "TAMPERED")]) {
+    const forged = structuredClone(pool);
+    edit(forged);
+    assert.throws(() => checkPoolFresh(p, forged), (e: any) => e.code === "stale_pool");
+  }
+  // a re-signed pool with transcript text that is not in transcript.json is still refused
+  const resigned: any = structuredClone(pool);
+  resigned.sources[0].transcript_segments[0].text = "TAMPERED";
+  resigned.digest = poolDigest(resigned);
+  assert.throws(() => checkPoolFresh(p, resigned), (e: any) => e.code === "stale_pool" && /transcript/.test(e.message));
+  const other = buildPool(p, { purpose: "action", aliases: ["clip"], seed: 1 });
+  assert.notEqual(other.digest, pool.digest, "same candidates, other purpose → other digest");
+  const base = runBaseline(p, pool);
+  const baseOther = runBaseline(p, other);
+  assert.throws(() => compare(pool, [baseOther]), (e: any) => e.code === "pool_mismatch");
+  assert.throws(() => compare(pool, [{ ...base, pool: { ...base.pool, purpose: "action" } }]), (e: any) => e.code === "pool_mismatch");
+  assert.equal((base.manifest as any).vos.git_tree.length, 40);
+  assert.equal(typeof (base.manifest as any).vos.worktree_clean, "boolean");
+});
+
+test("d1 run: every call is logged (latency, status, hashes, usage); provenance gaps are carried into the report", async () => {
+  const p = judgeProject();
+  const pool = buildPool(p, { purpose: "action", aliases: ["clip"], seed: 3 });
+  const fake = await fakeD1();
+  const run = tmp();
+  const ep: Endpoint = { url: fake.url, mode: "attached", exposure: "tcp_loopback", provenance_gaps: ["attached: test"], model_id: "/x/m.gguf", modalities: { input: ["text", "image"], output: ["decisions"] }, maxRssKiB: () => null, stop: async () => {} };
+  const r = await runD1(p, pool, ep, { outDir: run, refineTop: 1, minFreeBytes: 1 });
+  await fake.close();
+  const lines = fs.readFileSync(path.join(run, "calls.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.equal(lines.length, (r.resources as any).d1_calls);
+  for (const l of lines) {
+    assert.ok(l.ms >= 0 && l.status === 200 && /^[0-9a-f]{64}$/.test(l.reply_sha256) && /^[0-9a-f]{64}$/.test(l.request_sha256));
+    assert.equal(l.usage.output_tokens, 0);
+  }
+  assert.equal((r.resources as any).usage.output_tokens_zero, lines.length);
+  assert.deepEqual((r.manifest as any).provenance, { complete: false, gaps: ["attached: test"] });
+  const rep = compare(pool, [r], { k: 3 });
+  assert.equal((rep.model_proxy.per_runner as any).d1.provenance.complete, false);
+  assert.ok(rep.coverage[0].pool_span_share! > 0 && rep.coverage[0].coverage_window_share! <= rep.coverage[0].pool_span_share!);
+});
+
+test("spans are half-open: an end exactly on a frame time does not take that frame", () => {
+  const p = judgeProject();
+  const pool = buildPool(p, { purpose: "action", aliases: ["clip"], seed: 1, search: () => ({ query: "q", channels_used: ["text"], channels_unavailable: [], hits: [{ alias: "clip", start: 1, end: 2, score: 1, channels: {} } as any] }) });
+  const c = pool.candidates.find((x) => x.origins.includes("search") && x.start.claimed === 1 && x.end.claimed === 2)!;
+  assert.ok(c, "the search span is a candidate");
+  assert.equal(c.end.frame!.next_t, 2, "the last frame shown is the one before t = 2");
+  const base = runBaseline(p, pool);
+  assert.equal(base.ranked.find((j) => j.candidate === c.id)!.bounds.out, 2);
+});
+
+test("baseline without any search is marked degenerate; labels are validated; 0 s is a measured time", () => {
+  const p = judgeProject();
+  const pool = buildPool(p, { purpose: "action", aliases: ["clip"], seed: 1, search: () => ({ query: "q", channels_used: [], channels_unavailable: [{ channel: "text", reason: "test" }], hits: [] }) });
+  const base = runBaseline(p, pool);
+  assert.equal((base.manifest as any).degenerate, true);
+  const id = pool.candidates[0].id;
+  const L = (items: any[], time?: any) => ({ format: "vos.judge-labels/1" as const, pool_digest: pool.digest, labeler: "t", items, ...(time ? { time } : {}) });
+  assert.throws(() => validateLabels(pool, L([{ candidate: "c9999", adopt: true }])), (e: any) => e.code === "bad_labels");
+  assert.throws(() => validateLabels(pool, L([{ candidate: id, adopt: "yes" }])), (e: any) => e.code === "bad_labels");
+  assert.throws(() => validateLabels(pool, L([{ candidate: id, adopt: true, in: 2, out: 1 }])), (e: any) => e.code === "bad_labels");
+  assert.throws(() => validateLabels(pool, { ...L([]), pool_digest: "x" }), (e: any) => e.code === "labels_mismatch");
+  const rep = compare(pool, [base], { k: 5, labels: L([{ candidate: id, adopt: false }], { baseline: { search_sec: 0, fix_sec: null } }) });
+  assert.deepEqual((rep.human as any).baseline.search_sec, { value: 0, status: "measured" });
+  assert.equal((rep.human as any).baseline.fix_sec.value, null);
+  assert.equal((rep.model_proxy.per_runner as any).baseline.judged_in_top_k, 0, "undeterminable candidates are not proposals");
 });

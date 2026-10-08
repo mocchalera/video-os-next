@@ -5,9 +5,9 @@ import { REPO } from "../core/config.ts";
 import { sha256, sha256File } from "../core/hash.ts";
 import { requireOnline, resolveAsset, type Project } from "../core/project.ts";
 import { round, stableStringify, VosError, writeJson } from "../core/util.ts";
-import { checkDisk, D1_PIN, decide, RUNNER_PIN, type Endpoint } from "./d1.ts";
+import { checkDisk, D1_PIN, decide, RUNNER_PIN, type CallRecord, type Endpoint } from "./d1.ts";
 import { checkPoolFresh, type Candidate, type Pool } from "./pool.ts";
-import { extractFrame, frameTable, framesIn, snap, type FrameTable } from "./pts.ts";
+import { extractFrame, frameTable, framesIn, snap, toolVersions, type FrameTable } from "./pts.ts";
 import { aggregate, interpret, loadRubric, purposeOf, questionsFor, type Aggregate, type CriterionResult, type Question, type Rubric } from "./rubric.ts";
 
 /**
@@ -59,19 +59,29 @@ export interface RunResult {
   format: "vos.judge-result/1";
   runner: "baseline" | "d1";
   created_at: string;
-  pool: { digest: string; purpose: string; query: string; seed: number; candidates: number };
+  pool: { digest: string; purpose: string; query: string; seed: number; candidates: number; rubric_sha256: string };
   manifest: Record<string, unknown>;
   ranked: Judged[];
   resources: Record<string, unknown>;
 }
 
-function vosRevision() {
-  const head = spawnSync("git", ["-C", REPO, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim() || null;
-  const dirty = spawnSync("git", ["-C", REPO, "status", "--porcelain", "--", "src/judge", "src/cli.ts"], { encoding: "utf8" }).stdout.trim();
+/** Which code made a result: commit, tree, and — when the checkout is not clean — what differs (hashed). */
+export function vosRevision() {
+  const git = (...args: string[]) => spawnSync("git", ["-C", REPO, ...args], { encoding: "utf8", maxBuffer: 1 << 28 }).stdout ?? "";
+  const head = git("rev-parse", "HEAD").trim() || null;
+  const tree = git("rev-parse", "HEAD^{tree}").trim() || null;
+  const status = git("status", "--porcelain").split("\n").filter(Boolean);
+  const judgeDirty = git("status", "--porcelain", "--", "src/judge", "src/cli.ts").trim();
+  const diff = status.length ? git("diff", "HEAD", "--binary") : "";
   const judgeFiles = fs.readdirSync(path.join(REPO, "src", "judge")).filter((f) => /\.(ts|json)$/.test(f)).sort();
   const code = sha256(judgeFiles.map((f) => f + ":" + sha256File(path.join(REPO, "src", "judge", f))).join("\n"));
-  return { git_head: head, judge_code_dirty: dirty.length > 0, judge_code_sha256: code };
+  return {
+    git_head: head, git_tree: tree, worktree_clean: status.length === 0, dirty_entries: status.slice(0, 50), dirty_diff_sha256: status.length ? sha256(diff) : null,
+    judge_code_dirty: judgeDirty.length > 0, judge_code_sha256: code,
+  };
 }
+
+const poolRef = (pool: Pool) => ({ digest: pool.digest, purpose: pool.purpose, query: pool.query, seed: pool.seed, candidates: pool.candidates.length, rubric_sha256: pool.rubric.sha256 });
 
 const ORIGIN_ORDER = ["search", "event", "asr", "coverage"];
 const originRank = (c: { origins: string[] }) => Math.min(...c.origins.map((o) => ORIGIN_ORDER.indexOf(o)));
@@ -97,14 +107,21 @@ export function runBaseline(p: Project, pool: Pool): RunResult {
     return { c, s };
   });
   scored.sort((a, b) => b.s - a.s || originRank(a.c) - originRank(b.c) || a.c.source.localeCompare(b.c.source) || a.c.start.claimed - b.c.start.claimed);
+  // without any search channel every score is 0 and the order is only origin / source / time: say so
+  const degenerate = pool.search.channels_used.length === 0 || pool.search.hits === 0;
   const ranked: Judged[] = scored.map(({ c, s }, i) => ({
     candidate: c.id, source: c.source, origins: c.origins, rank: i + 1, score: round(s, 4), decision: s > 0 ? "judged" : "undeterminable",
     ...(s > 0 ? {} : { reason: "the existing search did not surface this span" }), confidence: null, bounds: spanOf(c),
   }));
   return {
     format: "vos.judge-result/1", runner: "baseline", created_at: new Date().toISOString(),
-    pool: { digest: pool.digest, purpose: pool.purpose, query: pool.query, seed: pool.seed, candidates: pool.candidates.length },
-    manifest: { vos: vosRevision(), search: pool.search, note: "existing fused search (text+visual+lexical RRF) only; no model is run at scoring time" },
+    pool: poolRef(pool),
+    manifest: {
+      vos: vosRevision(), search: pool.search, tools: toolVersions(), degenerate,
+      note: degenerate
+        ? "DEGENERATE: no search channel / no hits — every score is 0, the order is origin, source, time only (not a ranking)"
+        : "existing fused search (channels as listed + lexical, RRF) only; no model is run at scoring time",
+    },
     ranked, resources: { wall_ms: round(performance.now() - t0, 1), node_max_rss_kib: process.resourceUsage().maxRSS },
   };
 }
@@ -129,14 +146,24 @@ interface Ctx {
   o: Required<Omit<D1Options, "log">> & { log: (s: string) => void };
   tables: Map<string, { table: FrameTable; file: string }>;
   calls: number[];
+  callLog: string; // calls.jsonl in the run directory
+  callRecords: CallRecord[];
   cache: Map<string, Record<string, CriterionResult>>;
   extracted: number;
   tokens: number;
 }
 
+/** Every model call, as it happened: latency, HTTP status, request / raw reply hashes, the usage the server reported. */
+function logCall(ctx: Ctx, call: CallRecord, what: Record<string, unknown>) {
+  ctx.calls.push(call.ms);
+  ctx.callRecords.push(call);
+  fs.appendFileSync(ctx.callLog, JSON.stringify({ n: ctx.callRecords.length, ...what, ...call }) + "\n");
+}
+
 async function judgeFrame(ctx: Ctx, source: string, index: number, questions: Record<string, Question>): Promise<{ ref: FrameRef; criteria: Record<string, CriterionResult> }> {
   const { table, file } = ctx.tables.get(source)!;
   const frameDir = path.join(ctx.o.outDir, "frames", ctx.pool.sources.find((s) => s.alias === source)!.content_id);
+  if (ctx.extracted % 25 === 0) checkDisk(ctx.o.outDir, ctx.o.minFreeBytes);
   const fr = extractFrame(file, table, index, frameDir, ctx.o.width);
   ctx.extracted++;
   const ref: FrameRef = { source, index, t: fr.t, observed_t: fr.observed_t, file: path.relative(ctx.o.outDir, fr.file), sha256: fr.sha256 };
@@ -144,7 +171,7 @@ async function judgeFrame(ctx: Ctx, source: string, index: number, questions: Re
   const hit = ctx.cache.get(key);
   if (hit) return { ref, criteria: hit };
   const d = await decide(ctx.ep.url, null, questions, [fs.readFileSync(fr.file)]);
-  ctx.calls.push(d.ms);
+  logCall(ctx, d.call, { on: "frame", source, index, t: fr.t, frame_sha256: fr.sha256, questions: Object.keys(questions) });
   if (Number.isFinite(d.input_tokens)) ctx.tokens += d.input_tokens;
   const criteria: Record<string, CriterionResult> = {};
   for (const [name, a] of Object.entries(d.answers)) criteria[name] = interpret(ctx.rubric, name, a);
@@ -185,13 +212,14 @@ async function stage1(ctx: Ctx, c: Candidate): Promise<Judged> {
     if (!text) for (const n of Object.keys(tq)) results[n] = { status: "unobserved", value: null, confidence: null, reason: "no transcript text in this span" };
     else {
       const d = await decide(ctx.ep.url, text, tq);
-      ctx.calls.push(d.ms);
+      logCall(ctx, d.call, { on: "transcript", source: c.source, candidate: c.id, text_sha256: sha256(text), questions: Object.keys(tq) });
       if (Number.isFinite(d.input_tokens)) ctx.tokens += d.input_tokens;
       for (const [n, a] of Object.entries(d.answers)) results[n] = interpret(ctx.rubric, n, a);
     }
   }
   const agg: Aggregate = aggregate(ctx.rubric, ctx.pool.purpose, results);
-  const confs = Object.entries(agg.criteria).filter(([n, r]) => purpose.weights[n] && r.confidence !== null).map(([n, r]) => [purpose.weights[n], r.confidence!] as const);
+  // model-reported (uncalibrated) confidences only; the p_margin derived for noul answers is not mixed in
+  const confs = Object.entries(agg.criteria).filter(([n, r]) => purpose.weights[n] && r.confidence !== null && r.status !== "unknown").map(([n, r]) => [purpose.weights[n], r.confidence!] as const);
   const conf = confs.length ? round(confs.reduce((a, [w, x]) => a + w * x, 0) / confs.reduce((a, [w]) => a + w, 0), 4) : null;
   return { ...base, rank: 0, score: agg.score, decision: agg.decision, confidence: conf, evidence: agg.evidence, criteria: agg.criteria, frames, ...(agg.decision === "undeterminable" ? { reason: `only ${agg.evidence} of the rubric weight could be judged` } : {}) };
 }
@@ -221,7 +249,7 @@ async function refine(ctx: Ctx, c: Candidate, j: Judged): Promise<void> {
   for (const sn of snaps) {
     const r = await judgeFrame(ctx, c.source, sn.index, q);
     const cr = r.criteria[purpose.peak];
-    seen.push({ ref: r.ref, value: cr.status === "observed" || cr.status === "low_confidence" ? cr.value : null, status: cr.status });
+    seen.push({ ref: r.ref, value: cr.status === "answered" || cr.status === "low_confidence" ? cr.value : null, status: cr.status });
   }
   const vals = seen.map((x) => x.value ?? -1);
   const vmax = Math.max(...vals);
@@ -264,7 +292,9 @@ export async function runD1(p: Project, pool: Pool, ep: Endpoint, o: D1Options):
     if (table.digest !== s.frames.digest) throw new VosError("stale_pool", `${s.alias}: frame table differs from the pool's (${table.digest.slice(0, 12)} ≠ ${s.frames.digest.slice(0, 12)})`);
     tables.set(s.alias, { table, file });
   }
-  const ctx: Ctx = { p, pool, rubric, ep, o: opts, tables, calls: [], cache: new Map(), extracted: 0, tokens: 0 };
+  const callLog = path.join(opts.outDir, "calls.jsonl");
+  fs.writeFileSync(callLog, "");
+  const ctx: Ctx = { p, pool, rubric, ep, o: opts, tables, calls: [], callLog, callRecords: [], cache: new Map(), extracted: 0, tokens: 0 };
   const t0 = performance.now();
   const judged: Judged[] = [];
   for (const [i, c] of pool.candidates.entries()) {
@@ -282,21 +312,35 @@ export async function runD1(p: Project, pool: Pool, ep: Endpoint, o: D1Options):
   const pct = (q: number) => (ms.length ? ms[Math.min(ms.length - 1, Math.floor(q * ms.length))] : null);
   const runner = (ep as any).runner;
   const model = (ep as any).model ?? { attached_model_file: (ep as any).model_file };
+  const recs = ctx.callRecords;
+  const usage = {
+    calls: recs.length,
+    usage_present: recs.filter((r) => r.usage.present).length,
+    output_tokens_absent: recs.filter((r) => r.usage.output_tokens === "absent").length,
+    output_tokens_zero: recs.filter((r) => r.usage.output_tokens === 0).length,
+    output_tokens_nonzero: recs.filter((r) => typeof r.usage.output_tokens === "number" && r.usage.output_tokens !== 0).length, // always 0: such a reply stops the run
+  };
   return {
     format: "vos.judge-result/1", runner: "d1", created_at: new Date().toISOString(),
-    pool: { digest: pool.digest, purpose: pool.purpose, query: pool.query, seed: pool.seed, candidates: pool.candidates.length },
+    pool: poolRef(pool),
     manifest: {
-      vos: vosRevision(), rubric: ref,
+      vos: vosRevision(), rubric: ref, tools: toolVersions(),
+      provenance: { complete: ep.provenance_gaps.length === 0, gaps: ep.provenance_gaps },
       model: { repo: D1_PIN.repo, revision: D1_PIN.revision, base: D1_PIN.base, license: D1_PIN.license, files: model.model ? { model: model.model, mmproj: model.mmproj } : model },
       runner: { pin: RUNNER_PIN, observed: runner ? { version_line: runner.version_line, build: runner.build, commit: runner.commit, binary_sha256: runner.sha256, pinned: runner.pinned } : null },
-      endpoint: { mode: ep.mode, url: ep.url, model_id: path.basename(ep.model_id), modalities: ep.modalities },
+      endpoint: {
+        mode: ep.mode, exposure: ep.exposure, transport: ep.url.startsWith("unix:") ? "unix_socket" : "tcp_loopback", model_id: path.basename(ep.model_id), modalities: ep.modalities,
+        ...((ep as any).args ? { args: (ep as any).args } : {}), ...((ep as any).env_removed ? { env_removed: (ep as any).env_removed } : {}),
+      },
+      confidence_note: "confidence values are the model's own, uncalibrated; noul answers carry a derived p_margin instead",
+      calls_log: "calls.jsonl",
       params: { refine_top: opts.refineTop, refine_pad: opts.refinePad, refine_max_frames: opts.refineMaxFrames, width: opts.width },
     },
     ranked: judged,
     resources: {
       wall_ms: { stage1: round(t1 - t0, 1), refine: round(t2 - t1, 1), total: round(t2 - t0, 1) },
       d1_calls: ms.length, d1_latency_ms: { p50: pct(0.5), p95: pct(0.95), max: ms.length ? ms[ms.length - 1] : null },
-      input_tokens: ctx.tokens, frames_extracted: ctx.extracted, decisions_cached: ctx.cache.size,
+      input_tokens: ctx.tokens, usage, frames_extracted: ctx.extracted, decisions_cached: ctx.cache.size,
       endpoint_max_rss_kib: ep.maxRssKiB(), node_max_rss_kib: process.resourceUsage().maxRSS,
     },
   };

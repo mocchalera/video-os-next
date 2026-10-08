@@ -28,7 +28,9 @@ get() { # url dest size sha256
 HF="https://huggingface.co/LiquidAI/d1-3B-GGUF/resolve/$REV"
 get "$HF/d1-3B-Q8_0.gguf" "$MDIR/d1-3B-Q8_0.gguf" 2874781280 2f0942d5a5f64cf69c3356d2be439b71644b1f0eb3a580912a5a0179eeaba77d
 get "$HF/mmproj-d1-3B-Q8_0.gguf" "$MDIR/mmproj-d1-3B-Q8_0.gguf" 583109728 2505920ce464b7c54acd8b7b74a931c0c671f06d0c8833760b2fbceeb253e92a
-curl -fsL -o "$MDIR/LICENSE" "$HF/LICENSE"
+curl -fsL -o "$MDIR/LICENSE.part" "$HF/LICENSE"
+[ "$(shasum -a 256 "$MDIR/LICENSE.part" | cut -d' ' -f1)" = 4d28ca14dedc0b3d0fcc2b3339f0e79931faa33874f3d24f522183a8fc70068c ] || { echo "sha256 mismatch: LICENSE (terms changed?)" >&2; exit 1; }
+mv "$MDIR/LICENSE.part" "$MDIR/LICENSE"
 
 if [ ! -f "$BDIR/$ASSET" ] || [ "$(shasum -a 256 "$BDIR/$ASSET" | cut -d' ' -f1)" != "$ASSET_SHA" ]; then
   curl -fL --retry 3 -o "$BDIR/$ASSET.part" "https://github.com/ggml-org/llama.cpp/releases/download/$TAG/$ASSET"

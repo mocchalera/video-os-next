@@ -11,19 +11,28 @@ import { runBaseline, runD1, writeResult, type RunResult } from "./score.ts";
 export const JUDGE_HELP = `vos judge — rank candidate spans per use and propose in/out, with evidence (d1 PoC)
 
   vos judge rubric [--purpose action|talk|screen]          the fixed rubric (version + sha256) and its questions
-  vos judge doctor [--model-dir d] [--llama-server bin]    pinned model / runner present and verified? (no network)
-  vos judge pool --purpose P --out <run-dir> [aliases…] [--query "…"] [--seed 1]
+  vos judge doctor [--model-dir d] [--llama-server bin] [--rehash]
+                                                           pinned model / runner present and verified? (no network;
+                                                           --rehash re-reads the 3.4 GB instead of trusting the stamp)
+  vos judge pool --purpose P --out <run-dir> [aliases…] [--query "…"] [--seed 1] [--channels text]
                                                            freeze the candidate pool: Marlin events, ASR segments,
                                                            the existing fused search, seeded coverage windows
+                                                           (--channels text,visual loads a ~4 GB model locally)
   vos judge score <run-dir> --runner baseline              rank by the existing search only
-  vos judge score <run-dir> --runner d1 [--model-dir d --llama-server bin | --endpoint http://127.0.0.1:PORT]
-                                     [--refine-top 12]     rubric on real frames via /v1/systemone (loopback only)
+  vos judge score <run-dir> --runner d1 [--model-dir d --llama-server bin | --endpoint unix:/path.sock|http://127.0.0.1:PORT]
+                                     [--refine-top 12] [--trust-stamp] [--allow-incomplete-provenance]
+                                                           rubric on real frames via /v1/systemone. vos starts the pinned
+                                                           llama-server on a private UNIX socket (no TCP port), re-reads
+                                                           the model files, and stops it on exit / Ctrl-C / SIGTERM.
+                                                           An attached endpoint, an unpinned runner or a stamp-only model
+                                                           check is refused unless --allow-incomplete-provenance.
   vos judge report <run-dir> [--labels labels.json] [--k 10]
                                                            compare; human measures stay null without labels
                                                            (writes labels.template.json for a person to fill)
 
-  <run-dir> is where pool.json, baseline.json, d1.json, frames/ and report.* go. Put it on storage you may write.
-  Fail closed: missing / unverified model, old runner, remote endpoint, invalid reply, low disk → error, no fallback.`;
+  <run-dir> is where pool.json, baseline.json, d1.json, calls.jsonl, frames/ and report.* go (and llama-server.pid
+  while the server runs). Put it on storage you may write.
+  Fail closed: missing / unverified model, old runner, remote endpoint, redirect, invalid reply, low disk → error, no fallback.`;
 
 function readPool(dir: string): Pool {
   const f = path.join(dir, "pool.json");
@@ -54,7 +63,7 @@ export async function judgeCommand(p: () => Project, a: Record<string, any>, res
   if (sub === "doctor") {
     const paths = d1Paths({ modelDir: a["model-dir"], server: a["llama-server"] });
     const res: Record<string, unknown> = { pins: { model: D1_PIN, runner: RUNNER_PIN }, paths };
-    for (const [k, f] of [["model", () => verifyModel(paths.modelDir)], ["runner", () => verifyRunner(paths.server)]] as const) {
+    for (const [k, f] of [["model", () => verifyModel(paths.modelDir, { rehash: !!a.rehash })], ["runner", () => verifyRunner(paths.server)]] as const) {
       try {
         res[k] = { ok: true, ...(f() as object) };
       } catch (e: any) {
@@ -64,7 +73,8 @@ export async function judgeCommand(p: () => Project, a: Record<string, any>, res
     out(res, () => {
       for (const k of ["model", "runner"]) {
         const r = res[k] as any;
-        console.log(`${k.padEnd(7)} ${r.ok ? "ok" : `${r.code}: ${r.error}`}${r.hint ? `\n        hint: ${r.hint}` : ""}`);
+        const how = k === "model" && r.ok ? ` (${r.model.verified === "stamp" || r.mmproj.verified === "stamp" ? "stamp only: size + mtime, not re-read — use --rehash" : "every byte hashed"})` : k === "runner" && r.ok ? ` (${r.pinned ? "pinned" : "NOT the pinned release"})` : "";
+        console.log(`${k.padEnd(7)} ${r.ok ? "ok" + how : `${r.code}: ${r.error}`}${r.hint ? `\n        hint: ${r.hint}` : ""}`);
       }
     });
     return;
@@ -73,7 +83,9 @@ export async function judgeCommand(p: () => Project, a: Record<string, any>, res
     if (!a.purpose || !a.out) throw new VosError("usage", "vos judge pool --purpose <action|talk|screen> --out <run-dir> [aliases…]");
     const dir = path.resolve(String(a.out));
     if (fs.existsSync(path.join(dir, "pool.json")) && !a.force) throw new VosError("exists", `${dir}/pool.json exists`, "a pool is frozen; use a new run directory (or --force to replace it)");
-    const pool = buildPool(p(), { aliases: rest.slice(1), purpose: String(a.purpose), query: a.query, seed: a.seed ? Number(a.seed) : undefined });
+    const channels = a.channels ? String(a.channels).split(",").map((x) => x.trim()).filter(Boolean) : undefined;
+    for (const c of channels ?? []) if (!["text", "visual", "audio"].includes(c)) throw new VosError("usage", `unknown channel ${c}`, "text, visual, audio");
+    const pool = buildPool(p(), { aliases: rest.slice(1), purpose: String(a.purpose), query: a.query, seed: a.seed ? Number(a.seed) : undefined, channels: channels as any });
     writeJson(path.join(dir, "pool.json"), pool, false);
     out({ pool: path.join(dir, "pool.json"), digest: pool.digest, candidates: pool.candidates.length, search: pool.search }, () => {
       console.log(`pool ${pool.digest.slice(0, 12)}: ${pool.candidates.length} candidates over ${pool.sources.length} sources → ${dir}/pool.json`);
@@ -92,10 +104,15 @@ export async function judgeCommand(p: () => Project, a: Record<string, any>, res
     if (runner === "baseline") r = runBaseline(p(), pool);
     else if (runner === "d1") {
       let ep: Endpoint;
+      const allow = !!a["allow-incomplete-provenance"];
       if (a.endpoint) ep = await attach(String(a.endpoint));
       else {
         const paths = d1Paths({ modelDir: a["model-dir"], server: a["llama-server"] });
-        ep = await startServer({ server: paths.server, modelDir: paths.modelDir, logFile: path.join(dir, "llama-server.log") });
+        ep = await startServer({ server: paths.server, modelDir: paths.modelDir, logFile: path.join(dir, "llama-server.log"), pidFile: path.join(dir, "llama-server.pid"), rehash: !a["trust-stamp"], allowUnpinned: allow });
+      }
+      if (ep.provenance_gaps.length && !allow) {
+        await ep.stop();
+        throw new VosError("provenance_incomplete", `refusing a comparison run: ${ep.provenance_gaps.join("; ")}`, "let vos start the pinned server with a full model check, or pass --allow-incomplete-provenance (the result is then marked)");
       }
       try {
         r = await runD1(p(), pool, ep, { outDir: dir, refineTop: a["refine-top"] ? Number(a["refine-top"]) : undefined, log: (s) => !a.json && console.error(s) });
