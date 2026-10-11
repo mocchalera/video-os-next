@@ -140,3 +140,7 @@ clay-to-material look would pull the generation toward CG.
   the platform, tilted up ≈ 1.9°, the kit near the platform's back edge, the wall moved in so no floor/wall seam
   shows. Two layout previews brought kick, tom, snare and cymbals within ≈ 0.03 of the reference. What the landmarks
   cannot give: the real lens, the wall distance, and anything behind the players.
+  First render of that pass failed two checks and is kept: the depth pass was black (a 2 m disc reaching in front of
+  the low camera made the driver's bounding-box near ≈ 0.06 m — keep unseen geometry away from the camera or the depth
+  range collapses), and moving the wall closer blew out the material pass (lights rescaled to 135/45/150 W by
+  measuring the wall colour against the reference with ffmpeg).

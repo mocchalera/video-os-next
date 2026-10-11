@@ -40,9 +40,13 @@ CYC_Y = 4.4
 rig.box("cyc", (0, CYC_Y, 4), (20, 0.2, 8), MINT)
 # Composition pass (2026-10-11): in the reference the platform top shows only as a thin band (y ≈ 0.88–1.0) ending just
 # behind the cymbal stands, so the kit stands near the BACK of the disc and its front part is below the frame.
-bpy.ops.mesh.primitive_cylinder_add(vertices=12 if LEVEL == 0 else 96, radius=2.0, depth=DISC_TOP,
-                                    location=(0.0, 1.65, DISC_TOP / 2))
+# An elliptical platform (2.2 x 1.1 m half-axes) with its back edge at y = 3.65: its front part, below the frame,
+# must stay ~2 m from the low camera, or the driver's depth range (bounding boxes) collapses to near ≈ 0.06 m and the
+# depth pass turns black (seen in the first composition render, a round 2 m disc centred at y = 1.65).
+bpy.ops.mesh.primitive_cylinder_add(vertices=12 if LEVEL == 0 else 96, radius=1.0, depth=DISC_TOP,
+                                    location=(0.0, 2.55, DISC_TOP / 2))
 disc = bpy.context.object
+disc.scale = (2.2, 1.1, 1.0)
 disc.name = "disc"
 disc.data.materials.append(rig._material("disc", (0.95, 0.95, 0.95)))
 if LEVEL >= 1:
@@ -160,20 +164,20 @@ else:
     # Studio look of the reference: big soft frontal key slightly from camera-left, even wash on the seamless.
     bpy.ops.object.light_add(type="AREA", location=(-1.8, -1.6, 3.2))
     key = bpy.context.object
-    key.data.energy, key.data.size = 220, 4
+    key.data.energy, key.data.size = 135, 4
     key.rotation_euler = rig._aim(key.location, rig._point((0.3, 2.8, 0.8)), 0)
     bpy.ops.object.light_add(type="AREA", location=(2.4, -1.0, 2.4))
     fill = bpy.context.object
-    fill.data.energy, fill.data.size = 70, 4
+    fill.data.energy, fill.data.size = 45, 4
     fill.rotation_euler = rig._aim(fill.location, rig._point((0.3, 2.8, 0.8)), 0)
     bpy.ops.object.light_add(type="AREA", location=(0.3, CYC_Y - 3.4, 4.0))  # in front of the moved wall
     wash = bpy.context.object
-    wash.data.energy, wash.data.size = 380, 8
+    wash.data.energy, wash.data.size = 150, 8
     wash.rotation_euler = rig._aim(wash.location, rig._point((0.3, CYC_Y, 1.8)), 0)
     world = bpy.data.worlds.new("mint_world")
     world.use_nodes = True
     world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.32, 0.52, 0.46, 1)
-    world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.35
+    world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.3
     bpy.context.scene.world = world
 
 # ---- materials (procedural only; one shared wear group, strength per material) ------------------------------------
