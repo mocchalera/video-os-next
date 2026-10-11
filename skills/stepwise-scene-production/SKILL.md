@@ -60,7 +60,7 @@ Scene contract (worked example `examples/previz/stepwise_drum_kit.py`):
 - optionally saves `os.environ["STEPWISE_BLEND"]` (a snapshot **before** the driver sets engine, samples and view
   transform, so it opens with another look; reproduce from the receipt's command, not from the .blend).
 
-Render, one Blender job at a time, into a **new** directory outside the repo:
+Render, one Blender job at a time, into a **new** directory outside every checkout of this repo:
 
 ```bash
 python3 -B skills/stepwise-scene-production/scripts/render_stages.py --scene <scene.py> --ref <reference.png> \
@@ -68,28 +68,37 @@ python3 -B skills/stepwise-scene-production/scripts/render_stages.py --scene <sc
 ```
 
 Before creating anything it checks the arguments (known stage names, no duplicates, scene order, size a multiple of
-32 and ≤ 768p pixels, 1–124 frames, fps, `--out` new and outside the repo). Before the run and again before every
+32 and ≤ 768p pixels, 1–124 frames, fps, `--out` new and outside the main checkout and every worktree listed by
+`git worktree list`, symlinks resolved; if git cannot list them, it refuses). Before the run and again before every
 stage it refuses when `/` or the output volume has less than `--min-free-gib` (15) free, when the process table
 cannot be read, or when another Blender (any path, including `--blender`), ffmpeg, `llama-server`, `ollama runner`
 (a loaded model), a vos model worker, ComfyUI or MLX is running; `blender-mcp`, the Blender Quick Look thumbnailer and
 an idle `ollama serve` are only reported. It writes each stage's scene copy, stills, depth, motion start/mid/end,
-mp4s, `contact_sheet.png` (only the stages that succeeded in this run) and `receipt.json` — also on failure, timeout
-or Ctrl-C (`status`). The receipt has the runner, driver, scene, reference and output hashes, exact commands, camera
+mp4s, `contact_sheet.png` (only the stages that succeeded in this run) and `receipt.json` — also on failure, timeout,
+Ctrl-C or SIGTERM in any phase once `--out` exists (`status`, `phase`). Not covered: SIGKILL; a signal in the instant
+between a child's start and its registration; a second signal while the receipt is written. The receipt has the runner, driver, scene, reference and output hashes, exact commands, camera
 numbers and the move (`stages[].move`: distance, seconds, m/s for that frame count), depth range, guessed shapes,
 preflight per stage, and every process the run started with its exit code. Only those processes (their own handles)
-are ever signalled. Python bytecode is not written; Blender may still use the system temp dir.
+are ever signalled, and only while still running. Python bytecode is not written; Blender may still use the system
+temp dir. Output sha256 values are **byte** identity: the PNGs carry render metadata (date, render time), so a
+re-render with identical pixels gets a new hash. To show pixel identity use an existing tool, e.g.
+`ffmpeg -i a.png -i b.png -lavfi psnr -f null -` (`average:inf` = identical).
 Look at the contact sheet and the full-size stills yourself before accepting a stage.
 Offline test (fake Blender, no render): `python3 -B skills/stepwise-scene-production/scripts/test_render_stages.py`.
 
 The per-stage `scene.py` also works with `vos previz render <scene.py> --size draft --as pv` when the shot moves on
-to a project — that ingests into `assets.json`, so it needs the project owner's go-ahead.
+to a project. That writes into the project (ingest into `assets.json`, rebuilds `previz/<name>/`): fine within an
+authorization the project owner has already given for that project, otherwise ask first; never reuse an existing
+alias by accident.
 
 ## 4. Hand-off to H3 (previz route)
 
 Order: this skill (stages 1, 2, 4) → `../previz-camera/SKILL.md` §6 checks at the real size
 (`vos previz render … --size draft|768p --seconds N`, which snaps frames to H3's 17k+5 grid) → `../h3-prompt/SKILL.md`.
 
-**A hand-off is READY only when all of these agree; until then mark it BLOCKED and list what disagrees:**
+**A hand-off is READY only when all of these agree; until then mark it BLOCKED and list what disagrees.** BLOCKED is
+a written gate only — `vos gen` does not read it. So while BLOCKED, do not keep a send-ready prompt file under its
+active name: keep only the list of conditions there and park any draft fields in a versioned copy.
 
 1. canon — which image / previz is the truth for positions and sides (a keyframe and a wide previz can disagree);
 2. subject scope — what the clip must contain (e.g. kit only, or the band);

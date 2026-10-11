@@ -3,11 +3,15 @@ Run: python3 -B skills/stepwise-scene-production/scripts/test_render_stages.py""
 import hashlib
 import json
 import os
+import shutil
+import signal
 import struct
 import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
+import time
 import unittest
 import zlib
 from unittest import mock
@@ -28,6 +32,8 @@ FAKE = textwrap.dedent('''\
     stage = [l.split('"')[1] for l in open(scene) if l.startswith("STAGE = ")][0]
     mode = os.environ.get("FAKE_MODE", "ok")
     if mode == "hang":
+        if os.environ.get("FAKE_MARK"):
+            open(os.environ["FAKE_MARK"], "w").write(str(os.getpid()))
         time.sleep(60)
     if mode == "fail:" + stage:
         print("Error: fake failure"); sys.exit(3)
@@ -47,6 +53,15 @@ FAKE = textwrap.dedent('''\
                "materials": []}}, open(os.environ["STEPWISE_META"], "w"))
     print("previz: done", out)
     ''').format(py=sys.executable)
+
+FAKE_FFMPEG = textwrap.dedent('''\
+    #!{py}
+    import os, sys, time
+    if any("xstack" in x for x in sys.argv):   # the contact sheet: hang until signalled
+        open(os.environ["FAKE_MARK"], "w").write(str(os.getpid()))
+        time.sleep(60)
+    os.execv({real!r}, ["ffmpeg"] + sys.argv[1:])
+    ''')
 
 SCENE = 'ORDER = ["layout", "form", "material", "motion"]\nSTAGE = "layout"\n# writes STEPWISE_META\n'
 
@@ -78,6 +93,7 @@ class RunnerTest(unittest.TestCase):
     def tearDown(self):
         self.ps.stop()
         os.environ.pop("FAKE_MODE", None)
+        os.environ.pop("FAKE_MARK", None)
         self.tmp.cleanup()
 
     def main(self, out, *extra):
@@ -169,6 +185,74 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(self.main(out, "--stages", "layout"), 2)
         self.assertFalse(os.path.exists(out))
         self.ps.start()
+
+    def send_when_marked(self, sig):
+        """Send `sig` to this test process once the fake child has written its mark (it is then blocked in it)."""
+        mark = os.path.join(self.tmp.name, "mark")
+        os.environ["FAKE_MARK"] = mark
+
+        def go():
+            for _ in range(200):
+                if os.path.exists(mark):
+                    time.sleep(0.2)
+                    os.kill(os.getpid(), sig)
+                    return
+                time.sleep(0.05)
+        threading.Thread(target=go, daemon=True).start()
+
+    def test_sigterm_during_stage_stops_own_child_and_writes_receipt(self):
+        os.environ["FAKE_MODE"] = "hang"
+        before = signal.getsignal(signal.SIGTERM)
+        out = os.path.join(self.tmp.name, "term")
+        self.send_when_marked(signal.SIGTERM)
+        self.assertEqual(self.main(out, "--stages", "layout,form"), 130)
+        r = self.receipt(out)
+        self.assertEqual(r["status"], "interrupted")
+        self.assertIn("during stages", r["error"])
+        self.assertTrue(all(p["returncode"] is not None for p in r["cleanup"]["started"]))
+        self.assertEqual(r["cleanup"]["running_after_cleanup"], [])
+        self.assertIs(signal.getsignal(signal.SIGTERM), before)
+
+    def test_ctrl_c_during_contact_sheet_stops_own_ffmpeg_and_writes_receipt(self):
+        real = shutil.which("ffmpeg")
+        fake = os.path.join(os.path.dirname(self.blender), "ffmpeg")
+        with open(fake, "w") as f:
+            f.write(FAKE_FFMPEG.format(py=sys.executable, real=real))
+        os.chmod(fake, 0o755)
+        out = os.path.join(self.tmp.name, "intr")
+        self.send_when_marked(signal.SIGINT)
+        with mock.patch.dict(os.environ, {"PATH": os.path.dirname(fake) + os.pathsep + os.environ["PATH"]}):
+            self.assertEqual(self.main(out, "--stages", "layout"), 130)
+        r = self.receipt(out)
+        self.assertEqual(r["status"], "interrupted")
+        self.assertIn("during contact_sheet", r["error"])
+        self.assertEqual([(s["stage"], s["ok"]) for s in r["stages"]], [("layout", True)])
+        ff = [p for p in r["cleanup"]["started"] if p["program"] == "ffmpeg"]
+        self.assertEqual(len(ff), 1)
+        self.assertIsNotNone(ff[0]["returncode"])
+        self.assertEqual(r["cleanup"]["running_after_cleanup"], [])
+        self.assertNotIn("contact_sheet", r)
+
+    def test_out_inside_any_checkout_is_refused(self):
+        t = self.tmp.name
+        main = os.path.join(t, "repo")
+        g = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "core.hooksPath=/dev/null"]
+        subprocess.run(["git", "init", "-q", main], check=True)
+        subprocess.run(g + ["-C", main, "commit", "-q", "--allow-empty", "-m", "x"], check=True)
+        wt = os.path.join(t, "wt")
+        subprocess.run(g + ["-C", main, "worktree", "add", "-q", "-b", "b", wt], check=True)
+        os.symlink(main, os.path.join(t, "link"))
+        with mock.patch.object(rs, "REPO", wt):  # the runner lives in one worktree of `repo`
+            for out in (os.path.join(main, "o"), os.path.join(wt, "o"), os.path.join(t, "link", "o"),
+                        os.path.join(main, ".git", "o")):
+                self.assertEqual(self.main(out, "--stages", "layout"), 2, out)
+                self.assertFalse(os.path.lexists(out), out)
+            ok = os.path.join(t, "outside")
+            self.assertEqual(self.main(ok, "--stages", "layout"), 0)
+        with mock.patch.object(rs, "REPO", os.path.join(t, "fakebin")):  # not a git checkout: unverifiable
+            out = os.path.join(t, "nogit")
+            self.assertEqual(self.main(out, "--stages", "layout"), 2)
+            self.assertFalse(os.path.exists(out))
 
     def test_classify(self):
         rows = [(11, "/Applications/Blender.app/Contents/MacOS/Blender -b x.blend"),

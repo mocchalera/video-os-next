@@ -8,15 +8,19 @@
 Scene contract (see SKILL.md §3): one line `STAGE = "<name>"` (and optionally `ORDER = [...]`), and the scene writes
 JSON to os.environ["STEPWISE_META"] with keys stage, camera, look_at, unseen_guessed, mesh_objects, materials.
 
-Each run needs a fresh --out (it refuses an existing path, so earlier runs stay untouched). Each stage gets its own
+Each run needs a fresh --out outside every checkout of this repo (main checkout and all worktrees from
+`git worktree list`, symlinks resolved); an existing path is refused, so earlier runs stay untouched. Each stage gets its own
 scene copy (<out>/<NN>_<stage>/scene.py) with the STAGE line replaced, rendered by the repo driver
 (python/blender_previz.py: beauty + depth) — one Blender job at a time, a resource check before every job.
 Stills: stages before `motion` render 1 frame; `motion` renders --motion-frames and gets start/mid/end stills + mp4s.
 contact_sheet.png is built only from the stages that succeeded in this run.
 
-receipt.json is written on success, failure, timeout and Ctrl-C (status says which): Blender version, engine, size,
+receipt.json is written on success, failure, timeout, Ctrl-C and SIGTERM in any phase once --out exists (`status`,
+`phase`) — not on SIGKILL; a signal in the instant between a child's start and its registration can leave that child
+untracked, and a second signal while the receipt is being written can cut it short. It holds: Blender version, engine, size,
 frames, wall time, exact commands, runner / driver / scene / reference / output hashes, camera numbers and the move,
-depth range, guessed shapes, preflight per stage, and the state of every process this run started.
+depth range, guessed shapes, preflight per stage, and the state of every process this run started. File hashes are byte
+identity: PNG render metadata changes them even when pixels are identical (compare pixels with ffmpeg -lavfi psnr).
 Only processes started here (their Popen handles) are ever signalled. Python bytecode is not written (Blender's
 embedded Python included); Blender may still use the system temp dir. Stdlib only.
 """
@@ -62,6 +66,34 @@ REPORT_ONLY = [
 
 class Stop(Exception):
     """Abort the run; the receipt records why."""
+
+
+class Interrupted(BaseException):
+    """SIGTERM to the runner (Ctrl-C arrives as KeyboardInterrupt); handled like it."""
+
+
+def _on_sigterm(signum, frame):
+    raise Interrupted(f"signal {signum}")
+
+
+def known_roots(repo):
+    """Real paths of every checkout of this repo (main checkout + all worktrees) and its common git dir, read with
+    `git worktree list --porcelain` (read-only). Raises Stop when git cannot answer — the check is then unverifiable."""
+    try:
+        wl = subprocess.run(["git", "-C", repo, "worktree", "list", "--porcelain"], capture_output=True, text=True, timeout=20)
+        cd = subprocess.run(["git", "-C", repo, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                            capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise Stop(f"cannot list this repo's checkouts ({e}); --out location unverifiable")
+    if wl.returncode != 0 or cd.returncode != 0:
+        raise Stop("git could not list this repo's checkouts; --out location unverifiable")
+    roots = {os.path.realpath(repo), os.path.realpath(cd.stdout.strip())}
+    roots |= {os.path.realpath(l[len("worktree "):]) for l in wl.stdout.splitlines() if l.startswith("worktree ")}
+    return sorted(roots)
+
+
+def within(path, root):
+    return os.path.commonpath([path, root]) == root
 
 
 def sha(path):
@@ -156,11 +188,13 @@ def validate(a, template):
     out = os.path.abspath(a.out)
     if os.path.lexists(out):
         raise Stop(f"--out {out} exists; give a new directory (earlier runs are kept as they are)")
-    if out == REPO or out.startswith(REPO + os.sep):
-        raise Stop(f"--out {out} is inside the repo; write outside it")
     parent = os.path.dirname(out)
     if not os.path.isdir(parent):
         raise Stop(f"--out parent {parent} does not exist")
+    real = os.path.join(os.path.realpath(parent), os.path.basename(out))  # symlinks resolved
+    hit = [r for r in known_roots(REPO) if within(real, r)]
+    if hit:
+        raise Stop(f"--out {out} is inside a checkout of this repo ({hit[0]}); write outside every checkout")
     for r in a.ref:
         if not os.path.isfile(r):
             raise Stop(f"--ref {r} not found")
@@ -205,6 +239,8 @@ class Runner:
         running = [p.pid for p, _ in self.procs if p.poll() is None]
         for p, _ in self.procs:
             self.stop(p)
+            if p.stdout and not p.stdout.closed:  # left open when a signal interrupted communicate()
+                p.stdout.close()
         return {"started": [{"pid": p.pid, "program": lbl, "returncode": p.returncode} for p, lbl in self.procs],
                 "running_at_cleanup": running, "running_after_cleanup": [p.pid for p, _ in self.procs if p.poll() is None]}
 
@@ -221,120 +257,74 @@ def move_summary(meta, frames, fps):
             "note": "valid for this frame count only; a different frame count changes speed and timing"}
 
 
-def main(argv=None):
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--scene", required=True)
-    ap.add_argument("--ref", action="append", default=[], help="reference image(s); hashed into the receipt")
-    ap.add_argument("--out", required=True, help="a NEW directory outside the repo")
-    ap.add_argument("--stages", default="layout,form,material,motion")
-    ap.add_argument("--size", default="512x288")
-    ap.add_argument("--motion-frames", type=int, default=48)
-    ap.add_argument("--fps", type=int, default=24)
-    ap.add_argument("--min-free-gib", type=float, default=15.0)
-    ap.add_argument("--stage-timeout", type=float, default=900)
-    ap.add_argument("--blender", default=os.environ.get("VOS_BLENDER", MAC_BLENDER))
-    ap.add_argument("--save-blend", action="store_true",
-                    help="also save each stage as .blend: a snapshot of the scene BEFORE the driver sets engine, samples "
-                         "and view transform — for inspection; reproduce with the receipt's command")
-    a = ap.parse_args(argv)
+def render_all(a, runner, receipt, template, out, stages, w, h):
+    v = runner.run([a.blender, "--version"], timeout=60)[1].strip().splitlines()
+    receipt["blender"] = v[0] if v else "unknown"
+    for i, st in enumerate(stages, 1):
+        d = os.path.join(out, f"{i:02d}_{st}")
+        os.makedirs(d)
+        entry = {"stage": st, "ok": False, "dir": os.path.relpath(d, out)}
+        receipt["stages"].append(entry)
+        entry["preflight"] = resource_check(os.path.dirname(out), a)
+        scene = os.path.join(d, "scene.py")
+        with open(scene, "w") as f:
+            f.write(re.sub(r'^STAGE = "[a-z_]+"$', f'STAGE = "{st}"', template, count=1, flags=re.M))
+        frames = a.motion_frames if st == "motion" else 1
+        env = dict(os.environ, STEPWISE_META=os.path.join(d, "stage_meta.json"), PYTHONDONTWRITEBYTECODE="1")
+        if a.save_blend:
+            env["STEPWISE_BLEND"] = os.path.join(d, f"{st}.blend")
+        cmd = [a.blender, "--factory-startup", "-b", "--python-expr", NO_BYTECODE, "-P", DRIVER, "--",
+               "--scene", scene, "--out", d, "--width", str(w), "--height", str(h), "--frames", str(frames),
+               "--fps", str(a.fps)]
+        entry.update(command=cmd, frames=frames, scene=os.path.relpath(scene, out), scene_sha256=sha(scene))
+        rc, log, secs = runner.run(cmd, env=env, timeout=a.stage_timeout, log_path=os.path.join(d, "blender.log"))
+        entry["seconds"] = secs
+        if rc != 0 or "previz: done" not in log:
+            entry.update(returncode=rc, log_tail=log[-1500:])
+            raise Stop(f"stage {st}: Blender failed (rc={rc}); see {entry['dir']}/blender.log")
+        meta_path = os.path.join(d, "stage_meta.json")
+        if not os.path.exists(meta_path):
+            raise Stop(f"stage {st}: the scene wrote no STEPWISE_META file")
+        with open(meta_path) as f:
+            meta = json.load(f)
+        missing = [k for k in META_KEYS if k not in meta]
+        if missing:
+            raise Stop(f"stage {st}: STEPWISE_META lacks {missing}")
+        with open(os.path.join(d, "previz.json")) as f:
+            pv = json.load(f)
+        files = {}
+        if st == "motion":
+            mid = (frames + 1) // 2
+            for tag, fr in (("start", 1), ("mid", mid), ("end", frames)):
+                files[f"motion_{tag}"] = os.path.join(out, f"motion_{tag}.png")
+                shutil.copy(os.path.join(d, "beauty", f"{fr:04d}.png"), files[f"motion_{tag}"])
+            files["motion_depth_start"] = os.path.join(out, "motion_depth_start.png")
+            shutil.copy(os.path.join(d, "depth", "0001.png"), files["motion_depth_start"])
+            for p in ("beauty", "depth"):
+                mp4 = os.path.join(out, f"motion_{p}.mp4")
+                erc, elog, _ = runner.run(["ffmpeg", "-v", "error", "-y", "-framerate", str(a.fps), "-i",
+                                           os.path.join(d, p, "%04d.png"), "-c:v", "libx264", "-crf", "20",
+                                           "-pix_fmt", "yuv420p", mp4], timeout=300)
+                if erc != 0:
+                    raise Stop(f"stage {st}: ffmpeg failed: {elog[-300:]}")
+                files[f"motion_{p}_mp4"] = mp4
+        else:
+            for p, suffix in (("beauty", ""), ("depth", "_depth")):
+                files[p] = os.path.join(out, f"{i:02d}_{st}{suffix}.png")
+                shutil.copy(os.path.join(d, p, "0001.png"), files[p])
+                shutil.rmtree(os.path.join(d, p))  # the copied still is the record; frames are reproducible
+        blend = env.get("STEPWISE_BLEND")
+        entry.update(ok=True, engine=pv["engine"], blender=pv["blender"], depth=pv["depth"], camera=meta["camera"],
+                     look_at=meta["look_at"], move=move_summary(meta, frames, a.fps), mesh_objects=meta["mesh_objects"],
+                     materials=meta["materials"], unseen_guessed=meta["unseen_guessed"],
+                     blend=os.path.relpath(blend, out) if blend and os.path.exists(blend) else None,
+                     outputs={k: {"path": os.path.relpath(v, out), "sha256": sha(v), "bytes": os.path.getsize(v)}
+                              for k, v in files.items()})
+        print(f"stage {st}: ok in {secs}s", flush=True)
 
-    try:
-        with open(a.scene) as f:
-            template = f.read()
-        out, stages, w, h = validate(a, template)
-        pre = resource_check(os.path.dirname(out), a)
-    except Stop as e:
-        print(json.dumps({"ok": False, "status": "refused", "error": str(e)}))
-        return 2
 
-    os.makedirs(out)
-    runner = Runner()
-    receipt = {"format": "vos.stepwise-trial/2", "status": "running", "runner": os.path.relpath(__file__, REPO),
-               "runner_sha256": sha(__file__), "blender_bin": a.blender, "driver": os.path.relpath(DRIVER, REPO),
-               "driver_sha256": sha(DRIVER), "scene_template": os.path.relpath(os.path.abspath(a.scene), REPO)
-               if os.path.abspath(a.scene).startswith(REPO + os.sep) else os.path.basename(a.scene),
-               "scene_template_sha256": sha(a.scene),
-               "references": [{"path": r, "sha256": sha(r), "bytes": os.path.getsize(r)} for r in a.ref],
-               "requested_stages": stages, "size": [w, h], "fps": a.fps, "motion_frames": a.motion_frames,
-               "preflight": pre, "stages": [], "started": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-               "blend_note": "a .blend is the scene before the driver sets engine/samples/view transform; "
-                             "the reproduction path is re-running stages[].command"}
-    t_all = time.time()
-    try:
-        v = runner.run([a.blender, "--version"], timeout=60)[1].strip().splitlines()
-        receipt["blender"] = v[0] if v else "unknown"
-        for i, st in enumerate(stages, 1):
-            d = os.path.join(out, f"{i:02d}_{st}")
-            os.makedirs(d)
-            entry = {"stage": st, "ok": False, "dir": os.path.relpath(d, out)}
-            receipt["stages"].append(entry)
-            entry["preflight"] = resource_check(os.path.dirname(out), a)
-            scene = os.path.join(d, "scene.py")
-            with open(scene, "w") as f:
-                f.write(re.sub(r'^STAGE = "[a-z_]+"$', f'STAGE = "{st}"', template, count=1, flags=re.M))
-            frames = a.motion_frames if st == "motion" else 1
-            env = dict(os.environ, STEPWISE_META=os.path.join(d, "stage_meta.json"), PYTHONDONTWRITEBYTECODE="1")
-            if a.save_blend:
-                env["STEPWISE_BLEND"] = os.path.join(d, f"{st}.blend")
-            cmd = [a.blender, "--factory-startup", "-b", "--python-expr", NO_BYTECODE, "-P", DRIVER, "--",
-                   "--scene", scene, "--out", d, "--width", str(w), "--height", str(h), "--frames", str(frames),
-                   "--fps", str(a.fps)]
-            entry.update(command=cmd, frames=frames, scene=os.path.relpath(scene, out), scene_sha256=sha(scene))
-            rc, log, secs = runner.run(cmd, env=env, timeout=a.stage_timeout, log_path=os.path.join(d, "blender.log"))
-            entry["seconds"] = secs
-            if rc != 0 or "previz: done" not in log:
-                entry.update(returncode=rc, log_tail=log[-1500:])
-                raise Stop(f"stage {st}: Blender failed (rc={rc}); see {entry['dir']}/blender.log")
-            meta_path = os.path.join(d, "stage_meta.json")
-            if not os.path.exists(meta_path):
-                raise Stop(f"stage {st}: the scene wrote no STEPWISE_META file")
-            with open(meta_path) as f:
-                meta = json.load(f)
-            missing = [k for k in META_KEYS if k not in meta]
-            if missing:
-                raise Stop(f"stage {st}: STEPWISE_META lacks {missing}")
-            with open(os.path.join(d, "previz.json")) as f:
-                pv = json.load(f)
-            files = {}
-            if st == "motion":
-                mid = (frames + 1) // 2
-                for tag, fr in (("start", 1), ("mid", mid), ("end", frames)):
-                    files[f"motion_{tag}"] = os.path.join(out, f"motion_{tag}.png")
-                    shutil.copy(os.path.join(d, "beauty", f"{fr:04d}.png"), files[f"motion_{tag}"])
-                files["motion_depth_start"] = os.path.join(out, "motion_depth_start.png")
-                shutil.copy(os.path.join(d, "depth", "0001.png"), files["motion_depth_start"])
-                for p in ("beauty", "depth"):
-                    mp4 = os.path.join(out, f"motion_{p}.mp4")
-                    erc, elog, _ = runner.run(["ffmpeg", "-v", "error", "-y", "-framerate", str(a.fps), "-i",
-                                               os.path.join(d, p, "%04d.png"), "-c:v", "libx264", "-crf", "20",
-                                               "-pix_fmt", "yuv420p", mp4], timeout=300)
-                    if erc != 0:
-                        raise Stop(f"stage {st}: ffmpeg failed: {elog[-300:]}")
-                    files[f"motion_{p}_mp4"] = mp4
-            else:
-                for p, suffix in (("beauty", ""), ("depth", "_depth")):
-                    files[p] = os.path.join(out, f"{i:02d}_{st}{suffix}.png")
-                    shutil.copy(os.path.join(d, p, "0001.png"), files[p])
-                    shutil.rmtree(os.path.join(d, p))  # the copied still is the record; frames are reproducible
-            blend = env.get("STEPWISE_BLEND")
-            entry.update(ok=True, engine=pv["engine"], blender=pv["blender"], depth=pv["depth"], camera=meta["camera"],
-                         look_at=meta["look_at"], move=move_summary(meta, frames, a.fps), mesh_objects=meta["mesh_objects"],
-                         materials=meta["materials"], unseen_guessed=meta["unseen_guessed"],
-                         blend=os.path.relpath(blend, out) if blend and os.path.exists(blend) else None,
-                         outputs={k: {"path": os.path.relpath(v, out), "sha256": sha(v), "bytes": os.path.getsize(v)}
-                                  for k, v in files.items()})
-            print(f"stage {st}: ok in {secs}s", flush=True)
-        receipt["status"] = "ok"
-    except Stop as e:
-        receipt.update(status="failed", error=str(e))
-    except KeyboardInterrupt:
-        receipt.update(status="interrupted", error="KeyboardInterrupt")
-    except Exception as e:  # noqa: BLE001 — record, clean up, then report
-        receipt.update(status="failed", error=f"{type(e).__name__}: {e}")
-    finally:
-        receipt["cleanup"] = runner.cleanup()
-
-    # contact sheet from this run's successful stages only
+def contact_sheet(a, runner, receipt, out, w, h):
+    """From this run's successful stages only."""
     done = [s for s in receipt["stages"] if s.get("ok")]
     tiles = [(a.ref[0], "reference")] if a.ref else []
     for s in done:
@@ -369,24 +359,87 @@ def main(argv=None):
                 receipt["contact_sheet_error"] = log[-800:]
         except Exception as e:  # noqa: BLE001
             receipt["contact_sheet_error"] = f"{type(e).__name__}: {e}"
-        finally:
-            receipt["cleanup"] = runner.cleanup()
 
-    receipt["total_seconds"] = round(time.time() - t_all, 2)
+
+def main(argv=None):
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--scene", required=True)
+    ap.add_argument("--ref", action="append", default=[], help="reference image(s); hashed into the receipt")
+    ap.add_argument("--out", required=True, help="a NEW directory outside the repo")
+    ap.add_argument("--stages", default="layout,form,material,motion")
+    ap.add_argument("--size", default="512x288")
+    ap.add_argument("--motion-frames", type=int, default=48)
+    ap.add_argument("--fps", type=int, default=24)
+    ap.add_argument("--min-free-gib", type=float, default=15.0)
+    ap.add_argument("--stage-timeout", type=float, default=900)
+    ap.add_argument("--blender", default=os.environ.get("VOS_BLENDER", MAC_BLENDER))
+    ap.add_argument("--save-blend", action="store_true",
+                    help="also save each stage as .blend: a snapshot of the scene BEFORE the driver sets engine, samples "
+                         "and view transform — for inspection; reproduce with the receipt's command")
+    a = ap.parse_args(argv)
+
     try:
-        block, report = classify(ps_rows(), a.blender)
-        post_procs = {"blocking_processes": block, "reported_processes": report}
+        with open(a.scene) as f:
+            template = f.read()
+        out, stages, w, h = validate(a, template)
+        pre = resource_check(os.path.dirname(out), a)
     except Stop as e:
-        post_procs = {"error": str(e)}
-    receipt["post"] = {"free_gib_internal": free_gib("/"), "free_gib_out": free_gib(out),
-                       "out_bytes": sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(out) for f in fs),
-                       **post_procs}
-    with open(os.path.join(out, "receipt.json"), "w") as f:
-        json.dump(receipt, f, indent=1)
+        print(json.dumps({"ok": False, "status": "refused", "error": str(e)}))
+        return 2
+
+    runner = Runner()
+    receipt = {"format": "vos.stepwise-trial/2", "status": "running", "phase": "setup"}
+    t_all = time.time()
+    old_term = signal.signal(signal.SIGTERM, _on_sigterm)
+    try:
+        os.makedirs(out)
+        receipt.update({
+            "runner": os.path.relpath(__file__, REPO), "runner_sha256": sha(__file__), "blender_bin": a.blender,
+            "driver": os.path.relpath(DRIVER, REPO), "driver_sha256": sha(DRIVER),
+            "scene_template": os.path.relpath(os.path.abspath(a.scene), REPO)
+            if os.path.abspath(a.scene).startswith(REPO + os.sep) else os.path.basename(a.scene),
+            "scene_template_sha256": sha(a.scene),
+            "references": [{"path": r, "sha256": sha(r), "bytes": os.path.getsize(r)} for r in a.ref],
+            "requested_stages": stages, "size": [w, h], "fps": a.fps, "motion_frames": a.motion_frames,
+            "preflight": pre, "stages": [], "started": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "hash_note": "sha256 = byte identity; PNGs carry render metadata (date, render time), so a re-render with "
+                         "identical pixels has another hash — compare pixels with e.g. ffmpeg -lavfi psnr (inf = identical)",
+            "blend_note": "a .blend is the scene before the driver sets engine/samples/view transform; "
+                          "the reproduction path is re-running stages[].command"})
+        receipt["phase"] = "stages"
+        try:
+            render_all(a, runner, receipt, template, out, stages, w, h)
+            receipt["status"] = "ok"
+        except Stop as e:
+            receipt.update(status="failed", error=str(e))
+        except Exception as e:  # noqa: BLE001 — record, clean up, then report
+            receipt.update(status="failed", error=f"{type(e).__name__}: {e}")
+        receipt["cleanup"] = runner.cleanup()
+        receipt["phase"] = "contact_sheet"
+        contact_sheet(a, runner, receipt, out, w, h)
+        receipt["phase"] = "post"
+        try:
+            block, report = classify(ps_rows(), a.blender)
+            post_procs = {"blocking_processes": block, "reported_processes": report}
+        except Stop as e:
+            post_procs = {"error": str(e)}
+        receipt["post"] = {"free_gib_internal": free_gib("/"), "free_gib_out": free_gib(out),
+                           "out_bytes": sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(out) for f in fs),
+                           **post_procs}
+        receipt["phase"] = "done"
+    except (KeyboardInterrupt, Interrupted) as e:
+        receipt.update(status="interrupted", error=f"{type(e).__name__} {e}".strip() + f" during {receipt['phase']}")
+    finally:
+        receipt["cleanup"] = runner.cleanup()  # only this run's Popen handles, only while still running
+        receipt["total_seconds"] = round(time.time() - t_all, 2)
+        if os.path.isdir(out):
+            with open(os.path.join(out, "receipt.json"), "w") as f:
+                json.dump(receipt, f, indent=1)
+        signal.signal(signal.SIGTERM, old_term)
     ok = receipt["status"] == "ok"
     print(json.dumps({"ok": ok, "status": receipt["status"], "error": receipt.get("error"),
                       "receipt": os.path.join(out, "receipt.json"), "total_seconds": receipt["total_seconds"]}))
-    return 0 if ok else 1
+    return 0 if ok else (130 if receipt["status"] == "interrupted" else 1)
 
 
 if __name__ == "__main__":
