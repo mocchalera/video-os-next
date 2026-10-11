@@ -40,6 +40,8 @@ Rules for every stage:
 - Parts the reference does not show (backs, hidden legs, pedals, the set beyond the frame) are **guesses** — list them
   in the scene (`UNSEEN`) and in the record. Do not describe a guessed part as matched.
 - "Looks right" is your judgement, not the human's. Record human adoption as **not measured** until a human decides.
+  Accepting a stage means "the workflow can continue", not "matches the reference pixel for pixel": write down which
+  image you fitted against and what still differs (sizes, crops, colours).
 - Draft size (512×288 or similar, multiples of 32) and ≤ 48 frames until the stage is accepted. No simulations, no
   path-traced finals, no model loads during the stages.
 
@@ -48,36 +50,64 @@ condition hit or not, open items).
 
 ## 3. Running it
 
-The scene script needs one line `STAGE = "layout"` and builds up to that stage (`ORDER.index(STAGE)`); worked
-example: `examples/previz/stepwise_drum_kit.py`. Render all stages, one Blender job at a time:
+Scene contract (worked example `examples/previz/stepwise_drum_kit.py`):
+
+- one line `STAGE = "layout"`; optionally `ORDER = [...]` (default layout, form, material, motion); the scene builds up
+  to `ORDER.index(STAGE)`;
+- it writes JSON to `os.environ["STEPWISE_META"]` with `stage`, `camera` (`{"<frame>": {location, rotation_deg,
+  lens_mm, sensor_mm}}` for frame 1 and the last frame), `look_at`, `unseen_guessed` (list), `mesh_objects`,
+  `materials` — the runner stops the run if the file or a key is missing;
+- optionally saves `os.environ["STEPWISE_BLEND"]` (a snapshot **before** the driver sets engine, samples and view
+  transform, so it opens with another look; reproduce from the receipt's command, not from the .blend).
+
+Render, one Blender job at a time, into a **new** directory outside the repo:
 
 ```bash
-python3 skills/stepwise-scene-production/scripts/render_stages.py --scene <scene.py> --ref <reference.png> \
-  --out <dir outside the repo> [--stages layout,form,material,motion] [--size 512x288] [--motion-frames 48] [--save-blend]
+python3 -B skills/stepwise-scene-production/scripts/render_stages.py --scene <scene.py> --ref <reference.png> \
+  --out <new dir outside the repo> [--stages layout,form,material,motion] [--size 512x288] [--motion-frames 48] [--save-blend]
 ```
 
-It refuses to start below `--min-free-gib` (15) free on `/` or while another Blender/ffmpeg runs, writes each stage's
-scene copy, stills, depth, motion start/mid/end, mp4s, `contact_sheet.png` and `receipt.json` (Blender version,
-engine, size, frames, wall time, exact commands, reference / scene / output hashes, camera numbers per stage, depth
-range, guessed shapes, preflight, and that every process it started has exited). It never touches other processes.
+Before creating anything it checks the arguments (known stage names, no duplicates, scene order, size a multiple of
+32 and ≤ 768p pixels, 1–124 frames, fps, `--out` new and outside the repo). Before the run and again before every
+stage it refuses when `/` or the output volume has less than `--min-free-gib` (15) free, when the process table
+cannot be read, or when another Blender (any path, including `--blender`), ffmpeg, `llama-server`, `ollama runner`
+(a loaded model), a vos model worker, ComfyUI or MLX is running; `blender-mcp`, the Blender Quick Look thumbnailer and
+an idle `ollama serve` are only reported. It writes each stage's scene copy, stills, depth, motion start/mid/end,
+mp4s, `contact_sheet.png` (only the stages that succeeded in this run) and `receipt.json` — also on failure, timeout
+or Ctrl-C (`status`). The receipt has the runner, driver, scene, reference and output hashes, exact commands, camera
+numbers and the move (`stages[].move`: distance, seconds, m/s for that frame count), depth range, guessed shapes,
+preflight per stage, and every process the run started with its exit code. Only those processes (their own handles)
+are ever signalled. Python bytecode is not written; Blender may still use the system temp dir.
 Look at the contact sheet and the full-size stills yourself before accepting a stage.
+Offline test (fake Blender, no render): `python3 -B skills/stepwise-scene-production/scripts/test_render_stages.py`.
 
-The per-stage `scene.py` also works unchanged with `vos previz render <scene.py> --size draft --as pv` when the shot
-moves on to a project (that path ingests into `assets.json`; the script above does not).
+The per-stage `scene.py` also works with `vos previz render <scene.py> --size draft --as pv` when the shot moves on
+to a project — that ingests into `assets.json`, so it needs the project owner's go-ahead.
 
 ## 4. Hand-off to H3 (previz route)
 
 Order: this skill (stages 1, 2, 4) → `../previz-camera/SKILL.md` §6 checks at the real size
 (`vos previz render … --size draft|768p --seconds N`, which snaps frames to H3's 17k+5 grid) → `../h3-prompt/SKILL.md`.
 
+**A hand-off is READY only when all of these agree; until then mark it BLOCKED and list what disagrees:**
+
+1. canon — which image / previz is the truth for positions and sides (a keyframe and a wide previz can disagree);
+2. subject scope — what the clip must contain (e.g. kit only, or the band);
+3. depth content — every silhouette in the control is something the prompt defines. A scale proxy left in the depth
+   is generated as *something* (a person, a pillar): remove it for a scope without people, or replace it with
+   `rig.actor` players and define them;
+4. refs content — the `--refs` images show only what is in scope, or the prompt says which parts of them to use;
+5. prompt — describes the same subjects, the same move and the same duration as the control render.
+
 Hand over:
 
 | Item | Goes to | From |
 |---|---|---|
-| depth pass `<pv>_depth` (geometry + camera move) | `--control` | the accepted motion stage, re-rendered by `vos previz render` |
-| camera numbers (position, look-at, lens, move amplitude/speed/ease) | prompt §4: describe the **same** move | `receipt.json` → `stages[].camera` |
+| depth pass `<pv>_depth` (geometry + camera move) | `--control` | the accepted motion stage, re-rendered by `vos previz render` at the generation size |
+| camera numbers (position, look-at, lens, ease) | prompt §4: describe the **same** move | `receipt.json` → `stages[].camera` |
+| move speed and timing | prompt §4 ("slow", "over N seconds") | **recomputed for the hand-off render's frame count**: a move keyed over the whole clip keeps its distance but changes speed (48 f → 1.96 s; `--seconds 2` → 56 f = 2.29 s; `--seconds 5` → 124 f), and beat-timed motion lands on different frames |
 | counts, sides, relative sizes fixed in the set | `subject_definitions` | layout / form record |
-| the reference still (look, colour, material, light) | `--refs` (and a `--guides <kf>=0` if the opening frame must match) | stage 0 |
+| the reference still (look, colour, material, light) | `--refs` (and a `--guides <kf>=0` if the opening frame must match) | stage 0, checked against condition 4 |
 | material / light notes (gloss, colour of the set, light direction) | prompt description | material record, or the reference |
 | guessed (unseen) shapes | keep out of the prompt; check them in `vos look` after generation | `UNSEEN` |
 
@@ -86,9 +116,12 @@ clay-to-material look would pull the generation toward CG.
 
 ## Field notes
 
-- 2026-10-11, shoegaze-runner-mv s14c kit subset (reference = MV frame at 01:13, keyframe `kf_s14c`), 512×288,
-  EEVEE, Blender 5.2: layout→form→material ≈ 0.7 s each, 48-frame motion 10.9 s. Camera fitted by eye in 3 layout
-  renders. First material pass was blown out (area lights 1400/450/900 W under the driver's Standard view transform);
-  220/70/380 W read like the reference. The reference (a generated keyframe) puts the bassist left of the kit while
-  `previz_scenes/s14_band_wide.py` has her right of it — the keyframes did not keep the wide shot's geometry;
-  decide which is canon before generating a sequence. H3 not run.
+- 2026-10-11, shoegaze-runner-mv s14c kit subset, 512×288, EEVEE, Blender 5.2: layout→form→material ≈ 0.7 s each,
+  48-frame motion 10.9 s. Reference = a scratch frame of an MV render at 01:13 (caption/shot list → s14c; which
+  clip version it shows is not confirmed — the current timeline uses `clip_s14c_v22`); its keyframe `kf_s14c` was
+  viewed too. Camera fitted by eye in 3 layout renders, accepted as a workflow step, not a match: the kick is ≈ 0.19
+  of the frame width vs ≈ 0.27 in the scratch frame (closer to kf_s14c's ≈ 0.21), and the stand-in's head touches the
+  top edge and leaves the frame at the end of the push-in. First material pass was blown out (area lights
+  1400/450/900 W under the driver's Standard view transform); 220/70/380 W read like the reference. The reference
+  puts the bassist left of the kit while `previz_scenes/s14_band_wide.py` has her right of it — canon undecided. The
+  H3 hand-off draft was BLOCKED (stand-in silhouette in the depth, two players in the ref, kit-only prompt). H3 not run.

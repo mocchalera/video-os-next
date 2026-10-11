@@ -126,8 +126,12 @@ else:
         rod(f"kick_spur{k}", (KICK[1][0] + k * 0.3, KICK[1][1] - 0.15, DISC_TOP),
             (KICK[1][0] + k * 0.2, KICK[1][1] - 0.05, KICK[1][2]))
 
-# one clay stand-in where the bassist stands (scale reference only; not a performer rebuild)
-stand_in = rig.person(at=(-0.5, 1.75, 0), height=1.68, facing=15, name="standin_bassist")
+# One clay stand-in where the bassist stands (scale reference only; not a performer rebuild). It is in the depth pass
+# too, as the nearest silhouette: a depth control would make H3 generate *something* there. For a kit-only control
+# render set SCALE_PROXY = False (after checking scale with it on); for a band shot replace it with rig.actor players.
+SCALE_PROXY = True
+if SCALE_PROXY:
+    stand_in = rig.person(at=(-0.5, 1.75, 0), height=1.68, facing=15, name="standin_bassist")
 
 # ---- camera (locked-off; numbers fitted to the reference by eye at the layout stage) ------------------------------
 CAM_AT, CAM_LOOK, LENS = (0.0, -0.7, 1.12), (0.12, 2.8, 0.98), 40
@@ -219,7 +223,8 @@ if LEVEL >= 2:
     surface(["cymbal_L", "cymbal_R"], (0.8, 0.6, 0.28), metallic=1.0, rough=0.32, wear=0.2)  # brass
     surface(["throne"], (0.05, 0.05, 0.05), rough=0.6)
 
-# ---- motion: cymbals sway after each hit on the beat, slow push-in --------------------------------------------------
+# ---- motion: cymbals sway after each beat (no stick is modelled: it is a secondary-motion test), slow push-in over the
+# WHOLE clip — speed and the number of beats depend on `frames` (48 f: 0.245 m in 1.96 s; 56 f: same distance in 2.29 s)
 if LEVEL >= 3:
     beat = 3.041 / 4 * fps  # one bar = 3.041 s in this song (shots.md); a beat ≈ 18.2 frames
     hits = [f for f in (4, 4 + beat, 4 + 2 * beat) if f <= frames]
@@ -234,7 +239,7 @@ if LEVEL >= 3:
                     w += math.radians(amp) * math.exp(-t * 3.0) * math.sin(t * 2 * math.pi * 2.2)
             ob.rotation_euler = (base[0] + w, base[1], base[2])
             ob.keyframe_insert("rotation_euler", frame=f)
-    end = tuple(CAM_AT[i] + (CAM_LOOK[i] - CAM_AT[i]) * 0.07 for i in range(3))  # 0.25 m toward the kit in 2 s
+    end = tuple(CAM_AT[i] + (CAM_LOOK[i] - CAM_AT[i]) * 0.07 for i in range(3))  # 7 % of the way to the look-at point (≈ 0.245 m), first→last frame
     rig.move(cam, [CAM_AT, end], look=CAM_LOOK, ease="inout")
 
 # ---- record what this stage is (read by skills/stepwise-scene-production/scripts/render_stages.py) ----------------
@@ -253,6 +258,8 @@ if meta_path:
         json.dump({"stage": STAGE, "camera": camera, "look_at": CAM_LOOK, "unseen_guessed": UNSEEN,
                    "mesh_objects": sum(1 for o in sc.objects if o.type == "MESH"),
                    "materials": sorted({m.name for m in bpy.data.materials if m.users})}, fh, indent=1)
+# .blend = the scene as built here, BEFORE the driver sets engine, samples and view transform (opening it shows another
+# look); reproduce renders with the command in receipt.json, not from this file.
 blend_path = os.environ.get("STEPWISE_BLEND")
 if blend_path:
     bpy.ops.wm.save_as_mainfile(filepath=blend_path, copy=True)
