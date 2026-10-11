@@ -1,6 +1,7 @@
 # Stepwise scene (skills/stepwise-scene-production): a drum kit on a white disc against a mint seamless, rebuilt from a
-# reference still (shoegaze-runner-mv s14c keyframe) one stage at a time. The kit/disc/backdrop subset only — the two
-# players are NOT rebuilt; one clay stand-in stands where the bassist is, for scale.
+# reference still (a scratch frame of the shoegaze-runner-mv MV at 01:13, cut s14c; exact clip version unconfirmed) one
+# stage at a time. The kit/disc/backdrop subset only — the two players are NOT rebuilt. A clay stand-in at the
+# bassist's place exists for scale checks only (SCALE_PROXY, off: the real-size kit holds the scale).
 # Intent (from the shot list): a deadpan two-shot, knees up, locked-off; the kit reads clearly behind the bassist.
 #
 # STAGE selects how far the build goes; every stage keeps the previous one's positions and camera:
@@ -24,17 +25,23 @@ UNSEEN = [
     "floor-tom legs below the shell (hidden by the bassist's legs)",
     "cymbal diameters and the left cymbal's stand (estimated from apparent size)",
     "disc diameter, thickness and position beyond the frame edge",
-    "how far the mint seamless curves into the floor (no horizon is visible)",
+    "how far the mint seamless curves into the floor and how far back the wall is (no seam is visible)",
+    "the camera lens (40 mm assumed; distance and height are derived from it)",
 ]
 
-# ---- set (reference: mint seamless, white disc; the kit sits at the disc's front edge) --------------------------
+# ---- set (reference: mint seamless, white disc; the kit stands near the disc's back edge) -----------------------
 MINT = (0.45, 0.8, 0.7)
 DISC_TOP = 0.2
 KIT_X = 0.35
 rig.box("floor", (0, 4, -0.05), (20, 20, 0.1), MINT)
-rig.box("cyc", (0, 7.5, 4), (20, 0.2, 8), MINT)
-bpy.ops.mesh.primitive_cylinder_add(vertices=12 if LEVEL == 0 else 96, radius=2.2, depth=DISC_TOP,
-                                    location=(KIT_X, 4.6, DISC_TOP / 2))
+# The reference shows no floor/wall seam (a seamless backdrop). The wall stands just behind the platform so the
+# floor/wall corner falls behind the platform's back edge from this low camera (before: y = 7.5, seam visible at y ≈ 0.77).
+CYC_Y = 4.4
+rig.box("cyc", (0, CYC_Y, 4), (20, 0.2, 8), MINT)
+# Composition pass (2026-10-11): in the reference the platform top shows only as a thin band (y ≈ 0.88–1.0) ending just
+# behind the cymbal stands, so the kit stands near the BACK of the disc and its front part is below the frame.
+bpy.ops.mesh.primitive_cylinder_add(vertices=12 if LEVEL == 0 else 96, radius=2.0, depth=DISC_TOP,
+                                    location=(0.0, 1.65, DISC_TOP / 2))
 disc = bpy.context.object
 disc.name = "disc"
 disc.data.materials.append(rig._material("disc", (0.95, 0.95, 0.95)))
@@ -77,12 +84,14 @@ def tripod(name, x, y, top, spread=0.28):
         rod(f"{name}_leg{k}", (x, y, DISC_TOP + 0.32), (x + spread * math.cos(a), y + spread * math.sin(a), DISC_TOP))
 
 
-# drum parts: (name, centre, diameter, depth, axis)  — real-size estimates (22" kick, 16" floor tom, 14" snare)
+# drum parts: (name, centre, diameter, depth, axis)  — real-size estimates (22" kick, 16" floor tom, 14" snare).
+# Positions fitted to approximate landmarks read off the reference (composition pass; see the stage record): the floor
+# tom tucks in left of / behind the kick, rims of tom and snare at about the same height, both cymbals at ~0.9 m.
 KICK = ("kick", (KIT_X, 2.85, DISC_TOP + 0.28), 0.56, 0.40, "y")
-TOM = ("floor_tom", (KIT_X - 0.48, 3.05, DISC_TOP + 0.66), 0.40, 0.36, "z")
-SNARE = ("snare", (KIT_X + 0.52, 3.0, DISC_TOP + 0.66), 0.36, 0.14, "z")
-CYM_L = ("cymbal_L", (KIT_X - 0.55, 3.2, DISC_TOP + 1.12), 0.42, 18)
-CYM_R = ("cymbal_R", (KIT_X + 0.95, 3.15, DISC_TOP + 1.28), 0.46, -12)
+TOM = ("floor_tom", (KIT_X - 0.23, 3.05, DISC_TOP + 0.46), 0.40, 0.36, "z")
+SNARE = ("snare", (KIT_X + 0.38, 3.0, DISC_TOP + 0.58), 0.36, 0.14, "z")
+CYM_L = ("cymbal_L", (KIT_X - 0.37, 3.2, DISC_TOP + 0.92), 0.46, 18)
+CYM_R = ("cymbal_R", (KIT_X + 0.82, 3.15, DISC_TOP + 0.92), 0.48, -12)
 THRONE = ("throne", (KIT_X + 0.1, 3.55, DISC_TOP + 0.5), 0.34, 0.08, "z")
 
 parts = {}
@@ -92,8 +101,9 @@ if LEVEL == 0:
         parts[n] = rig.box(n, at, size, C)
     for n, at, dia, tilt in (CYM_L, CYM_R):
         parts[n] = rig.box(n, at, (dia, dia, 0.02), D)
-    rig.box("snare_stand", (SNARE[1][0], SNARE[1][1], DISC_TOP + 0.29), (0.05, 0.05, 0.58), D)
-    rig.box("cymR_stand", (CYM_R[1][0], CYM_R[1][1], DISC_TOP + 0.62), (0.05, 0.05, 1.24), D)
+    sh, ch = SNARE[1][2] - 0.07 - DISC_TOP, CYM_R[1][2] - DISC_TOP
+    rig.box("snare_stand", (SNARE[1][0], SNARE[1][1], DISC_TOP + sh / 2), (0.05, 0.05, sh), D)
+    rig.box("cymR_stand", (CYM_R[1][0], CYM_R[1][1], DISC_TOP + ch / 2), (0.05, 0.05, ch), D)
 else:
     for n, at, dia, dep, ax in (KICK, TOM, SNARE, THRONE):
         rot = (math.pi / 2, 0, 0) if ax == "y" else (0, 0, 0)
@@ -129,12 +139,15 @@ else:
 # One clay stand-in where the bassist stands (scale reference only; not a performer rebuild). It is in the depth pass
 # too, as the nearest silhouette: a depth control would make H3 generate *something* there. For a kit-only control
 # render set SCALE_PROXY = False (after checking scale with it on); for a band shot replace it with rig.actor players.
-SCALE_PROXY = True
+SCALE_PROXY = False  # composition pass: kit-only beauty/depth; scale is held by the real-size kit
 if SCALE_PROXY:
     stand_in = rig.person(at=(-0.5, 1.75, 0), height=1.68, facing=15, name="standin_bassist")
 
 # ---- camera (locked-off; numbers fitted to the reference by eye at the layout stage) ------------------------------
-CAM_AT, CAM_LOOK, LENS = (0.0, -0.7, 1.12), (0.12, 2.8, 0.98), 40
+# Composition pass: low camera (≈ 0.62 m above the platform top), tilted up ≈ 1.9°, kick front head ≈ 3.1 m away,
+# derived from the reference's kick width (≈ 0.21 of the frame) and ground-contact heights, assuming 40 mm (the
+# reference lens is unknown). Before (a929b40): (0.0, -0.7, 1.12) looking at (0.12, 2.8, 0.98).
+CAM_AT, CAM_LOOK, LENS = (0.11, -0.44, 0.82), (0.11, 5.0, 0.99), 40
 cam = rig.camera(lens=LENS, at=CAM_AT, look=CAM_LOOK)
 
 # ---- light: plain at layout/form, shaped at material ---------------------------------------------------------------
@@ -153,10 +166,10 @@ else:
     fill = bpy.context.object
     fill.data.energy, fill.data.size = 70, 4
     fill.rotation_euler = rig._aim(fill.location, rig._point((0.3, 2.8, 0.8)), 0)
-    bpy.ops.object.light_add(type="AREA", location=(0.3, 5.6, 4.5))
+    bpy.ops.object.light_add(type="AREA", location=(0.3, CYC_Y - 3.4, 4.0))  # in front of the moved wall
     wash = bpy.context.object
     wash.data.energy, wash.data.size = 380, 8
-    wash.rotation_euler = rig._aim(wash.location, rig._point((0.3, 7.5, 2.0)), 0)
+    wash.rotation_euler = rig._aim(wash.location, rig._point((0.3, CYC_Y, 1.8)), 0)
     world = bpy.data.worlds.new("mint_world")
     world.use_nodes = True
     world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.32, 0.52, 0.46, 1)
@@ -239,8 +252,14 @@ if LEVEL >= 3:
                     w += math.radians(amp) * math.exp(-t * 3.0) * math.sin(t * 2 * math.pi * 2.2)
             ob.rotation_euler = (base[0] + w, base[1], base[2])
             ob.keyframe_insert("rotation_euler", frame=f)
-    end = tuple(CAM_AT[i] + (CAM_LOOK[i] - CAM_AT[i]) * 0.07 for i in range(3))  # 7 % of the way to the look-at point (≈ 0.245 m), first→last frame
-    rig.move(cam, [CAM_AT, end], look=CAM_LOOK, ease="inout")
+    # Same amplitude as before (0.245 m), now a pure translation toward the kick centre with the rotation held, so the
+    # kick stays put in frame while the kit grows. NOTE: the source shot list calls the band world locked-off
+    # ("正面フィックス"); this push-in is the skill's motion-stage test, not a decided camera for s14c.
+    k = KICK[1]
+    dv = [k[i] - CAM_AT[i] for i in range(3)]
+    n = math.sqrt(sum(v * v for v in dv))
+    end = tuple(CAM_AT[i] + dv[i] / n * 0.245 for i in range(3))
+    rig.move(cam, [CAM_AT, end], look=None, ease="inout")
 
 # ---- record what this stage is (read by skills/stepwise-scene-production/scripts/render_stages.py) ----------------
 meta_path = os.environ.get("STEPWISE_META")

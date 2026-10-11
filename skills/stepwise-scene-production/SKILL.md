@@ -134,3 +134,9 @@ clay-to-material look would pull the generation toward CG.
   1400/450/900 W under the driver's Standard view transform); 220/70/380 W read like the reference. The reference
   puts the bassist left of the kit while `previz_scenes/s14_band_wide.py` has her right of it — canon undecided. The
   H3 hand-off draft was BLOCKED (stand-in silhouette in the depth, two players in the ref, kit-only prompt). H3 not run.
+- 2026-10-11, same subset, composition pass (one round, kit/platform/backdrop only, stand-in off): read approximate
+  normalized landmarks off the reference and the before frame on a 10 % grid, then derived the camera from the kick
+  width and the ground-contact heights (kick bottom vs. the stands' feet) assuming 40 mm: a low camera ≈ 0.62 m above
+  the platform, tilted up ≈ 1.9°, the kit near the platform's back edge, the wall moved in so no floor/wall seam
+  shows. Two layout previews brought kick, tom, snare and cymbals within ≈ 0.03 of the reference. What the landmarks
+  cannot give: the real lens, the wall distance, and anything behind the players.
