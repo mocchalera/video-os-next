@@ -124,3 +124,11 @@ the same armature).
   held contact within ≤ 6 mm (wrist), stick tips landed within 3 mm of the heads; (4) the pose pass draws a seated
   drummer's legs straight and through the kit (no occlusion, knees foreshortened) — a pose control would push toward
   standing legs; prefer the depth control for seated players.
+- 2026-10-12, same scene, hands repair after a human said "the hands move wrong": a 0 m wrist-to-target error said
+  nothing about the hands. A contact puts the WRIST on the target while the 17 cm hand clay continues straight along
+  the forearm, so a stick tied to the target came out of the forearm and a fretting hand ran through the neck; a
+  pluck path that ended away from its start snapped back in one frame; gaze changes turned the chest (eyes lead) and
+  threw the elbows up. What worked, scene-locally: aim the PALM (wrist + 0.08 m along the hand) by correcting the
+  target over a few perform passes, re-key the hand bone afterwards to bend the wrist toward the tool, place props
+  from the actual palm, keep the gaze/twist still while hands play, use closed continuous hand paths. Judge it on
+  every frame of fixed hand crops, not on contact numbers.
