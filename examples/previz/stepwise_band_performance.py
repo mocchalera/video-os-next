@@ -192,9 +192,16 @@ def lift(f, hits, n):
 
 
 STICK_LEN = 0.40
+# Per hand: where on the head the tip lands (offset from the head centre), where the grip sits at the hit (from the
+# strike point; |grip| = stick length so the tip just touches), how far the grip rises and the tip aim lifts. The right
+# hand plays the floor tom on its drummer-side edge with a small stroke: from behind, the stick passed through the
+# left cymbal that hangs over the tom (found by the audit's stick-through-cymbal check in the first final render).
+STROKE = {"L": {"strike": (0.0, 0.0, 0.0), "grip": (0.0, 0.30, 0.26), "rise": 0.12, "aim": 0.30},
+          "R": {"strike": (0.10, 0.08, 0.0), "grip": (0.10, 0.30, 0.245), "rise": 0.08, "aim": 0.20}}
 sticks = {}
 for side, drum, hits in (("L", SNARE, SNARE_HITS), ("R", TOM, TOM_HITS)):
-    top = head_top(drum)
+    k_ = STROKE[side]
+    top = head_top(drum) + Vector(k_["strike"])
     grip = bpy.data.objects.new(f"grip_{side}", None)
     bpy.context.scene.collection.objects.link(grip)
     if LEVEL >= 1:
@@ -205,8 +212,8 @@ for side, drum, hits in (("L", SNARE, SNARE_HITS), ("R", TOM, TOM_HITS)):
     tips = {}
     for f in range(1, frames + 1):
         g = lift(f, [h for h in hits if h <= frames], frames)
-        gp = top + Vector((0.0, 0.30, 0.26 + 0.12 * g))   # a wrist-and-forearm stroke, hands stay below the chest
-        aim = top + Vector((0.0, 0.0, 0.30 * g))
+        gp = top + Vector(k_["grip"]) + Vector((0, 0, k_["rise"] * g))   # wrist-and-forearm stroke, hands low
+        aim = top + Vector((0.0, 0.0, k_["aim"] * g))
         tip = gp + (aim - gp).normalized() * STICK_LEN
         tips[f] = tip
         grip.location = gp
@@ -472,6 +479,27 @@ def performance_audit():
                                      "tip_minus_head_m": round((st["tips"][f] - st["head_top"]).length, 4)})
             if f in PLUCKS:  # measured in the bass's own (rest) space, where the string plane is y = STRING_Y
                 pluck_plane.append({"frame": f, "target_minus_string_plane_m": round(abs(pluck_rest_y[f] - STRING_Y), 4)})
+    # sticks through a cymbal: the grip->tip segment crossing a cymbal's plane inside its radius (cymbals as flat discs)
+    through, clearance = [], {}
+    for f in range(1, frames + 1):
+        sc.frame_set(f)
+        for cn, cdef in (("cymbal_L", CYM_L), ("cymbal_R", CYM_R)):
+            mw = parts[cn].matrix_world
+            c, n, r = mw.translation, (mw.to_3x3() @ Vector((0, 0, 1))).normalized(), cdef[2] / 2
+            for sd, st in sticks.items():
+                a, b = st["grip"].matrix_world.translation, st["tips"][f]
+                best = min(((a + (b - a) * (i / 20)) - c).dot(n) if ((a + (b - a) * (i / 20)) - c
+                           - n * ((a + (b - a) * (i / 20)) - c).dot(n)).length < r else 9.0 for i in range(21))
+                da, db = (a - c).dot(n), (b - c).dot(n)
+                if da * db <= 0 and abs(da - db) > 1e-9:
+                    q = a + (b - a) * (da / (da - db))
+                    if (q - c).length < r:
+                        through.append(f"{f}: stick {sd} through {cn}")
+                key = f"stick {sd} vs {cn}"
+                clearance[key] = min(clearance.get(key, 9.0), abs(best))
+    out["stick_through_cymbal"] = through
+    out["stick_min_clearance_to_cymbal_plane_inside_radius_m"] = {  # None: the stick never came inside the radius
+        k: (round(v, 4) if v < 9.0 else None) for k, v in clearance.items()}
     # stick tips below their drum head over the whole clip (penetration)
     pen = min(min(st["tips"][f].z - st["head_top"].z for f in st["tips"]) for st in sticks.values())
     sc.frame_set(1)
