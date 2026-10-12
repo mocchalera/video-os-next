@@ -117,3 +117,10 @@ the same armature).
 ## Field notes (record results here)
 
 - (none yet) — technique · control (depth / pose, strength, end) · size · what held and what broke.
+- 2026-10-12, previz only (no generation), `examples/previz/stepwise_band_performance.py` (bassist + seated drummer,
+  48 f): (1) actors stand on z = 0 — a z in `at` is ignored by the feet and the pelvis, so actors placed on a raised
+  platform sink into it (move the world so the floor they stand on is z = 0); (2) an event blends from 0 on its own
+  frame, so state that must already hold on frame 1 goes at frame 0; (3) instruments as props on animated targets
+  held contact within ≤ 6 mm (wrist), stick tips landed within 3 mm of the heads; (4) the pose pass draws a seated
+  drummer's legs straight and through the kit (no occlusion, knees foreshortened) — a pose control would push toward
+  standing legs; prefer the depth control for seated players.
