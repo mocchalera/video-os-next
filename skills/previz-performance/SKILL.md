@@ -132,3 +132,9 @@ the same armature).
   target over a few perform passes, re-key the hand bone afterwards to bend the wrist toward the tool, place props
   from the actual palm, keep the gaze/twist still while hands play, use closed continuous hand paths. Judge it on
   every frame of fixed hand crops, not on contact numbers.
+- 2026-10-12, round 2 (contact on the visible clay): drive the point of the hand CLAY nearest the instrument (the
+  ellipsoid's extreme point toward the string plane, from its matrix_world) onto the strings by correcting the IK
+  target over a few passes — wrist/palm numbers say nothing about what the camera sees. Re-key upper arm + forearm
+  with a downward elbow for a fretting hand (the rig points every elbow back/out, so the forearm crossed the neck).
+  From a camera below the hands, a hand tilted toward the camera projects UPWARD: a hand tipped into the fretboard
+  read as a raised thumb; lay it flat on the board instead.
