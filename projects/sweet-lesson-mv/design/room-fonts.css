@@ -1,0 +1,5 @@
+/* Room faces (SIL OFL 1.1, google/fonts): Noto Sans JP (variable) and IBM Plex Mono, subset to ASCII + the on-screen UI strings in graphics/room.html. Re-subset when those strings change. */
+@font-face{font-family:"Room Sans";src:url(fonts/RoomSans.woff2) format("woff2");font-weight:100 900}
+@font-face{font-family:"Room Mono";src:url(fonts/RoomMono.woff2) format("woff2");font-weight:400 500}
+@font-face{font-family:"Room Hand";src:url(fonts/RoomHand.woff2) format("woff2");font-weight:600}
+@font-face{font-family:"Room Serif";src:url(fonts/RoomSerif.woff2) format("woff2");font-weight:200 900}

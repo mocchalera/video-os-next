@@ -1,0 +1,266 @@
+{
+  "assets": {
+    "music": {
+      "duration": 214.8,
+      "filename": "Sweet Lesson.mp3",
+      "has_audio": true,
+      "height": 360,
+      "id": "a_c9fe28f5cc46a26d",
+      "kind": "video",
+      "size": 4656482,
+      "width": 360
+    },
+    "sfx": {
+      "duration": 214.8,
+      "filename": "sfx_stem.wav",
+      "has_audio": true,
+      "id": "a_50c617ff35d41bab",
+      "kind": "audio",
+      "replaced": [
+        "a_01d04e542b7a5888"
+      ],
+      "size": 41241644
+    },
+    "tex_cardboard_albedo": {
+      "duration": null,
+      "filename": "cardboard_albedo.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_de48281c2d1a5689",
+      "kind": "image",
+      "size": 341006,
+      "width": 1024
+    },
+    "tex_cardboard_normal": {
+      "duration": null,
+      "filename": "cardboard_normal.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_43598bd2da5367bf",
+      "kind": "image",
+      "size": 566076,
+      "width": 1024
+    },
+    "tex_cardboard_rough": {
+      "duration": null,
+      "filename": "cardboard_rough.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_bb9303775e66975a",
+      "kind": "image",
+      "size": 75391,
+      "width": 1024
+    },
+    "tex_chair_albedo": {
+      "duration": null,
+      "filename": "chair_albedo.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_0562cd98c08e4f55",
+      "kind": "image",
+      "size": 426623,
+      "width": 1024
+    },
+    "tex_chair_normal": {
+      "duration": null,
+      "filename": "chair_normal.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_79d41ac8e738df0e",
+      "kind": "image",
+      "size": 742289,
+      "width": 1024
+    },
+    "tex_chair_rough": {
+      "duration": null,
+      "filename": "chair_rough.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_1b7dbbd130ebe26d",
+      "kind": "image",
+      "size": 17011,
+      "width": 1024
+    },
+    "tex_concrete_albedo": {
+      "duration": null,
+      "filename": "concrete_albedo.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_d54f3de346f8de74",
+      "kind": "image",
+      "size": 352718,
+      "width": 1024
+    },
+    "tex_concrete_normal": {
+      "duration": null,
+      "filename": "concrete_normal.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_d8d8cb01553ef021",
+      "kind": "image",
+      "size": 616827,
+      "width": 1024
+    },
+    "tex_concrete_rough": {
+      "duration": null,
+      "filename": "concrete_rough.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_831656c7b9f44913",
+      "kind": "image",
+      "size": 127878,
+      "width": 1024
+    },
+    "tex_desk_albedo": {
+      "duration": null,
+      "filename": "desk_albedo.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_f97f135b15e80143",
+      "kind": "image",
+      "size": 183247,
+      "width": 1024
+    },
+    "tex_desk_normal": {
+      "duration": null,
+      "filename": "desk_normal.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_12584c7f347f56f7",
+      "kind": "image",
+      "size": 235218,
+      "width": 1024
+    },
+    "tex_desk_rough": {
+      "duration": null,
+      "filename": "desk_rough.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_f77c02168bacd421",
+      "kind": "image",
+      "size": 132023,
+      "width": 1024
+    },
+    "tex_duvet_albedo": {
+      "duration": null,
+      "filename": "duvet_albedo.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_8c323262bf8b83ef",
+      "kind": "image",
+      "size": 473668,
+      "width": 1024
+    },
+    "tex_duvet_normal": {
+      "duration": null,
+      "filename": "duvet_normal.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_be40fd65116a9471",
+      "kind": "image",
+      "size": 798524,
+      "width": 1024
+    },
+    "tex_duvet_rough": {
+      "duration": null,
+      "filename": "duvet_rough.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_79a8d60215b14837",
+      "kind": "image",
+      "size": 17011,
+      "width": 1024
+    },
+    "tex_floor_albedo": {
+      "duration": null,
+      "filename": "floor_albedo.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_4fa493ca46dd0a3b",
+      "kind": "image",
+      "size": 265688,
+      "width": 1024
+    },
+    "tex_floor_normal": {
+      "duration": null,
+      "filename": "floor_normal.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_7530758934b3ede1",
+      "kind": "image",
+      "size": 411605,
+      "width": 1024
+    },
+    "tex_floor_rough": {
+      "duration": null,
+      "filename": "floor_rough.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_f30d3f013056a6c6",
+      "kind": "image",
+      "size": 167402,
+      "width": 1024
+    },
+    "tex_sheet_albedo": {
+      "duration": null,
+      "filename": "sheet_albedo.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_7d194758241ef02b",
+      "kind": "image",
+      "size": 426504,
+      "width": 1024
+    },
+    "tex_sheet_normal": {
+      "duration": null,
+      "filename": "sheet_normal.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_5ceaee54b33fe27b",
+      "kind": "image",
+      "size": 592969,
+      "width": 1024
+    },
+    "tex_sheet_rough": {
+      "duration": null,
+      "filename": "sheet_rough.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_89677cf917d68d25",
+      "kind": "image",
+      "size": 17011,
+      "width": 1024
+    },
+    "tex_wallpaper_albedo": {
+      "duration": null,
+      "filename": "wallpaper_albedo.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_db1baefa6d20c76c",
+      "kind": "image",
+      "size": 301469,
+      "width": 1024
+    },
+    "tex_wallpaper_normal": {
+      "duration": null,
+      "filename": "wallpaper_normal.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_74c191ef263ff1c4",
+      "kind": "image",
+      "size": 735899,
+      "width": 1024
+    },
+    "tex_wallpaper_rough": {
+      "duration": null,
+      "filename": "wallpaper_rough.jpg",
+      "has_audio": false,
+      "height": 1024,
+      "id": "a_634f40b65f268a02",
+      "kind": "image",
+      "size": 79189,
+      "width": 1024
+    }
+  },
+  "format": "vos.assets/1"
+}

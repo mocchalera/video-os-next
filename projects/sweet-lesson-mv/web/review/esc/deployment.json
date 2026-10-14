@@ -1,0 +1,17 @@
+{
+  "id": "79241b74-e8e4-4d0a-98aa-df24e09e5124",
+  "source": "wrangler",
+  "strategy": "percentage",
+  "author_email": "mocchalera@gmail.com",
+  "annotations": {
+    "workers/message": "Sweet Lesson: restore real Escape at compact cue (2c253ba)",
+    "workers/triggered_by": "deployment"
+  },
+  "versions": [
+    {
+      "version_id": "6180de76-b705-4742-8d79-1ae90eea465f",
+      "percentage": 100
+    }
+  ],
+  "created_on": "2026-10-02T05:54:52.159474Z"
+}

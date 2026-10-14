@@ -1,0 +1,83 @@
+{
+  "executedAt": "2026-10-02T05:52:28.266Z",
+  "browser": "isolated Chrome Metal tier4; actual keyboard events; host audio muted by launch flag",
+  "results": [
+    {
+      "name": "real Esc at 133.62 triggers work cue and preserves room controls",
+      "status": "pass",
+      "esc": 133.62,
+      "hook": 133.62,
+      "clicks": 1,
+      "cancelWrites": 0,
+      "focus": "stage",
+      "mode": "true",
+      "time": 133.62
+    },
+    {
+      "name": "second press and native repeated keydown do not retrigger or exit",
+      "status": "pass"
+    },
+    {
+      "name": "rendered Escape key sinks early",
+      "status": "pass",
+      "beforeY": 0.7419999837875366,
+      "afterY": 0.7384949922561646
+    },
+    {
+      "name": "monitor renders compact cancelled before automatic 134.38 cue",
+      "status": "pass"
+    },
+    {
+      "name": "automatic cue after early user input adds no second synthesized click",
+      "status": "pass"
+    },
+    {
+      "name": "lower boundary 133.0 accepts Esc",
+      "status": "pass"
+    },
+    {
+      "name": "outside cue Esc exits page interaction at 132.99",
+      "status": "pass"
+    },
+    {
+      "name": "outside cue Esc exits page interaction at 134.38",
+      "status": "pass"
+    },
+    {
+      "name": "volume input Esc is not captured by work cue",
+      "status": "pass"
+    },
+    {
+      "name": "modal log Escape closes modal before work cue",
+      "status": "pass"
+    },
+    {
+      "name": "modified Escape does not fire work cue",
+      "status": "pass"
+    },
+    {
+      "name": "without user input automatic MV cue still renders cancellation",
+      "status": "pass"
+    },
+    {
+      "name": "white scene keeps song playing and unmuted",
+      "status": "pass"
+    },
+    {
+      "name": "paused white-room walking moves but emits no footsteps",
+      "status": "pass",
+      "ctx": "white",
+      "steps": 0,
+      "pos": [
+        0.6749999999999998,
+        1.5463717053299324,
+        3.232362323991116
+      ],
+      "paused": true
+    },
+    {
+      "name": "no page or runtime errors",
+      "status": "pass"
+    }
+  ]
+}

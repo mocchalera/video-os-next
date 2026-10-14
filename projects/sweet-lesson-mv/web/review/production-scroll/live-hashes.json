@@ -1,0 +1,68 @@
+[
+  {
+    "file": "index.html",
+    "local_sha256": "f21d384bf763fee8b33a3b3acb8ca3322c7da907bc907d27605137b5370730a3",
+    "live_sha256": "f21d384bf763fee8b33a3b3acb8ca3322c7da907bc907d27605137b5370730a3",
+    "match": true
+  },
+  {
+    "file": "page.css",
+    "local_sha256": "6f6eb991723d0149caa8500ddc9a83e768e930715d61688913fa577eeaf33dc0",
+    "live_sha256": "6f6eb991723d0149caa8500ddc9a83e768e930715d61688913fa577eeaf33dc0",
+    "match": true
+  },
+  {
+    "file": "walk/page-snap.js",
+    "local_sha256": "17f497d0b0f4ce29558cecef026ab2b323ef200e6caa4db4cd82aa7532b274e3",
+    "live_sha256": "17f497d0b0f4ce29558cecef026ab2b323ef200e6caa4db4cd82aa7532b274e3",
+    "match": true
+  },
+  {
+    "file": "walk/walk.js",
+    "local_sha256": "9d919475859e29fd623b35b949c87ced6cd7dda44e9401ac7f1094a58de5fcaf",
+    "live_sha256": "9d919475859e29fd623b35b949c87ced6cd7dda44e9401ac7f1094a58de5fcaf",
+    "match": true
+  },
+  {
+    "file": "walk/cursor.js",
+    "local_sha256": "0e1b992561076fc28bdf0f71a62d7c9d922c9b0bc0e2ca9416b091a8b00489e9",
+    "live_sha256": "0e1b992561076fc28bdf0f71a62d7c9d922c9b0bc0e2ca9416b091a8b00489e9",
+    "match": true
+  },
+  {
+    "file": "walk/ui.js",
+    "local_sha256": "4c544120d4948e21824efe9742458424666b0b1d08590e70e680fdd40aa2e8b8",
+    "live_sha256": "4c544120d4948e21824efe9742458424666b0b1d08590e70e680fdd40aa2e8b8",
+    "match": true
+  },
+  {
+    "file": "walk/sfx.js",
+    "local_sha256": "ca4497101b682a63272142f9ad42efddbf4bb54c62b244de5ebc8b7d40b67770",
+    "live_sha256": "ca4497101b682a63272142f9ad42efddbf4bb54c62b244de5ebc8b7d40b67770",
+    "match": true
+  },
+  {
+    "file": "walk/foley.js",
+    "local_sha256": "b666d4976ddbf4650090e0385b872d31b90b56638629963eccca9890248d0130",
+    "live_sha256": "b666d4976ddbf4650090e0385b872d31b90b56638629963eccca9890248d0130",
+    "match": true
+  },
+  {
+    "file": "walk/epilogue.js",
+    "local_sha256": "50611f396492df34b591b27b1f6bdfff813b1ca0cd8080345d56e0755467d98f",
+    "live_sha256": "50611f396492df34b591b27b1f6bdfff813b1ca0cd8080345d56e0755467d98f",
+    "match": true
+  },
+  {
+    "file": "_src/room.html",
+    "local_sha256": "f96b2df06f6368e56212a1b1f686ebb3cd6be2eb42f44d4efbf4998a1e6a4cd1",
+    "live_sha256": "f96b2df06f6368e56212a1b1f686ebb3cd6be2eb42f44d4efbf4998a1e6a4cd1",
+    "match": true
+  },
+  {
+    "file": "_src/timeline.json",
+    "local_sha256": "15e6266061f0cabe415054ff3cce971767ef340c5968236ea8af9cbc93456903",
+    "live_sha256": "15e6266061f0cabe415054ff3cce971767ef340c5968236ea8af9cbc93456903",
+    "match": true
+  }
+]

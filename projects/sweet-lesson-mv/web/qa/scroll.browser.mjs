@@ -1,0 +1,98 @@
+// Focused regression: one low-resolution room at a time, no user browser/profile.
+import { chromium } from 'playwright-core';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+const base = process.env.SWEET_SCROLL_URL || 'http://127.0.0.1:8876';
+const out = new URL('../review/scroll/', import.meta.url); await fs.mkdir(out, { recursive: true });
+const results = []; const check = (name, details = {}) => { results.push({ name, status: 'pass', ...details }); console.log('PASS', name, JSON.stringify(details)); };
+const browser = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true, args: ['--use-angle=metal'] });
+const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' });
+const page = await context.newPage(); const errors = [];
+page.on('pageerror', e => errors.push(e.message));
+const snapshot = () => page.evaluate(() => ({ time: song.currentTime, paused: song.paused, ended: song.ended, scroll: scrollY, stage: stage.getBoundingClientRect().toJSON(), epi: __walk.getEpiState(), keys: { ...__walk.ctrl.in }, state: __walk.state(), aspect: __walk.P.viewAspect, errors: __walk.errors }));
+try {
+  await page.goto(base + '/?qa=1&tier=4&bench=0');
+  await page.waitForFunction(() => window.__walk?.ready || window.__walk?.noRoom, null, { timeout: 60000 });
+  assert.equal(await page.evaluate(() => __walk.noRoom || false), false, 'room must render: ' + JSON.stringify(await page.evaluate(() => __walk.errors)));
+  await page.evaluate(() => { window.initialAudio = song; window.initialCanvas = stage.querySelector('canvas'); window.initialCtrl = __walk.ctrl; window.initialFoley = __walk.foley.a; window.initialSfx = __walk.sfx; });
+  assert.equal(await page.evaluate(() => song.paused), true);
+  await page.getByRole('link', { name: '部屋へ', exact: true }).click();
+  assert.equal(await page.evaluate(() => song.paused && song.currentTime === 0), true); check('header link moves without audio');
+  await page.screenshot({ path: new URL('entrance.png', out).pathname });
+  await page.locator('#mute').click(); // silent test, production mute control
+  await page.locator('#enter').click();
+  await page.waitForFunction(() => !song.paused && song.currentTime > 1);
+  const begun = Date.now();
+  await page.evaluate(() => { window.naturalStart = performance.now(); window.seeks = []; song.addEventListener('seeking', () => seeks.push(song.currentTime)); });
+  let before = await snapshot();
+  await page.getByRole('link', { name: '歌詞', exact: true }).click();
+  await page.waitForTimeout(20000);
+  let after = await snapshot();
+  assert.equal(after.paused, false); assert(after.time - before.time >= 19); assert(after.scroll > before.scroll);
+  await page.locator('#player a').click();
+  assert.equal(await page.evaluate(() => initialAudio === song && initialCanvas === stage.querySelector('canvas') && initialCtrl === __walk.ctrl && initialFoley === __walk.foley.a && initialSfx === __walk.sfx), true);
+  assert.deepEqual(await page.evaluate(() => seeks), []);
+  check('read for 20 seconds and return without pause, seek or reinitialization', { elapsedAudio: after.time - before.time });
+  await page.locator('#play-toggle').click(); await page.waitForFunction(() => song.paused);
+  before = await snapshot(); await page.mouse.move(700, 300); await page.mouse.wheel(0, 850); await page.waitForTimeout(500);
+  after = await snapshot(); assert.equal(after.time, before.time); assert.equal(after.paused, true); assert(Math.abs(after.state.yaw - before.state.yaw) < 1e-8); assert(Math.abs(after.state.pitch - before.state.pitch) < 1e-8);
+  assert.deepEqual(await page.evaluate(() => seeks), []); check('wheel changes document only, paused camera and clock unchanged');
+  await page.locator('#player a').click();
+  await page.locator('#room-mode').click(); await page.keyboard.down('w'); await page.waitForTimeout(250);
+  assert.equal((await snapshot()).keys.fw, 1);
+  await page.locator('#volume').focus(); await page.waitForTimeout(100); assert.equal((await snapshot()).keys.fw, 0); await page.keyboard.up('w');
+  await page.keyboard.down('ArrowDown'); await page.waitForTimeout(100); assert.equal((await snapshot()).keys.fw, 0); await page.keyboard.up('ArrowDown');
+  check('focus exit releases held walking; range arrows do not walk');
+  await page.locator('#room-mode').click(); await page.keyboard.down('w'); await page.evaluate(() => dispatchEvent(new Event('blur'))); await page.waitForTimeout(100); assert.equal((await snapshot()).keys.fw, 0); await page.keyboard.up('w'); check('window blur releases held input');
+  await page.locator('#room-mode').click(); await page.keyboard.press('Escape'); assert.equal(await page.locator('#room-mode').getAttribute('aria-pressed'), 'false'); assert.equal(await page.evaluate(() => document.activeElement.id), 'room-mode'); check('Escape leaves room mode with visible focus');
+  await page.setViewportSize({ width: 980, height: 700 }); await page.waitForFunction(() => { const r = stage.getBoundingClientRect(); return Math.abs(__walk.P.viewAspect - r.width / r.height) < .01; }); after = await snapshot(); assert(Math.abs(after.aspect - after.stage.width / after.stage.height) < .01); assert.equal(await page.evaluate(() => initialCanvas === stage.querySelector('canvas')), true); check('resize uses room dimensions without replacing canvas');
+  await page.locator('#volume').fill('0.35'); await page.waitForTimeout(100); assert.equal(await page.evaluate(() => song.volume), .35); assert.equal(await page.evaluate(() => __walk.foley.a.volume), .35); assert.equal(await page.evaluate(() => __walk.sfx.volume), .35); check('volume applied to song, foley and footsteps');
+  await page.locator('#play-toggle').click(); await page.waitForFunction(() => !song.paused);
+  await page.screenshot({ path: new URL('playing.png', out).pathname });
+  console.log('WAIT natural end', JSON.stringify({ duration: await page.evaluate(() => song.duration), at: await page.evaluate(() => song.currentTime) }));
+  await page.waitForFunction(() => song.ended && __walk.getEpiState() !== null, null, { timeout: 245000 });
+  after = await snapshot(); assert.equal(after.paused, true); assert.equal(after.ended, true); assert.equal(await page.evaluate(() => song.loop), false); assert.deepEqual(await page.evaluate(() => seeks), []);
+  assert.equal(after.scroll, (await snapshot()).scroll); check('214.8-second track naturally ends in quiet room', { duration: await page.evaluate(() => song.duration), audioTime: after.time, wallMs: Date.now() - begun });
+  const y = after.scroll; await page.waitForTimeout(3000); assert.equal((await snapshot()).scroll, y); check('no auto-scroll or playback loop after end');
+  await page.locator('#room-mode').click(); await page.keyboard.down('w'); await page.waitForTimeout(400); assert.equal((await snapshot()).keys.fw, 1); await page.keyboard.up('w'); await page.keyboard.press('Escape'); check('walking still available in epilogue');
+  await page.screenshot({ path: new URL('epilogue.png', out).pathname });
+  await page.locator('#replay').dblclick(); await page.waitForFunction(() => !song.paused && song.currentTime > .2 && song.currentTime < 5);
+  assert.equal(await page.evaluate(() => initialAudio === song && initialCanvas === stage.querySelector('canvas') && initialCtrl === __walk.ctrl && initialFoley === __walk.foley.a && initialSfx === __walk.sfx), true);
+  assert.equal(await page.locator('#song').count(), 1); assert.equal(await page.evaluate(() => __walk.getEpiState()), null); assert.equal(await page.evaluate(() => __walk.sfx.ctx === initialSfx.ctx), true);
+  check('explicit replay keeps one song, renderer, foley and audio engine');
+  await page.locator('#play-toggle').click();
+  assert.deepEqual(errors, []); assert.deepEqual((await snapshot()).errors, []); check('no page/runtime errors');
+  await context.close();
+  // One touch-emulated room, after disposing the desktop context.
+  const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const phone = await mobile.newPage(); await phone.goto(base + '/?qa=1&tier=4&bench=0'); await phone.waitForFunction(() => window.__walk?.ready, null, { timeout: 60000 });
+  await phone.locator('#mute').tap(); await phone.locator('#enter').tap();
+  await phone.waitForFunction(() => !song.paused);
+  const cdp = await mobile.newCDPSession(phone);
+  await phone.locator('#player a').tap(); const sy = await phone.evaluate(() => scrollY);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 200, y: 510, id: 1 }] });
+  for (const yy of [450, 380, 310, 240, 170]) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 200, y: yy, id: 1 }] }); await phone.waitForTimeout(25); }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await phone.waitForTimeout(500);
+  assert((await phone.evaluate(() => scrollY)) > sy + 100); assert.equal(await phone.evaluate(() => __walk.ctrl.in.dragging), false); check('mobile vertical swipe scrolls rather than looks');
+  await phone.locator('#player a').tap(); await phone.locator('#room-mode').tap();
+  assert.equal(await phone.locator('#stage').evaluate(e => getComputedStyle(e).touchAction), 'none');
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 160, y: 300, id: 1 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 225, y: 310, id: 1 }] });
+  assert.equal(await phone.evaluate(() => __walk.ctrl.in.dragging), true);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await phone.locator('#room-mode').tap(); assert.equal(await phone.locator('#stage').evaluate(e => getComputedStyle(e).touchAction), 'pan-y pinch-zoom'); check('explicit mobile mode enables look and returns to scrolling');
+  await phone.getByRole('link', { name: '歌詞', exact: true }).tap(); await phone.screenshot({ path: new URL('mobile-reading.png', out).pathname });
+  assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true); check('mobile layout has no horizontal overflow');
+  await mobile.close();
+  const fallback = await browser.newContext({ viewport: { width: 1000, height: 750 } }); const fp = await fallback.newPage(); await fp.goto(base + '/?qa=1&nogl=1');
+  await fp.waitForFunction(() => __walk.noRoom); await fp.getByRole('link', { name: '制作背景', exact: true }).click();
+  assert(await fp.locator('#about').isVisible()); assert((await fp.locator('.lyrics p').count()) > 40); assert.equal(await fp.evaluate(() => song.paused), true);
+  check('WebGL failure leaves lyrics, background and credits readable'); await fallback.close();
+  const nojs = await browser.newContext({ javaScriptEnabled: false }); const np = await nojs.newPage(); await np.goto(base + '/'); assert((await np.locator('.lyrics p').count()) > 40); await np.getByRole('link', { name: 'クレジット', exact: true }).click(); assert(await np.locator('#credits').isVisible()); check('JavaScript-disabled text and anchor navigation'); await nojs.close();
+} catch (e) {
+  results.push({ name: 'browser regression', status: 'fail', message: e.stack }); console.error(e);
+  await page.screenshot({ path: new URL('failure.png', out).pathname }).catch(() => {}); process.exitCode = 1;
+} finally {
+  await fs.writeFile(new URL('browser-results.json', out), JSON.stringify({ url: base, executedAt: new Date().toISOString(), browser: 'isolated headless installed Chrome', tier: 4, results }, null, 2));
+  await browser.close();
+}

@@ -1,0 +1,19 @@
+{
+  "name": "sweet-lesson",
+  "account_id": "ae513d535f271f48af74d480588218f0",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": false
+  },
+  "routes": [
+    {
+      "pattern": "sweet-lesson.mocchalera.app",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "./dist"
+  }
+}

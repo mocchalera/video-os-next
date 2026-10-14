@@ -1,0 +1,100 @@
+{
+  "blocked_reasons": [
+    {
+      "code": "normal_state_failed",
+      "message": "Normal-state browser audit failed: page.goto: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"https://sweet-lesson.mocchalera.app/?qa=1&nogl=1\", waiting until \"domcontentloaded\"\u001b[22m\n"
+    }
+  ],
+  "checks": [
+    {
+      "name": "href-validity",
+      "state": "normal",
+      "status": "skipped"
+    },
+    {
+      "name": "href-validity",
+      "state": "javascript-disabled",
+      "status": "pass"
+    },
+    {
+      "name": "fragment-targets",
+      "state": "normal",
+      "status": "skipped"
+    },
+    {
+      "name": "fragment-targets",
+      "state": "javascript-disabled",
+      "status": "pass"
+    },
+    {
+      "name": "fragment-navigation",
+      "state": "normal",
+      "status": "skipped"
+    },
+    {
+      "name": "fragment-navigation",
+      "state": "javascript-disabled",
+      "status": "pass"
+    },
+    {
+      "name": "hover-affordance",
+      "state": "normal",
+      "status": "skipped"
+    },
+    {
+      "name": "form-contract",
+      "state": "normal",
+      "status": "skipped"
+    },
+    {
+      "name": "form-contract",
+      "state": "javascript-disabled",
+      "status": "pass"
+    },
+    {
+      "name": "keyboard-tab",
+      "state": "normal",
+      "status": "skipped"
+    },
+    {
+      "name": "keyboard-enter",
+      "state": "normal",
+      "status": "skipped"
+    },
+    {
+      "name": "focus-visible",
+      "state": "normal",
+      "status": "skipped"
+    },
+    {
+      "name": "critical-visibility",
+      "state": "normal",
+      "status": "skipped"
+    },
+    {
+      "name": "critical-visibility",
+      "state": "reduced-motion",
+      "status": "pass"
+    },
+    {
+      "name": "critical-visibility",
+      "state": "javascript-disabled",
+      "status": "pass"
+    }
+  ],
+  "findings": [],
+  "manifest_sha256": "0d60d213510ddc242474d59107ea921b9a07d708f72939428025de869a8a2e01",
+  "mode": "browser",
+  "schemaVersion": "interaction-report/v1",
+  "status": "blocked",
+  "summary": {
+    "checks_failed": 0,
+    "checks_passed": 6,
+    "checks_skipped": 9,
+    "errors": 0,
+    "warnings": 0
+  },
+  "target": {
+    "url": "https://sweet-lesson.mocchalera.app/?qa=1&nogl=1"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "executedAt": "2026-10-02T05:52:35.034Z",
+  "results": [
+    {
+      "name": "scroll releases room focus and subsequent W cannot walk while reading",
+      "status": "pass"
+    },
+    {
+      "name": "reduced-motion controller and page transitions",
+      "status": "pass"
+    },
+    {
+      "name": "room keyboard focus outline stays inside clipped viewport",
+      "status": "pass"
+    },
+    {
+      "name": "two-finger walk and touch cancel release",
+      "status": "pass"
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "executedAt": "2026-10-02T04:52:09.528Z",
+  "browser": "isolated installed Chrome / Metal / tier 4",
+  "results": [
+    {
+      "name": "header remains at initial position, snapping waits for room approach",
+      "status": "pass"
+    },
+    {
+      "name": "approach from above settles to whole room above controls",
+      "status": "pass",
+      "top": 0.28125,
+      "bottom": 736.28125,
+      "height": 736
+    },
+    {
+      "name": "deliberate downward wheel escapes into text",
+      "status": "pass"
+    },
+    {
+      "name": "text position is not pulled back to room",
+      "status": "pass"
+    },
+    {
+      "name": "approach from below settles to room",
+      "status": "pass"
+    },
+    {
+      "name": "continued modest wheel input escapes",
+      "status": "pass"
+    },
+    {
+      "name": "decelerating wheel burst settles without frame clipping",
+      "status": "pass"
+    },
+    {
+      "name": "PageDown escapes to text",
+      "status": "pass"
+    },
+    {
+      "name": "lyrics anchor is not intercepted by room snap",
+      "status": "pass"
+    },
+    {
+      "name": "resize while reading does not reattach to room",
+      "status": "pass"
+    },
+    {
+      "name": "room-return anchor fits after window resize",
+      "status": "pass"
+    },
+    {
+      "name": "wrapped control bar is measured rather than covering room",
+      "status": "pass"
+    },
+    {
+      "name": "snap and resize retain audio, canvas, camera and playback, no seek",
+      "status": "pass"
+    },
+    {
+      "name": "natural ended transition keeps snapped room and epilogue exploration",
+      "status": "pass",
+      "waitMs": 204490,
+      "time": 214.8,
+      "duration": 214.8,
+      "mode": "full natural playback without seeking"
+    },
+    {
+      "name": "no runtime errors",
+      "status": "pass"
+    },
+    {
+      "name": "reduced motion disables snap; explicit room link still fits",
+      "status": "pass"
+    },
+    {
+      "name": "mobile portrait room fits above actual control bar",
+      "status": "pass"
+    },
+    {
+      "name": "long interaction-mode label can wrap without hiding room",
+      "status": "pass"
+    },
+    {
+      "name": "mobile deliberate vertical swipe escapes room",
+      "status": "pass"
+    },
+    {
+      "name": "mobile viewport height change while reading does not reattach",
+      "status": "pass"
+    },
+    {
+      "name": "mobile dynamic-height equivalent fits visible viewport",
+      "status": "pass"
+    },
+    {
+      "name": "landscape resize fits room and wrapped controls without overflow",
+      "status": "pass"
+    }
+  ]
+}

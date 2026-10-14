@@ -1,0 +1,164 @@
+{
+  "id": "9f1b4a54-0b28-4cbc-bfd3-da72ff50806c",
+  "number": 2,
+  "metadata": {
+    "created_on": "2026-10-01T15:43:42.390478Z",
+    "source": "cf_cli",
+    "author_id": "d0bf46bb38bec1c5d1bce2d3a04a97b2",
+    "author_email": "mocchalera@gmail.com",
+    "has_preview": true
+  },
+  "annotations": {
+    "workers/message": "Sweet Lesson web v1.1: cursor, tier, seek, analytics CSP",
+    "workers/triggered_by": "version_upload"
+  },
+  "resources": {
+    "script": {
+      "etag": "",
+      "handlers": null,
+      "last_deployed_from": ""
+    },
+    "script_runtime": {
+      "assets": {
+        "headers": {
+          "version": 2,
+          "rules": {
+            "/": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/*": {
+              "set": {
+                "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self'; media-src 'self'; font-src 'self'; connect-src 'self' https://cloudflareinsights.com; worker-src 'none'; manifest-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+                "cross-origin-opener-policy": "same-origin",
+                "cross-origin-resource-policy": "same-origin",
+                "permissions-policy": "accelerometer=(), ambient-light-sensor=(), bluetooth=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), hid=(), magnetometer=(), microphone=(), midi=(), payment=(), serial=(), usb=(), xr-spatial-tracking=(), clipboard-read=(), clipboard-write=(), publickey-credentials-get=()",
+                "referrer-policy": "no-referrer",
+                "x-content-type-options": "nosniff",
+                "x-frame-options": "DENY"
+              },
+              "unset": []
+            },
+            "/_src/assets.json": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/_src/data/*": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/_src/design/fonts/*": {
+              "set": {
+                "cache-control": "public, max-age=2592000"
+              },
+              "unset": []
+            },
+            "/_src/design/room-fonts.css": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/_src/out/*": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/_src/refs/*": {
+              "set": {
+                "cache-control": "public, max-age=2592000"
+              },
+              "unset": []
+            },
+            "/_src/room.html": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/_src/timeline.json": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/_vendor/*": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/assets/*": {
+              "set": {
+                "cache-control": "public, max-age=2592000"
+              },
+              "unset": []
+            },
+            "/assets/foley.m4a": {
+              "set": {
+                "content-type": "audio/mp4"
+              },
+              "unset": []
+            },
+            "/favicon.svg": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/fonts.css": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/fonts/*": {
+              "set": {
+                "cache-control": "public, max-age=2592000"
+              },
+              "unset": []
+            },
+            "/index.html": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/shim/*": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/walk.html": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            },
+            "/walk/*": {
+              "set": {
+                "cache-control": "public, max-age=300"
+              },
+              "unset": []
+            }
+          }
+        },
+        "raw_headers": "# generated by web/build.mjs — do not edit\n/*\n  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self'; media-src 'self'; font-src 'self'; connect-src 'self' https://cloudflareinsights.com; worker-src 'none'; manifest-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n  Permissions-Policy: accelerometer=(), ambient-light-sensor=(), bluetooth=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), hid=(), magnetometer=(), microphone=(), midi=(), payment=(), serial=(), usb=(), xr-spatial-tracking=(), clipboard-read=(), clipboard-write=(), publickey-credentials-get=()\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Resource-Policy: same-origin\n  X-Frame-Options: DENY\n\n/\n  Cache-Control: public, max-age=300\n\n/index.html\n  Cache-Control: public, max-age=300\n\n/walk.html\n  Cache-Control: public, max-age=300\n\n/fonts.css\n  Cache-Control: public, max-age=300\n\n/favicon.svg\n  Cache-Control: public, max-age=300\n\n/walk/*\n  Cache-Control: public, max-age=300\n\n/shim/*\n  Cache-Control: public, max-age=300\n\n/_vendor/*\n  Cache-Control: public, max-age=300\n\n/_src/room.html\n  Cache-Control: public, max-age=300\n\n/_src/timeline.json\n  Cache-Control: public, max-age=300\n\n/_src/assets.json\n  Cache-Control: public, max-age=300\n\n/_src/data/*\n  Cache-Control: public, max-age=300\n\n/_src/design/room-fonts.css\n  Cache-Control: public, max-age=300\n\n/_src/out/*\n  Cache-Control: public, max-age=300\n\n/_src/design/fonts/*\n  Cache-Control: public, max-age=2592000\n\n/fonts/*\n  Cache-Control: public, max-age=2592000\n\n/_src/refs/*\n  Cache-Control: public, max-age=2592000\n\n/assets/*\n  Cache-Control: public, max-age=2592000\n\n/assets/foley.m4a\n  Content-Type: audio/mp4\n",
+        "serve_directly": true,
+        "raw_run_worker_first": false,
+        "base_path": "/"
+      },
+      "compatibility_date": "2026-10-01",
+      "usage_model": "standard"
+    },
+    "bindings": []
+  }
+}

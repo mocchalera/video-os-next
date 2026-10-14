@@ -1,0 +1,80 @@
+[
+  {
+    "id": "",
+    "tag": "A",
+    "text": "歌詞・作品について読む",
+    "scroll": 0
+  },
+  {
+    "id": "",
+    "tag": "A",
+    "text": "部屋へ",
+    "scroll": 0
+  },
+  {
+    "id": "",
+    "tag": "A",
+    "text": "歌詞",
+    "scroll": 0
+  },
+  {
+    "id": "",
+    "tag": "A",
+    "text": "制作背景",
+    "scroll": 0
+  },
+  {
+    "id": "",
+    "tag": "A",
+    "text": "クレジット",
+    "scroll": 0
+  },
+  {
+    "id": "",
+    "tag": "BODY",
+    "text": "\n歌詞・作品について読む\n\n  mocc",
+    "scroll": 250
+  },
+  {
+    "id": "enter",
+    "tag": "BUTTON",
+    "text": "▶ 入る — enter　（音が出ます ",
+    "scroll": 250
+  },
+  {
+    "id": "",
+    "tag": "A",
+    "text": "部屋へ戻る",
+    "scroll": 3453
+  },
+  {
+    "id": "mute",
+    "tag": "BUTTON",
+    "text": "ミュート",
+    "scroll": 3453
+  },
+  {
+    "id": "volume",
+    "tag": "INPUT",
+    "text": "",
+    "scroll": 3453
+  },
+  {
+    "id": "",
+    "tag": "A",
+    "text": "部屋へ戻る",
+    "scroll": 3453
+  },
+  {
+    "id": "",
+    "tag": "BODY",
+    "text": "\n歌詞・作品について読む\n\n  mocc",
+    "scroll": 3453
+  },
+  {
+    "id": "",
+    "tag": "A",
+    "text": "歌詞・作品について読む",
+    "scroll": 3453
+  }
+]

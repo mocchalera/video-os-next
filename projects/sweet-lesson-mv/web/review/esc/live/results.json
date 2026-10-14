@@ -1,0 +1,43 @@
+{
+  "executedAt": "2026-10-02T05:56:22.758Z",
+  "results": [
+    {
+      "name": "public cue reached by accelerated playback without seek",
+      "status": "pass",
+      "T": 133.063402
+    },
+    {
+      "name": "public volume-field Escape is not captured",
+      "status": "pass"
+    },
+    {
+      "name": "public real Escape fires work cue and retains interaction",
+      "status": "pass",
+      "T": 133.063402,
+      "hook": 133.063402,
+      "clicks": 1,
+      "focus": "stage",
+      "mode": "true",
+      "trusted": [
+        true,
+        true
+      ]
+    },
+    {
+      "name": "public second Escape does not duplicate",
+      "status": "pass"
+    },
+    {
+      "name": "public monitor renders early cancellation",
+      "status": "pass"
+    },
+    {
+      "name": "public outside-cue Escape exits interaction without second click",
+      "status": "pass"
+    },
+    {
+      "name": "public runtime has no errors",
+      "status": "pass"
+    }
+  ]
+}

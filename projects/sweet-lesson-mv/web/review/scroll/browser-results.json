@@ -1,0 +1,84 @@
+{
+  "url": "http://127.0.0.1:8876",
+  "executedAt": "2026-10-02T03:53:44.892Z",
+  "browser": "isolated headless installed Chrome",
+  "tier": 4,
+  "results": [
+    {
+      "name": "header link moves without audio",
+      "status": "pass"
+    },
+    {
+      "name": "read for 20 seconds and return without pause, seek or reinitialization",
+      "status": "pass",
+      "elapsedAudio": 20.116631
+    },
+    {
+      "name": "wheel changes document only, paused camera and clock unchanged",
+      "status": "pass"
+    },
+    {
+      "name": "focus exit releases held walking; range arrows do not walk",
+      "status": "pass"
+    },
+    {
+      "name": "window blur releases held input",
+      "status": "pass"
+    },
+    {
+      "name": "Escape leaves room mode with visible focus",
+      "status": "pass"
+    },
+    {
+      "name": "resize uses room dimensions without replacing canvas",
+      "status": "pass"
+    },
+    {
+      "name": "volume applied to song, foley and footsteps",
+      "status": "pass"
+    },
+    {
+      "name": "214.8-second track naturally ends in quiet room",
+      "status": "pass",
+      "duration": 214.8,
+      "audioTime": 214.8,
+      "wallMs": 215393
+    },
+    {
+      "name": "no auto-scroll or playback loop after end",
+      "status": "pass"
+    },
+    {
+      "name": "walking still available in epilogue",
+      "status": "pass"
+    },
+    {
+      "name": "explicit replay keeps one song, renderer, foley and audio engine",
+      "status": "pass"
+    },
+    {
+      "name": "no page/runtime errors",
+      "status": "pass"
+    },
+    {
+      "name": "mobile vertical swipe scrolls rather than looks",
+      "status": "pass"
+    },
+    {
+      "name": "explicit mobile mode enables look and returns to scrolling",
+      "status": "pass"
+    },
+    {
+      "name": "mobile layout has no horizontal overflow",
+      "status": "pass"
+    },
+    {
+      "name": "WebGL failure leaves lyrics, background and credits readable",
+      "status": "pass"
+    },
+    {
+      "name": "JavaScript-disabled text and anchor navigation",
+      "status": "pass"
+    }
+  ]
+}
