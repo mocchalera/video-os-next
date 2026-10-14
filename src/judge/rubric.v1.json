@@ -1,0 +1,100 @@
+{
+  "format": "vos.judge-rubric/1",
+  "id": "vos-material",
+  "version": "1.0.0",
+  "note": "Fixed observation criteria per use. A criterion a purpose does not list is reported as unknown (not judged), never guessed. Values are the model's subjective reading, kept with their probabilities.",
+  "thresholds": { "low_confidence": 0.3, "noul_low_band": [0.35, 0.65], "low_confidence_weight": 0.5, "min_evidence": 0.5 },
+  "criteria": {
+    "subject": {
+      "on": "frame",
+      "question": { "type": "noul", "instructions": "Is there one clearly visible main subject in this video frame (a person, an animal or a vehicle)?" },
+      "value": "p_yes"
+    },
+    "action_peak": {
+      "on": "frame",
+      "question": {
+        "type": "score",
+        "instructions": "How strong is the action at this instant of the video?",
+        "criteria": ["No visible action", "Small movement", "Clear action in progress", "The peak of the action: the most dynamic instant"]
+      },
+      "value": "score_norm"
+    },
+    "sharpness": {
+      "on": "frame",
+      "question": {
+        "type": "choice",
+        "instructions": "How sharp is the main subject in this frame?",
+        "criteria": { "sharp": "Sharp, no visible blur", "slight_blur": "Slight motion blur or softness", "heavy_blur": "Heavy blur; the subject is hard to make out", "cannot_tell": "Cannot tell from this frame" }
+      },
+      "value": { "sharp": 1, "slight_blur": 0.5, "heavy_blur": 0 },
+      "abstain": ["cannot_tell"]
+    },
+    "composition": {
+      "on": "frame",
+      "question": {
+        "type": "score",
+        "instructions": "How well is the main subject framed?",
+        "criteria": ["The main subject is cut off, tiny or badly placed", "Acceptable framing", "Well framed: the subject is clear and well placed"]
+      },
+      "value": "score_norm"
+    },
+    "expression": {
+      "on": "frame",
+      "question": {
+        "type": "choice",
+        "instructions": "Is a face visible, and can its expression be read?",
+        "criteria": { "readable": "A face is visible and its expression is easy to read", "hard_to_read": "A face is visible but the expression is hard to read", "no_face": "No face is visible", "cannot_tell": "Cannot tell from this frame" }
+      },
+      "value": { "readable": 1, "hard_to_read": 0.4 },
+      "unobserved": { "no_face": "no face visible in the frame" },
+      "abstain": ["cannot_tell"]
+    },
+    "speaker_visible": {
+      "on": "frame",
+      "question": { "type": "noul", "instructions": "Is a person who appears to be speaking clearly visible, with the face toward the camera?" },
+      "value": "p_yes"
+    },
+    "readability": {
+      "on": "frame",
+      "question": {
+        "type": "score",
+        "instructions": "How readable is the text on screen in this frame?",
+        "criteria": ["Text is unreadable or there is no text", "Text is partly readable", "Text is clearly readable"]
+      },
+      "value": "score_norm"
+    },
+    "utterance_complete": {
+      "on": "transcript",
+      "question": {
+        "type": "choice",
+        "instructions": "The state is the automatic transcript of one spoken segment of a video (it may contain recognition errors). Is it a complete utterance that could be used as a standalone clip?",
+        "criteria": { "complete": "A complete sentence or thought", "fragment": "Cut off, unfinished or only filler", "cannot_tell": "Cannot tell from the transcript" }
+      },
+      "value": { "complete": 1, "fragment": 0.2 },
+      "abstain": ["cannot_tell"]
+    }
+  },
+  "purposes": {
+    "action": {
+      "label": "動作ピーク（主役・ピーク・ブレ・構図・表情）",
+      "query": "the peak moment of an action, a person moving",
+      "weights": { "action_peak": 0.35, "subject": 0.2, "sharpness": 0.2, "composition": 0.15, "expression": 0.1 },
+      "peak": "action_peak",
+      "bounds": "frames"
+    },
+    "talk": {
+      "label": "会話（発話の完結性・話者・表情・構図・ブレ）",
+      "query": "a person speaking to the camera",
+      "weights": { "utterance_complete": 0.4, "speaker_visible": 0.25, "composition": 0.15, "expression": 0.1, "sharpness": 0.1 },
+      "peak": "speaker_visible",
+      "bounds": "transcript"
+    },
+    "screen": {
+      "label": "画面の可読性（文字・ブレ・構図）",
+      "query": "readable text on a computer screen",
+      "weights": { "readability": 0.5, "sharpness": 0.3, "composition": 0.2 },
+      "peak": "readability",
+      "bounds": "frames"
+    }
+  }
+}
