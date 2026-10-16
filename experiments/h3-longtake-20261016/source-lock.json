@@ -1,0 +1,26 @@
+{
+  "longtake": {
+    "repo": "xyzDist/H3-LongTakeNoCuts",
+    "rev": "0cad00ab92e4ad8de3d54ddd5254142bccb702d9",
+    "date": "2026-10-09T04:21:07Z"
+  },
+  "motion": {
+    "repo": "NikoDemon80/ComfyUI-H3-Motion-Context",
+    "rev": "5335715abe54c1a9bfbe3494da29aae3e8635ce3",
+    "date": "2026-09-06T18:37:48Z"
+  },
+  "hybrid": {
+    "repo": "scottmudge/ComfyUI_MinimaxH3HybridLoader",
+    "rev": "a44c69b02242e41fbd01e22abe2a492adc853038",
+    "date": "2026-08-11T12:37:46Z"
+  },
+  "comfy": {
+    "repo": "Comfy-Org/ComfyUI",
+    "rev": "5a665890ded5020c282f63c4ea2dd9e083e025ff",
+    "date": "2026-10-16T00:51:17Z"
+  },
+  "local_base_worker": {
+    "path": "python/colab_gen_vm.py",
+    "sha256": "f358f1032aec4a04d59868bebf9e5f9be7cdab5be9df08a6f486266be5cb67a1"
+  }
+}
