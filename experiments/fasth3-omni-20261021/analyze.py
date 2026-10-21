@@ -35,9 +35,12 @@ def measure(file):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--include-retry", action="store_true", help="Combine the original run and the separately approved FastH3 retry")
+    parser.add_argument("--include-recovery", action="store_true", help="Also include the user-directed recovery after GPU verification was fixed")
     args = parser.parse_args()
     results = []
-    for source in ["run.json"] + (["retry-run.json"] if args.include_retry else []):
+    compare = args.include_retry or args.include_recovery
+    sources = ["run.json"] + (["retry-run.json"] if compare else []) + (["recovery-run.json"] if args.include_recovery else [])
+    for source in sources:
         record = json.loads((OUT / source).read_text())
         for phase in record.get("phases", []):
             for clip in phase.get("clips", []):
@@ -45,9 +48,9 @@ if __name__ == "__main__":
                 result = {"model": phase["model"], "seed": clip["seed"], "file": clip["file"],
                           "request_id": clip["request_id"], "vm_sec": clip["sec"], "wall_sec": clip["wall_sec"],
                           **measure(file)}
-                if args.include_retry:
+                if compare:
                     result["source_run"] = source
                 results.append(result)
-    target = "measurements-comparison.json" if args.include_retry else "measurements.json"
+    target = "measurements-recovery.json" if args.include_recovery else "measurements-comparison.json" if compare else "measurements.json"
     (OUT / target).write_text(json.dumps(results, indent=2) + "\n")
     print(json.dumps(results, indent=2))

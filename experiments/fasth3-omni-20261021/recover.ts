@@ -16,6 +16,8 @@ const args = process.argv.slice(2);
 const value = (flag: string) => args[args.indexOf(flag) + 1];
 const ART = args.includes("--artifacts") ? path.resolve(value("--artifacts")) : HERE;
 const OUT = path.join(ART, "outputs");
+const label = args.includes("--run-label") ? value("--run-label") : "recovery";
+if (!["recovery", "schema"].includes(label)) throw new Error("Unknown recovery record label");
 fs.mkdirSync(OUT, { recursive: true });
 const write = (file: string, data: unknown) => {
   const target = path.join(OUT, file), tmp = target + ".tmp";
@@ -24,7 +26,7 @@ const write = (file: string, data: unknown) => {
 };
 const log = (message: string) => console.log(new Date().toISOString(), message);
 const record: any = { approved_ask: "ask_218f72ffc7cb", continued_by: "user: 何とかやってください (2026-10-21)", budget_cu: 2.5, original_total_cap_cu: 6, phases: [], state: "planned" };
-const save = () => write("recovery-run.json", record);
+const save = () => write(`${label}-run.json`, record);
 const ledgerPath = path.join(process.env.VOS_COLAB_HOME ?? path.join(os.homedir(), ".config/vos/colab"), "vos-gen.json");
 const ledger = () => fs.existsSync(ledgerPath) ? JSON.parse(fs.readFileSync(ledgerPath, "utf8")) : null;
 
@@ -48,7 +50,7 @@ function hardware() {
   const probe = fs.readFileSync(path.join(HERE, "gpu_probe.py"), "utf8");
   rc.exec(GEN, probe + "\nwrite_probe()\n", 100, 1);
   const h = rc.remoteJson(GEN, "/content/vosgen/hardware.json");
-  write("recovery-hardware.json", h);
+  write(`${label}-hardware.json`, h);
   if (h.state !== "ready") throw new Error("GPU readiness failed: " + JSON.stringify(h));
   const devices = h.cuda?.devices;
   if (devices?.length !== 1 || !devices[0].name.includes("A100") || devices[0].memory_mib < 39000 || devices[0].memory_mib > 45000) throw new Error("GPU proof does not match A100 40GB");
@@ -75,7 +77,7 @@ function main() {
   const models = ["fasth3-omni"];
   const requests = models.flatMap((model) => [1, 2].map((seed) => buildRequest({ model, prompt, seed,
     seconds: 5, size: "768p", refSize: "match", refs: [{ asset: reference.id, at: 0 }] })));
-  const plan = JSON.parse(fs.readFileSync(path.join(OUT, "recovery-plan.json"), "utf8"));
+  const plan = JSON.parse(fs.readFileSync(path.join(OUT, `${label}-plan.json`), "utf8"));
   const sourceCommit = plan.source_commit;
   if (!/^[0-9a-f]{40}$/.test(sourceCommit)) throw new Error("Missing fixed source revision");
   if (plan.additional_cap_cu !== 2.5 || plan.original_budget_cu !== 6 || plan.max_hours !== 0.5 ||
@@ -92,14 +94,14 @@ function main() {
   }
   record.reused_legacy_requests = plan.reuse_legacy_requests;
   record.prior_run_sha256 = plan.prior_run_sha256;
-  write("recovery-planned-requests.json", { status: "not_executed", requests });
-  const source = JSON.parse(fs.readFileSync(path.join(OUT, "recovery-execution-source.json"), "utf8"));
+  write(`${label}-planned-requests.json`, { status: "not_executed", requests });
+  const source = JSON.parse(fs.readFileSync(path.join(OUT, `${label}-execution-source.json`), "utf8"));
   if (source.source_commit !== plan.source_commit || source.worker_sha256 !== plan.worker_sha256 || source.approved_ask !== record.approved_ask) throw new Error("Recovery source differs from the fixed plan");
   for (const [file, hash] of Object.entries(source.files)) {
     if (sha256(fs.readFileSync(path.join(ROOT, file))) !== hash) throw new Error("Execution source changed: " + file);
   }
   if (requests.some((r) => fs.existsSync(genPaths(p, r.id).media))) throw new Error("Existing FastH3 takes would invalidate fresh-generation timing");
-  if (fs.existsSync(path.join(OUT, "recovery-execution.started"))) throw new Error("Recovery already attempted; preserve this execution and stop");
+  if (fs.existsSync(path.join(OUT, `${label}-execution.started`))) throw new Error("Recovery already attempted; preserve this execution and stop");
   if (!args.includes("--execute")) { log("2 FastH3 requests and legacy hashes verified; no GPU or model downloads"); return; }
   if (Number(value("--budget-cu")) !== 2.5) throw new Error("This bounded recovery requires --budget-cu 2.5");
   if (process.env.VOS_COLAB_GUARD || process.env.VOS_COLAB_BIN) throw new Error("Unexpected Colab command override");
@@ -109,7 +111,7 @@ function main() {
   const priorSpend = Math.max(plan.initial_balance - record.before.balance, plan.prior_cu_conservative);
   if (!Number.isFinite(priorSpend) || priorSpend < 1.99 || priorSpend + 2.5 > 6) throw new Error("Original 6 CU total cap would be exceeded");
   record.prior_cu_conservative = priorSpend;
-  fs.writeFileSync(path.join(OUT, "recovery-execution.started"), JSON.stringify({ ask: record.approved_ask, budget_cu: 2.5, time: new Date().toISOString() }) + "\n", { flag: "wx" });
+  fs.writeFileSync(path.join(OUT, `${label}-execution.started`), JSON.stringify({ ask: record.approved_ask, budget_cu: 2.5, time: new Date().toISOString() }) + "\n", { flag: "wx" });
   record.source = source;
   record.runner_sha256 = sha256(fs.readFileSync(fileURLToPath(import.meta.url)));
   record.started_at = Date.now(); record.state = "running"; save();
@@ -130,7 +132,7 @@ function main() {
       rc.exec(GEN, 'bootstrap(model="fasth3-omni")');
       rc.wait(GEN, "/content/vosgen/boot.done", 1200, "the recovery bootstrap");
       phase.boot = rc.remoteJson(GEN, "/content/vosgen/boot.json");
-      write("recovery-boot.json", phase.boot);
+      write(`${label}-boot.json`, phase.boot);
       if (phase.boot.state !== "ready") throw new Error("Bootstrap failed: " + phase.boot.error);
       log(`${model} ready; bootstrap ${phase.boot.sec}s; ${phase.hardware.cuda.devices[0].name}`); save();
       for (const seed of [1, 2]) {
@@ -156,7 +158,7 @@ function main() {
       const owns = attempted && phase.up?.status !== "already_up" && l && l.created_at !== prior && l.created_at >= phase.started_at / 1000 - 1;
       if (owns) {
         phase.ledger_before_stop = l;
-        try { execFileSync("colab", ["download", "-s", "vos-gen", "/content/vosgen/server.log", path.join(OUT, "recovery-server.log")], { timeout: 30_000, stdio: "pipe" }); }
+        try { execFileSync("colab", ["download", "-s", "vos-gen", "/content/vosgen/server.log", path.join(OUT, `${label}-server.log`)], { timeout: 30_000, stdio: "pipe" }); }
         catch (e) { phase.log_download_error = String(e); }
         log(`Stopping ${model} session`);
         try { phase.stop = down(); } catch (e) { phase.stop_error = String(e); }

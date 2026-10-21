@@ -77,6 +77,16 @@ class FastH3Tests(unittest.TestCase):
         info["ModelAttentionBackend"]["input"]["required"]["attention"] = [["pytorch attention", "comfy kitchen attention"]]
         with patch.object(vm.urllib.request, "urlopen", return_value=io.BytesIO(json.dumps(info).encode())):
             self.assertTrue(vm._check_fasth3_schema()["native_nodes"])
+        # The pinned ComfyUI V3 serializer emits the type plus an options dictionary.
+        v3 = copy.deepcopy(info)
+        v3["ModelAttentionBackend"]["input"]["required"]["attention"] = [
+            "COMBO", {"options": ["pytorch attention", "comfy kitchen attention"]}]
+        with patch.object(vm.urllib.request, "urlopen", return_value=io.BytesIO(json.dumps(v3).encode())):
+            self.assertTrue(vm._check_fasth3_schema()["native_nodes"])
+        for field in (["COMBO", {"options": ["pytorch attention"]}], ["COMBO", {"options": "comfy kitchen attention"}], ["COMBO"]):
+            v3["ModelAttentionBackend"]["input"]["required"]["attention"] = field
+            with patch.object(vm.urllib.request, "urlopen", return_value=io.BytesIO(json.dumps(v3).encode())), self.assertRaises(RuntimeError):
+                vm._check_fasth3_schema()
         bad = copy.deepcopy(info)
         bad["ModelAttentionBackend"]["input"]["required"]["attention"] = [["pytorch attention"]]
         with patch.object(vm.urllib.request, "urlopen", return_value=io.BytesIO(json.dumps(bad).encode())), self.assertRaises(RuntimeError):
@@ -110,6 +120,20 @@ class FastH3Tests(unittest.TestCase):
             self.assertEqual(vm.STATE["boot"]["download_policy"]["parallel_files"], 2)
             with self.assertRaises(RuntimeError):
                 vm.bootstrap(model="minimax-h3")
+        finally:
+            vm.STATE["boot"] = old_boot
+
+    def test_fast_capability_failure_downloads_no_model_weights(self):
+        old_boot = vm.STATE.get("boot")
+        try:
+            with patch.dict(os.environ), patch.object(vm, "_fetch") as fetch, patch.object(vm, "_sh", return_value=""), \
+                 patch.object(vm, "_torch_info", return_value="2.11.0+cu130 13.0"), \
+                 patch.object(vm, "_start_server", return_value={}), \
+                 patch.object(vm, "_check_fasth3_schema", side_effect=RuntimeError("backend unavailable")):
+                vm._bootstrap(model="fasth3-omni")
+            fetch.assert_not_called()
+            self.assertEqual(vm.STATE["boot"]["state"], "error")
+            self.assertIn("backend unavailable", vm.STATE["boot"]["error"])
         finally:
             vm.STATE["boot"] = old_boot
 

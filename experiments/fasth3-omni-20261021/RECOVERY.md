@@ -26,3 +26,19 @@ NVMLとの不一致、同じVM内での準備完了、コマンドの時間制�
 
 実行runnerは `recover.ts`、記録は `outputs/recovery-*.json`。
 初回と最初の再試行の実行記録・マーカーは保持する。
+
+## CUDA確認後に見つかった互換チェックのバグ
+
+`f34fd7a` の実行では、A100をNVML/CUDA両方で確認し、全4ファイルを追加再試行なしで取得した。
+torch 2.11.0+cu130、Kitchen CUDA拡張の起動も成功したが、互換チェックがattention選択肢を読み違えて停止した。
+workerが旧V1の `[choices, metadata]` だけを想定していたため。
+固定版ComfyUIの `comfy_api/latest/_io.py` はV3のComboを `["COMBO", {"options": choices}]` に変換する。
+これは提供側の不適合を証明するエラーではなく、こちらの確認処理のバグである。
+
+両形式を読み、選択肢が配列であることも検証するよう修正した。対応する回帰ケースと、
+機能チェック失敗時にはモデルを取得しないテストを追加した。
+FastH3のみ、torch/server/ネイティブ機能の検査をモデル取得より前に移した。旧経路の順序は保持する。
+
+続行指示と当初の合計6 CU上限の範囲で、既使用分を3.35 CUとして留保し、残りから最大2.5 CUで再開する。
+記録を分けるためrunnerに `--run-label schema` を指定し、`outputs/schema-*.json` に保存する。
+モデル・精度・GPU・入力・request IDは変更しない。
