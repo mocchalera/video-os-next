@@ -1,0 +1,17 @@
+subject_definitions:
+<Subject 1> is the adult woman in <Picture 1>. Preserve her facial structure, dark brown eyes, straight black eyebrows, natural skin texture and dark ponytail. In the target video she wears a light beige casual jacket over a plain blue shirt, navy trousers and white walking shoes. The sheet's three views describe one person.
+
+summary:
+[reference generation] A live-action continuous tracking shot of <Subject 1> walking along a quiet Japanese neighborhood street in soft morning light. The reference defines her face and hairstyle. The setting and everyday street clothes are new.
+
+retention_analysis:
+<Subject 1> (appears in [Shot 1]): partially_preserved - facial identity, age, skin and ponytail are preserved; the athletic outfit is replaced by the beige jacket, blue shirt and trousers.
+
+detailed_description:
+Photorealistic live-action cinema, natural contrast and soft daylight. [Shot 1] One adult woman, <Subject 1>, walks forward at a steady relaxed pace along a quiet Japanese residential street lined with low wooden houses, small gardens and a few parked bicycles. The camera tracks backward smoothly at her walking speed with a medium amplitude, maintaining an eye-level waist-up framing and a constant distance. Her face remains clearly visible, her arms swing naturally and she looks ahead with a calm expression. Background houses pass continuously behind her. Continue the same forward walk and backward camera movement throughout the entire shot. Stable exposure, natural skin details, one continuous take. No cuts, transitions, split screens, collages, duplicate women, subtitles, logos or readable signs.
+
+overall_soundscape:
+Quiet outdoor ambience, light footsteps and distant birds. No dialogue or singing.
+
+non_diegetic_music:
+N/A

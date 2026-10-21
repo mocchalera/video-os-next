@@ -1,0 +1,53 @@
+{
+  "format": "vos.timeline/1",
+  "name": "h3-longtake-pilot",
+  "duration": "685f",
+  "tracks": [
+    {
+      "id": "V1",
+      "kind": "video",
+      "clips": [
+        {
+          "id": "longtake-01",
+          "asset": "segment01_refined",
+          "at": "0f",
+          "in": 0,
+          "dur": "243f",
+          "audio": true
+        },
+        {
+          "id": "longtake-02",
+          "asset": "segment02_refined",
+          "at": "243f",
+          "in": 0,
+          "dur": "221f",
+          "audio": true
+        },
+        {
+          "id": "longtake-03",
+          "asset": "segment03_refined",
+          "at": "464f",
+          "in": 0,
+          "dur": "221f",
+          "audio": true
+        }
+      ]
+    }
+  ],
+  "markers": [
+    {
+      "at": "243f",
+      "dur": "1f",
+      "label": "join 1: previous latent context, 22 frames trimmed"
+    },
+    {
+      "at": "464f",
+      "dur": "1f",
+      "label": "join 2: previous latent context, 22 frames trimmed"
+    }
+  ],
+  "master": {
+    "loudness": null,
+    "true_peak": -1
+  }
+}

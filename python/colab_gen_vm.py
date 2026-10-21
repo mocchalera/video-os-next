@@ -36,6 +36,19 @@ WEIGHTS = [
     ("vae/minimax_h3_audio_vae_fp32.safetensors", "vae"),
     ("loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors", "loras"),
 ]
+# Matches src/gen/colab.ts FASTH3. Keep the legacy ComfyUI pin isolated in its own session.
+FASTH3 = {
+    "model": "fasth3-omni", "weights_repo": "FastVideo/FastH3-Omni-Comfy",
+    "weights_rev": "82eff2a6eee6c962846879f4bab52610a4df24d3",
+    "comfy_rev": "b1a247c9cf9dbfda4b2c0a0c1d50950667eeaa0c",
+    "unet": "fasth3_omniref_8step_pruned_int8_convrot.safetensors",
+    "text_encoder": WEIGHTS[1][0].split("/")[-1], "video_vae": WEIGHTS[2][0].split("/")[-1],
+    "audio_vae": WEIGHTS[3][0].split("/")[-1], "steps": 8, "lora": "", "sol_tau": None,
+    "sampler": "euler", "shift_video": 12, "shift_audio": 3, "attention": "vsa", "vsa_keep_percent": 10,
+    "attention_backend": "comfy kitchen attention", "graph_revision": "fasth3-omni-v1",
+}
+FASTH3_WEIGHTS = [("diffusion_models/" + FASTH3["unet"], "diffusion_models"), *WEIGHTS[1:4]]
+FASTH3_DOWNLOAD_BACKOFF = (30, 60, 120)
 # pin all three: an unpinned torchvision stays on Colab's cu128 build and ComfyUI refuses to start
 TORCH_CU130 = ("pip install -q 'torch==2.11.0+cu130' 'torchvision==0.26.0+cu130' 'torchaudio==2.11.0+cu130' "
                "--index-url https://download.pytorch.org/whl/cu130")
@@ -66,44 +79,80 @@ def _write(path, obj, done=None):
 
 # ------------------------------------------------------------------ bootstrap
 
-def _fetch(path, subdir):
+def _fetch(path, subdir, repo=WEIGHTS_REPO, revision=WEIGHTS_REV):
     from huggingface_hub import hf_hub_download
     t = time.time()
     dest = f"{COMFY}/models/{subdir}"
     name = os.path.basename(path)
     final = f"{dest}/{name}"
-    if not os.path.exists(final):
-        p = hf_hub_download(WEIGHTS_REPO, path, revision=WEIGHTS_REV, local_dir=dest)
+    # For the new profile resolve every component at its pin, including shared filenames.
+    attempts = 0
+    if repo != WEIGHTS_REPO or not os.path.exists(final):
+        while True:
+            attempts += 1
+            try:
+                p = hf_hub_download(repo, path, revision=revision, local_dir=dest)
+                break
+            except RuntimeError as exc:
+                # Xet's Rust transfer error bypasses huggingface_hub's HTTP rate-limit retries.
+                # Retry only the observed 429 failure, on the same pinned file, with a bounded wait.
+                if repo != FASTH3["weights_repo"] or "429 Too Many Requests" not in str(exc) or attempts > len(FASTH3_DOWNLOAD_BACKOFF):
+                    raise
+                time.sleep(FASTH3_DOWNLOAD_BACKOFF[attempts - 1])
         os.replace(p, final)
-    return {"file": name, "gb": round(os.path.getsize(final) / 1e9, 2), "sec": round(time.time() - t, 1)}
+    return {"file": name, "gb": round(os.path.getsize(final) / 1e9, 2), "sec": round(time.time() - t, 1),
+            **({"download_attempts": attempts} if repo == FASTH3["weights_repo"] else {})}
 
 
 def _torch_info():
     return _sh("python -c 'import torch;print(torch.__version__, torch.version.cuda)'", False).strip()
 
 
-def _bootstrap(light=False):
+def _bootstrap(light=False, model="minimax-h3"):
     """light=True: ComfyUI only (no H3 weights, no torch swap) — enough for upscaling or checking node schemas."""
-    rep = {"state": "running", "comfy_rev": COMFY_REV, "weights_rev": WEIGHTS_REV, "light": light}
+    fast = model == FASTH3["model"]
+    rev = FASTH3["comfy_rev"] if fast else COMFY_REV
+    repo = FASTH3["weights_repo"] if fast else WEIGHTS_REPO
+    weights_rev = FASTH3["weights_rev"] if fast else WEIGHTS_REV
+    rep = {"state": "running", "model": model, "comfy_rev": rev, "weights_repo": repo,
+           "weights_rev": weights_rev, "light": light}
     t0 = time.time()
     try:
-        os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
+        os.environ["HF_XET_HIGH_PERFORMANCE"] = "0" if fast else "1"
+        if fast:
+            os.environ["HF_XET_NUM_CONCURRENT_RANGE_GETS"] = "4"
+            os.environ["HF_XET_FIXED_DOWNLOAD_CONCURRENCY"] = "4"
+            rep["download_policy"] = {"parallel_files": 2, "xet_high_performance": False,
+                                      "requested_xet_concurrency": 4, "retry_429_wait_seconds": list(FASTH3_DOWNLOAD_BACKOFF)}
         if not os.path.isdir(COMFY):
             _sh(f"git clone -q https://github.com/comfyanonymous/ComfyUI.git {COMFY}")
-        _sh(f"cd {COMFY} && git fetch -q && git checkout -q {COMFY_REV} && pip install -q -r requirements.txt")
-        if not light:
+        _sh(f"cd {COMFY} && git fetch -q && git checkout -q {rev} && pip install -q -r requirements.txt")
+        if fast:
+            # Validate runtime capability before downloading 55 GB of model weights.
+            rep["torch_pip"] = _sh(TORCH_CU130 + " 2>&1 | tail -3", False)[-500:]
+            rep["torch"] = STATE["torch"] = _torch_info()
+            if not re.search(r"\s1[3-9]\.", " " + rep["torch"]):
+                raise RuntimeError("FastH3 requires the pinned CUDA 13 torch runtime")
+            STATE["flags"] = []
+            rep["server"] = _start_server([])
+            rep["schema"] = _check_fasth3_schema()
+            with cf.ThreadPoolExecutor(2) as ex:
+                dl = [ex.submit(_fetch, p, d, repo, weights_rev) for p, d in FASTH3_WEIGHTS]
+                rep["weights"] = [f.result() for f in dl]
+        elif not light:
             with cf.ThreadPoolExecutor(8) as ex:
                 tf = ex.submit(_sh, TORCH_CU130 + " 2>&1 | tail -3", False)
-                dl = [ex.submit(_fetch, p, d) for p, d in WEIGHTS]
+                dl = [ex.submit(_fetch, p, d, repo, weights_rev) for p, d in (FASTH3_WEIGHTS if fast else WEIGHTS)]
                 rep["weights"] = [f.result() for f in dl]
                 rep["torch_pip"] = tf.result()[-500:]
-        rep["torch"] = STATE["torch"] = _torch_info()
-        # kitchen CUDA kernels need CUDA >= 13; otherwise the Triton backend is the measured next best
-        cuda_ok = bool(re.search(r"\s1[3-9]\.", " " + rep["torch"]))
-        STATE["flags"] = [] if cuda_ok else ["--enable-triton-backend"]
-        if not _sh("nvidia-smi -L 2>/dev/null", False).strip():
-            STATE["flags"] = ["--cpu"]
-        rep["server"] = _start_server(STATE["flags"])
+        if not fast:
+            rep["torch"] = STATE["torch"] = _torch_info()
+            # kitchen CUDA kernels need CUDA >= 13; otherwise the Triton backend is the measured next best
+            cuda_ok = bool(re.search(r"\s1[3-9]\.", " " + rep["torch"]))
+            STATE["flags"] = [] if cuda_ok else ["--enable-triton-backend"]
+            if not _sh("nvidia-smi -L 2>/dev/null", False).strip():
+                STATE["flags"] = ["--cpu"]
+            rep["server"] = _start_server(STATE["flags"])
         rep["state"] = "ready"
     except Exception:
         rep["state"] = "error"
@@ -113,7 +162,13 @@ def _bootstrap(light=False):
     _write(f"{ROOT}/boot.json", rep, f"{ROOT}/boot.done")
 
 
-def bootstrap(light=False):
+def bootstrap(light=False, model="minimax-h3"):
+    if model not in ("minimax-h3", FASTH3["model"]):
+        raise ValueError("unknown generation model: " + str(model))
+    if light and model == FASTH3["model"]:
+        raise ValueError("FastH3 requires a full session")
+    if STATE.get("boot") and STATE["boot"]["state"] == "ready" and STATE["boot"].get("model", "minimax-h3") != model:
+        raise RuntimeError("cannot change the model of a running session; stop it and start a new session")
     if STATE.get("boot") and STATE["boot"]["state"] == "ready" and STATE["boot"].get("light") == light:
         print(json.dumps({"ok": True, "bootstrap": "already ready"}))  # idempotent: a retried exec must not restart it
         return
@@ -124,7 +179,7 @@ def bootstrap(light=False):
         if os.path.exists(f"{ROOT}/{f}"):
             os.remove(f"{ROOT}/{f}")
     open(f"{ROOT}/boot.started", "w").close()
-    threading.Thread(target=_bootstrap, args=(light,), name="vosgen-boot", daemon=True).start()
+    threading.Thread(target=_bootstrap, args=(light, model), name="vosgen-boot", daemon=True).start()
     print(json.dumps({"ok": True, "bootstrap": "started"}))
 
 
@@ -158,6 +213,29 @@ def _post(path, body):
         raise RuntimeError(f"ComfyUI rejected the graph: {e.read().decode()[:2000]}") from e
 
 
+def _check_fasth3_schema():
+    """Fail before generation if this runtime cannot provide the selected native recipe."""
+    info = json.load(urllib.request.urlopen(f"{URL}/object_info"))
+    _write(f"{ROOT}/native-schema.json", {k: info.get(k) for k in (
+        "MiniMaxH3SigmaShift", "MiniMaxH3ReferenceToVideo", "BlockSparseAttention", "ModelAttentionBackend")})
+    for cls, names in {
+        "MiniMaxH3SigmaShift": ("model", "shift_video", "shift_audio"),
+        "MiniMaxH3ReferenceToVideo": ("clip", "prompt", "width", "height", "length"),
+        "BlockSparseAttention": ("model", "selection", "start_percent", "end_percent"),
+        "ModelAttentionBackend": ("model", "attention"),
+    }.items():
+        fields = info.get(cls, {}).get("input", {}).get("required", {})
+        if not all(n in fields for n in names):
+            raise RuntimeError("FastH3 native node schema is unavailable: " + cls)
+    field = info["ModelAttentionBackend"]["input"]["required"]["attention"]
+    # V1 encodes a combo as [choices, metadata]; V3 uses ["COMBO", {"options": choices}].
+    choices = field[0] if isinstance(field[0], list) else (
+        field[1].get("options") if field[0] == "COMBO" and len(field) > 1 and isinstance(field[1], dict) else None)
+    if not isinstance(choices, list) or FASTH3["attention_backend"] not in choices:
+        raise RuntimeError("FastH3 requires the Comfy Kitchen attention backend; no fallback is selected")
+    return {"native_nodes": True, "attention_backend": FASTH3["attention_backend"]}
+
+
 # reference-to-video (character / style / keyframes): separate diffusion model + turbo LoRA, fetched on first use
 REF_WEIGHTS = [
     ("diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors", "diffusion_models"),
@@ -185,8 +263,22 @@ def frames_for(seconds):
     return n + (5 - n % 17) % 17
 
 
+def _validate_fasth3(r):
+    """Reject unvalidated modes/settings even when a caller bypasses the local CLI."""
+    if any(r.get(k) != v for k, v in FASTH3.items()):
+        raise ValueError("FastH3 request does not match the pinned 8-step VSA recipe")
+    if r.get("mode") != "ref2va" or not 1 <= len(r.get("ref_images", [])) <= 9:
+        raise ValueError("FastH3 needs 1–9 image references")
+    if any(r.get(k) for k in ("first_image", "last_image", "guide_images", "guide_audios", "control_video", "control",
+                              "first_frame", "last_frame", "guides", "audio_guides")):
+        raise ValueError("FastH3 frame/audio guides and ControlNet are not validated")
+
+
 def graph(r):
     """API-format T2V(+audio) graph, rebuilt from the stock template `video_minimax_h3_t2v.json`."""
+    fast = r.get("model") == FASTH3["model"]
+    if fast:
+        _validate_fasth3(r)
     g = {}
 
     def node(nid, cls, **inputs):
@@ -194,6 +286,13 @@ def graph(r):
         return [nid, 0]
 
     model = node("unet", "UNETLoader", unet_name=r["unet"], weight_dtype="default")
+    if fast:
+        model = node("shift", "MiniMaxH3SigmaShift", model=model, shift_video=r["shift_video"], shift_audio=r["shift_audio"])
+        model = node("backend", "ModelAttentionBackend", model=model, attention=r["attention_backend"])
+        model = node("sparse", "BlockSparseAttention", model=model, **{
+            "selection": "vsa", "selection.keep_percent": r["vsa_keep_percent"], "start_percent": 0.0, "end_percent": 1.0,
+            "dense_blocks": "", "min_tokens": 12288, "extra_tokens": 256,
+            "sink_conditioning": "exact_kv_and_rows", "verbose": False})
     if r.get("lora"):
         model = node("lora", "LoraLoaderModelOnly", model=model, lora_name=r["lora"], strength_model=r.get("lora_strength", 1.0))
     if r.get("sol_tau") is not None:
@@ -344,13 +443,23 @@ def _run_job(r):
             raise RuntimeError("bootstrap not ready")
         if STATE["boot"].get("light") and r.get("kind") != "upscale":
             raise RuntimeError("this session was started with --light (no H3 weights): `vos gen down`, then `vos gen up` without --light")
+        boot = STATE["boot"]
+        rep.update(comfy_rev=boot["comfy_rev"], weights_rev=boot["weights_rev"],
+                   weights_repo=boot.get("weights_repo", WEIGHTS_REPO), model=boot.get("model", "minimax-h3"))
+        if r.get("kind") != "upscale":
+            if r.get("model", "minimax-h3") != rep["model"]:
+                raise ValueError("request model does not match the running session")
+            if rep["model"] == FASTH3["model"]:
+                _validate_fasth3(r)
+                if any(boot.get(k) != FASTH3[k] for k in ("comfy_rev", "weights_repo", "weights_rev")):
+                    raise ValueError("FastH3 session revisions do not match the request")
         log_mark = os.path.getsize(f"{ROOT}/server.log")
         if r.get("kind") == "upscale":
             _run_upscale({**r, "model_file": _ensure_upscaler(r["model"])}, rep)
             rep["sec"] = round(time.time() - t0, 1)
             _write(f"{ROOT}/jobs/{jid}.json", rep, f"{ROOT}/jobs/{jid}.done")
             return
-        if r.get("mode") == "ref2va":
+        if r.get("mode") == "ref2va" and rep["model"] != FASTH3["model"]:
             rep["ref_weights"] = _ensure_ref_weights()
         if r.get("control_video"):
             rep["control_weights"] = _ensure_control_weights()
@@ -375,8 +484,11 @@ def _run_job(r):
             its = re.findall(r"(\d+)/\1 \[[0-9:]+<00:00, +([0-9.]+)s/it", f.read())
         rep.update(state="ok", output=f"{ROOT}/out/{jid}.mp4", s_per_it=float(its[-1][1]) if its else None)
     except Exception:
-        rep.update(state="error", error=traceback.format_exc()[-2500:],
-                   log_tail=open(f"{ROOT}/server.log").read()[-1500:] if os.path.exists(f"{ROOT}/server.log") else "")
+        tail = ""
+        if os.path.exists(f"{ROOT}/server.log"):
+            with open(f"{ROOT}/server.log") as f:
+                tail = f.read()[-1500:]
+        rep.update(state="error", error=traceback.format_exc()[-2500:], log_tail=tail)
     rep["sec"] = round(time.time() - t0, 1)
     _write(f"{ROOT}/jobs/{jid}.json", rep, f"{ROOT}/jobs/{jid}.done")
 

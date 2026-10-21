@@ -1,0 +1,19 @@
+subject_definitions:
+<Subject 1> is the small yellow propeller aircraft in <Picture 1>, with a dark nose, round wing markings and a white smoke trail.
+<Subject 2> is the cloudscape in <Picture 1>: tall sunlit white clouds below a very dark blue sky.
+
+summary:
+[reference generation] A five-second cinematic aviation shot. Preserve the aircraft's design and the cloudscape while showing a continuous climbing turn with synchronized engine sound.
+
+retention_analysis:
+<Subject 1> (appears in [Shot 1]): fully_preserved - retain the yellow body, wing shape, round markings and dark nose.
+<Subject 2> (appears in [Shot 1]): fully_preserved - retain the bright sculpted clouds and deep blue sky.
+
+detailed_description:
+Photorealistic aerial cinematography with strong sunlight and clear atmospheric depth. [Shot 1] <Subject 1> climbs above <Subject 2>, leaving a continuous white smoke trail. The camera tracks upward at moderate speed and constant distance, keeping the entire aircraft clearly visible. Around two seconds, the aircraft banks smoothly to its left and its engine briefly drops in pitch. Around three seconds it levels its wings, accelerates and climbs again as the engine pitch rises. The smoke curves naturally along the flight path. The aircraft retains its design throughout the continuous shot. No cuts, text or additional aircraft.
+
+overall_soundscape:
+A steady propeller-engine roar and rushing wind. The engine pitch dips during the bank around two seconds, then rises during the acceleration around three seconds. Keep the sound continuous, without speech or unrelated impacts.
+
+non_diegetic_music:
+N/A

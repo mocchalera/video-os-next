@@ -91,6 +91,9 @@ Fonts must be declared with `@font-face` in `design/` (lint rejects undeclared f
 - Before any `vos gen clip`, read `skills/h3-prompt/SKILL.md` (official H3 prompt format; vos adds the frame-alignment line).
 - Generated footage is 24 fps. A piece built mostly on it should use a 24 fps canvas (`vos init --fps 24`,
   or `"canvas": {"fps": 24}` in the timeline); the timeline warns about judder otherwise.
+- For new image-reference-only generation (1–9 refs, no frame/audio guides or ControlNet), prefer FastH3 Omni:
+  pass `--model fasth3-omni` to both `vos gen up` and `vos gen clip`. Use `--model minimax-h3` for the other modes.
+  The generic CLI default remains MiniMax-H3 for compatibility; choose the model explicitly and do not switch after a failure.
 - `vos gen` spends money. Never start it without a budget from the human; always `vos gen down` when done
   (the guard stops an unattended VM anyway, but that is the safety net, not the plan).
 - `docs/DESIGN.md` is the design; change it when you change a principle.

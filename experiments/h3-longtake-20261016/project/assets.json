@@ -1,0 +1,84 @@
+{
+  "assets": {
+    "character": {
+      "duration": null,
+      "filename": "character.png",
+      "has_audio": false,
+      "height": 1280,
+      "id": "a_2f061d042b92251e",
+      "kind": "image",
+      "note": "Public LongTakeNoCuts example character sheet, xyzDist/H3-LongTakeNoCuts at 0cad00ab92e4ad8de3d54ddd5254142bccb702d9; local experiment only",
+      "size": 2038289,
+      "width": 1600
+    },
+    "segment01_base": {
+      "duration": 10.125,
+      "filename": "segment_01_base.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 640,
+      "id": "a_7f70b965ae9a5987",
+      "kind": "video",
+      "note": "H3 LongTake pilot segment 1, base; actual generation receipt in outputs/segment_01.json",
+      "size": 4207761,
+      "width": 1152
+    },
+    "segment01_refined": {
+      "duration": 10.125,
+      "filename": "segment_01_refined.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 640,
+      "id": "a_127e96af703941f8",
+      "kind": "video",
+      "note": "H3 LongTake pilot segment 1, refined; actual generation receipt in outputs/segment_01.json",
+      "size": 4670837,
+      "width": 1152
+    },
+    "segment02_base": {
+      "duration": 9.208344,
+      "filename": "segment_02_base.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 640,
+      "id": "a_fa9bab0ba39318e5",
+      "kind": "video",
+      "size": 4016683,
+      "width": 1152
+    },
+    "segment02_refined": {
+      "duration": 9.208344,
+      "filename": "segment_02_refined.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 640,
+      "id": "a_754101820a356b03",
+      "kind": "video",
+      "size": 4581247,
+      "width": 1152
+    },
+    "segment03_base": {
+      "duration": 9.208344,
+      "filename": "segment_03_base.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 640,
+      "id": "a_5b3a3522d6a1c7e8",
+      "kind": "video",
+      "size": 4914701,
+      "width": 1152
+    },
+    "segment03_refined": {
+      "duration": 9.208344,
+      "filename": "segment_03_refined.mp4",
+      "fps": 24,
+      "has_audio": true,
+      "height": 640,
+      "id": "a_aee795cba3745815",
+      "kind": "video",
+      "size": 5430211,
+      "width": 1152
+    }
+  },
+  "format": "vos.assets/1"
+}

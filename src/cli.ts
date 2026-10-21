@@ -42,8 +42,9 @@ eyes     vos look <alias|file|render> (--at 1,2.5 | --every 2 | --count 12) [--w
 judge    vos judge pool|score|report|rubric|doctor   rank candidate spans per use + in/out with evidence (d1 PoC; vos judge help)
 ears     vos beats <alias> [--hint 120]
          vos transcribe <alias…> [--model small] [--lang ja] [--vocab "紙の船, 路地"] [--singing] [--force]   speech → segments + word times (local faster-whisper; --singing: sung vocals over music)
-make     vos gen up --budget-cu N [--max-hours 2] [--lease-min 20] [--wait] [--light --gpu T4]   rent a guarded Colab GPU (costs money: ask the human for N)
-         vos gen clip --prompt "…"|--prompt-file f.txt [--from alias@sec] [--to alias@sec] [--refs a@s,b] [--guides a@s=t,…] [--ref-size match|max] [--quality turbo|full] [--control depth_alias [--control-strength 1] [--control-end 1]] [--seconds 5] [--size 768p|draft|WxH] [--seed 1] [--dense] [--as alias]
+make     vos gen up --budget-cu N [--model minimax-h3|fasth3-omni] [--max-hours 2] [--lease-min 20] [--wait] [--light --gpu T4]   rent a guarded Colab GPU (costs money: ask the human for N)
+         vos gen clip --prompt "…"|--prompt-file f.txt [--model minimax-h3|fasth3-omni] [--from alias@sec] [--to alias@sec] [--refs a@s,b] [--guides a@s=t,…] [--ref-size match|max] [--quality turbo|full] [--control depth_alias [--control-strength 1] [--control-end 1]] [--seconds 5] [--size 768p|draft|WxH] [--seed 1] [--dense] [--as alias]
+         fasth3-omni: 1–9 image refs; frame/audio guides and ControlNet are not enabled
          vos previz render <scene.py> [--as name] [--seconds 5] [--size 768p]   Blender layout → beauty + depth passes (for --control)
          vos gen status | down                      MiniMax-H3 text/image→video+audio; cached per request; ingested with provenance
          vos gen upscale [--dry-run] [--model realesrgan-x2|x4] [--only a,b]   finishing pass: upscale the generated clips the timeline uses
@@ -295,7 +296,7 @@ async function main() {
     case "gen": {
       const sub = rest[0];
       if (sub === "up") {
-        const r = gen.up({ budgetCu: Number(a["budget-cu"]), maxHours: a["max-hours"] ? Number(a["max-hours"]) : undefined, leaseMin: a["lease-min"] ? Number(a["lease-min"]) : undefined, gpu: a.gpu, wait: !!a.wait, light: !!a.light });
+        const r = gen.up({ model: a.model, budgetCu: Number(a["budget-cu"]), maxHours: a["max-hours"] ? Number(a["max-hours"]) : undefined, leaseMin: a["lease-min"] ? Number(a["lease-min"]) : undefined, gpu: a.gpu, wait: !!a.wait, light: !!a.light });
         out(r, () => {
           console.log(`${r.status ?? "up"}  ${gen.SESSION}${r.budget_cu ? `  budget ${r.budget_cu} CU` : ""}${r.bootstrap ? `  bootstrap ${r.boot ? `${r.boot.state} in ${r.boot.sec}s` : "started (vos gen status)"}` : ""}`);
           for (const w of r.boot?.weights ?? []) console.log(`  weights  ${w.file}  ${w.gb} GB in ${w.sec}s`);
@@ -310,7 +311,7 @@ async function main() {
           if (!r.session) return console.log("session   none");
           const s = r.session;
           console.log(`session   ${s.name} ${s.state}${s.stop_reason ? ` (${s.stop_reason})` : ""}  spent ${s.spent_cu ?? "-"} / ${s.budget_cu} CU  lease ${s.lease_left_min} min  deadline ${s.deadline_left_min} min`);
-          if (r.boot) console.log(`boot      ${r.boot.state}${r.boot.sec ? ` in ${r.boot.sec}s` : ""}${r.boot.torch ? `  torch ${r.boot.torch}` : ""}`);
+          if (r.boot) console.log(`boot      ${r.boot.state}${r.boot.model ? `  ${r.boot.model}` : ""}${r.boot.sec ? ` in ${r.boot.sec}s` : ""}${r.boot.torch ? `  torch ${r.boot.torch}` : ""}`);
         });
         return;
       }
@@ -322,7 +323,7 @@ async function main() {
       if (sub === "clip") {
         const p = proj(a);
         const prompt = a["prompt-file"] ? fs.readFileSync(String(a["prompt-file"]), "utf8") : a.prompt;
-        const r = gen.clip(p, { prompt, from: a.from, to: a.to, refs: a.refs, guides: a.guides, refSize: a["ref-size"], quality: a.quality, controlVideo: a.control, controlStrength: a["control-strength"] ? Number(a["control-strength"]) : undefined, controlEnd: a["control-end"] ? Number(a["control-end"]) : undefined, seconds: a.seconds ? Number(a.seconds) : undefined, size: a.size, seed: a.seed ? Number(a.seed) : undefined, steps: a.steps ? Number(a.steps) : undefined, dense: !!a.dense, as: a.as, note: a.note, replace: !!a.replace });
+        const r = gen.clip(p, { prompt, model: a.model, from: a.from, to: a.to, refs: a.refs, guides: a.guides, refSize: a["ref-size"], quality: a.quality, controlVideo: a.control, controlStrength: a["control-strength"] ? Number(a["control-strength"]) : undefined, controlEnd: a["control-end"] ? Number(a["control-end"]) : undefined, seconds: a.seconds ? Number(a.seconds) : undefined, size: a.size, seed: a.seed ? Number(a.seed) : undefined, steps: a.steps ? Number(a.steps) : undefined, dense: !!a.dense, as: a.as, note: a.note, replace: !!a.replace });
         out(r, () => {
           console.log(`${r.cached ? `cached (${r.cached})` : `generated in ${r.sec}s`}  ${r.alias}  ${r.file}${r.library ? "  → library" : ""}`);
           for (const w of r.warnings ?? []) console.log(`  note: ${w}`);

@@ -1,0 +1,17 @@
+{
+  "reference": {
+    "url": "https://raw.githubusercontent.com/Comfy-Org/workflow_templates/1524172f454aff9c87b7e5ebc143af95542bf8f0/input/yellow_plane_ref.png",
+    "sha256": "38a45b0f7914c8fc9bbce62e660b748b09be0a7ed561f080bd6fd10e99143704",
+    "bytes": 899419
+  },
+  "legacy": {
+    "comfy_rev": "1568e6cf",
+    "weights_repo": "Comfy-Org/MiniMax-H3",
+    "weights_rev": "1c41cfca8ebba91d0af792a05c5761fb2c3a7975"
+  },
+  "fasth3_omni": {
+    "comfy_rev": "b1a247c9cf9dbfda4b2c0a0c1d50950667eeaa0c",
+    "weights_repo": "FastVideo/FastH3-Omni-Comfy",
+    "weights_rev": "82eff2a6eee6c962846879f4bab52610a4df24d3"
+  }
+}
