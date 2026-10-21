@@ -1,7 +1,9 @@
 # FastH3 Omni と既存 H3 の比較
 
-状態: **旧2本は生成済み、新側は重み取得のHTTP 429で停止。比較は未成立。両VMは解除済み、残高差は1.69 CU。**
+状態: **旧2本は生成済み。新側は初回のHTTP 429、承認後の再試行はGPU情報確認で停止。比較は未成立。全VMは解除済み。**
 2026-10-21、Ask `ask_218f72ffc7cb` で合計上限6 CUの1回比較を承認済み。詳細は [RESULTS.md](RESULTS.md)。
+Ask `ask_4ee6826f9e79` の新側のみ追加上限2.5 CU・1回の再試行も実施した。
+費用は初回残高差1.69 CU、再試行は料金率と時間から約0.30 CUの概算（停止直後の残高差は0.00 CU、課金確定額は不明）。
 
 参照画像を使う経路の限定比較。テキストのみ、開始・終了フレーム固定、音声ガイド、ControlNet、
 人物の口の動きと声の同期は対象外。結果を見る前に既定モデルを変更しない。
@@ -48,3 +50,9 @@ shasum -a 256 experiments/fasth3-omni-20261021/inputs/reference.png
 `run.ts` をコピーした。`outputs/execution-source.json` に実装・worker のハッシュ、
 `outputs/run.json` に実行結果と停止確認を保存する。実行前にこれらのハッシュを照合し、
 `outputs/execution.started` が存在する場合は再度レンタルしない。
+
+承認後の再試行は `retry.ts`。実装を `f18585f` の分離版に固定し、旧動画・元の実行記録・
+同じ新側2本のrequestを照合して、新側だけを実行した。`outputs/retry-execution.started` があれば
+再度レンタルしない。記録は初回と別の `outputs/retry-*.json` に保存する。
+`python3 experiments/fasth3-omni-20261021/analyze.py --include-retry` は両実行の成功した動画だけを再測定し、
+元の測定を保持して `outputs/measurements-comparison.json` に出力する。

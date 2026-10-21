@@ -1,4 +1,5 @@
 """Measure generated sources without altering the original videos or audio."""
+import argparse
 import json
 from pathlib import Path
 import re
@@ -32,14 +33,21 @@ def measure(file):
 
 
 if __name__ == "__main__":
-    record = json.loads((OUT / "run.json").read_text())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--include-retry", action="store_true", help="Combine the original run and the separately approved FastH3 retry")
+    args = parser.parse_args()
     results = []
-    for phase in record.get("phases", []):
-        for clip in phase.get("clips", []):
-            file = HERE / "project" / clip["file"]
-            result = {"model": phase["model"], "seed": clip["seed"], "file": clip["file"],
-                      "request_id": clip["request_id"], "vm_sec": clip["sec"], "wall_sec": clip["wall_sec"],
-                      **measure(file)}
-            results.append(result)
-    (OUT / "measurements.json").write_text(json.dumps(results, indent=2) + "\n")
+    for source in ["run.json"] + (["retry-run.json"] if args.include_retry else []):
+        record = json.loads((OUT / source).read_text())
+        for phase in record.get("phases", []):
+            for clip in phase.get("clips", []):
+                file = HERE / "project" / clip["file"]
+                result = {"model": phase["model"], "seed": clip["seed"], "file": clip["file"],
+                          "request_id": clip["request_id"], "vm_sec": clip["sec"], "wall_sec": clip["wall_sec"],
+                          **measure(file)}
+                if args.include_retry:
+                    result["source_run"] = source
+                results.append(result)
+    target = "measurements-comparison.json" if args.include_retry else "measurements.json"
+    (OUT / target).write_text(json.dumps(results, indent=2) + "\n")
     print(json.dumps(results, indent=2))
