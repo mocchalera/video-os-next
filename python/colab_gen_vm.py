@@ -48,6 +48,7 @@ FASTH3 = {
     "attention_backend": "comfy kitchen attention", "graph_revision": "fasth3-omni-v1",
 }
 FASTH3_WEIGHTS = [("diffusion_models/" + FASTH3["unet"], "diffusion_models"), *WEIGHTS[1:4]]
+FASTH3_DOWNLOAD_BACKOFF = (30, 60, 120)
 # pin all three: an unpinned torchvision stays on Colab's cu128 build and ComfyUI refuses to start
 TORCH_CU130 = ("pip install -q 'torch==2.11.0+cu130' 'torchvision==0.26.0+cu130' 'torchaudio==2.11.0+cu130' "
                "--index-url https://download.pytorch.org/whl/cu130")
@@ -85,10 +86,22 @@ def _fetch(path, subdir, repo=WEIGHTS_REPO, revision=WEIGHTS_REV):
     name = os.path.basename(path)
     final = f"{dest}/{name}"
     # For the new profile resolve every component at its pin, including shared filenames.
+    attempts = 0
     if repo != WEIGHTS_REPO or not os.path.exists(final):
-        p = hf_hub_download(repo, path, revision=revision, local_dir=dest)
+        while True:
+            attempts += 1
+            try:
+                p = hf_hub_download(repo, path, revision=revision, local_dir=dest)
+                break
+            except RuntimeError as exc:
+                # Xet's Rust transfer error bypasses huggingface_hub's HTTP rate-limit retries.
+                # Retry only the observed 429 failure, on the same pinned file, with a bounded wait.
+                if repo != FASTH3["weights_repo"] or "429 Too Many Requests" not in str(exc) or attempts > len(FASTH3_DOWNLOAD_BACKOFF):
+                    raise
+                time.sleep(FASTH3_DOWNLOAD_BACKOFF[attempts - 1])
         os.replace(p, final)
-    return {"file": name, "gb": round(os.path.getsize(final) / 1e9, 2), "sec": round(time.time() - t, 1)}
+    return {"file": name, "gb": round(os.path.getsize(final) / 1e9, 2), "sec": round(time.time() - t, 1),
+            **({"download_attempts": attempts} if repo == FASTH3["weights_repo"] else {})}
 
 
 def _torch_info():
@@ -105,12 +118,17 @@ def _bootstrap(light=False, model="minimax-h3"):
            "weights_rev": weights_rev, "light": light}
     t0 = time.time()
     try:
-        os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
+        os.environ["HF_XET_HIGH_PERFORMANCE"] = "0" if fast else "1"
+        if fast:
+            os.environ["HF_XET_NUM_CONCURRENT_RANGE_GETS"] = "4"
+            os.environ["HF_XET_FIXED_DOWNLOAD_CONCURRENCY"] = "4"
+            rep["download_policy"] = {"parallel_files": 2, "xet_high_performance": False,
+                                      "requested_xet_concurrency": 4, "retry_429_wait_seconds": list(FASTH3_DOWNLOAD_BACKOFF)}
         if not os.path.isdir(COMFY):
             _sh(f"git clone -q https://github.com/comfyanonymous/ComfyUI.git {COMFY}")
         _sh(f"cd {COMFY} && git fetch -q && git checkout -q {rev} && pip install -q -r requirements.txt")
         if not light:
-            with cf.ThreadPoolExecutor(8) as ex:
+            with cf.ThreadPoolExecutor(2 if fast else 8) as ex:
                 tf = ex.submit(_sh, TORCH_CU130 + " 2>&1 | tail -3", False)
                 dl = [ex.submit(_fetch, p, d, repo, weights_rev) for p, d in (FASTH3_WEIGHTS if fast else WEIGHTS)]
                 rep["weights"] = [f.result() for f in dl]

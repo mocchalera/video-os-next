@@ -1,6 +1,7 @@
-# FastH3 Omni と既存 H3 の比較準備
+# FastH3 Omni と既存 H3 の比較
 
-状態: ローカル実装済み。**GPU 起動・重み取得・有料生成は未実施、予算は未承認。**
+状態: **旧2本は生成済み、新側は重み取得のHTTP 429で停止。比較は未成立。両VMは解除済み、残高差は1.69 CU。**
+2026-10-21、Ask `ask_218f72ffc7cb` で合計上限6 CUの1回比較を承認済み。詳細は [RESULTS.md](RESULTS.md)。
 
 参照画像を使う経路の限定比較。テキストのみ、開始・終了フレーム固定、音声ガイド、ControlNet、
 人物の口の動きと声の同期は対象外。結果を見る前に既定モデルを変更しない。
@@ -17,7 +18,7 @@
 | 旧経路 | minimax-h3、参照生成 full 20 steps、既存 sol-attn 設定 |
 | 新経路 | fasth3-omni、INT8 ConvRot、Euler 8 steps、VSA keep 10%、shift 12/3 |
 | GPU | Colab A100 40GB。異なる GPU なら比較条件を変えずに停止して報告 |
-| 予算案 | 合計上限 6 CU（旧・新各セッション 3 CU）。人間の承認後に限り開始 |
+| 承認予算 | 合計上限 6 CU（旧・新各セッション 3 CU）。今回の比較 1 回のみ |
 
 ## 実行時の扱い
 
@@ -41,3 +42,9 @@ mkdir -p experiments/fasth3-omni-20261021/inputs
 curl -fL https://raw.githubusercontent.com/Comfy-Org/workflow_templates/1524172f454aff9c87b7e5ebc143af95542bf8f0/input/yellow_plane_ref.png -o experiments/fasth3-omni-20261021/inputs/reference.png
 shasum -a 256 experiments/fasth3-omni-20261021/inputs/reference.png
 ```
+
+実行コードは `run.ts`。`--execute --budget-cu 6` がない場合はローカルの計画作成のみ。
+今回の生成実装は `fab6ba2d0d6a5cf6cce02c5935e30f0458ee23c9` を別フォルダへ展開して固定し、
+`run.ts` をコピーした。`outputs/execution-source.json` に実装・worker のハッシュ、
+`outputs/run.json` に実行結果と停止確認を保存する。実行前にこれらのハッシュを照合し、
+`outputs/execution.started` が存在する場合は再度レンタルしない。

@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from unittest.mock import patch
 
@@ -94,19 +95,66 @@ class FastH3Tests(unittest.TestCase):
             commands.append(cmd)
             return "GPU" if cmd.startswith("nvidia-smi") else ""
         try:
-            with patch.object(vm, "_fetch", side_effect=fetch), patch.object(vm, "_sh", side_effect=sh), \
+            with patch.dict(os.environ), patch.object(vm, "_fetch", side_effect=fetch), patch.object(vm, "_sh", side_effect=sh), \
                  patch.object(vm, "_torch_info", return_value="2.11.0+cu130 13.0"), \
                  patch.object(vm, "_start_server", return_value={}), patch.object(vm, "_check_fasth3_schema", return_value={}):
                 vm._bootstrap(model="fasth3-omni")
+                self.assertEqual(os.environ["HF_XET_HIGH_PERFORMANCE"], "0")
+                self.assertEqual(os.environ["HF_XET_NUM_CONCURRENT_RANGE_GETS"], "4")
+                self.assertEqual(os.environ["HF_XET_FIXED_DOWNLOAD_CONCURRENCY"], "4")
             self.assertEqual(vm.STATE["boot"]["state"], "ready")
             self.assertEqual(vm.STATE["boot"]["comfy_rev"], vm.FASTH3["comfy_rev"])
             self.assertTrue(any(vm.FASTH3["comfy_rev"] in c for c in commands))
             self.assertEqual({x[0] for x in fetched}, {x[0] for x in vm.FASTH3_WEIGHTS})
             self.assertTrue(all(x[2:] == (vm.FASTH3["weights_repo"], vm.FASTH3["weights_rev"]) for x in fetched))
+            self.assertEqual(vm.STATE["boot"]["download_policy"]["parallel_files"], 2)
             with self.assertRaises(RuntimeError):
                 vm.bootstrap(model="minimax-h3")
         finally:
             vm.STATE["boot"] = old_boot
+
+    def test_xet_429_resumes_the_same_pinned_download_after_waiting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "models/diffusion_models"
+            dest.mkdir(parents=True)
+            partial = Path(tmp) / "finished.safetensors"
+            partial.write_bytes(b"verified fixture")
+            error = RuntimeError("CAS Client Error: HTTP status client error (429 Too Many Requests)")
+            from unittest.mock import Mock, call
+            download = Mock(side_effect=[error, error, str(partial)])
+            with patch.object(vm, "COMFY", tmp), patch.dict(sys.modules, {"huggingface_hub": types.SimpleNamespace(hf_hub_download=download)}), \
+                 patch.object(vm.time, "sleep") as sleep:
+                receipt = vm._fetch("diffusion_models/model.safetensors", "diffusion_models", vm.FASTH3["weights_repo"], vm.FASTH3["weights_rev"])
+            self.assertEqual(receipt["download_attempts"], 3)
+            self.assertEqual(sleep.call_args_list, [call(30), call(60)])
+            self.assertEqual((dest / "model.safetensors").read_bytes(), b"verified fixture")
+            self.assertEqual(download.call_count, 3)
+            self.assertTrue(all(c.kwargs["revision"] == vm.FASTH3["weights_rev"] for c in download.call_args_list))
+
+    def test_xet_429_stops_after_four_attempts(self):
+        from unittest.mock import Mock, call
+        error = RuntimeError("CAS Client Error: 429 Too Many Requests")
+        download = Mock(side_effect=error)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(vm, "COMFY", tmp), \
+             patch.dict(sys.modules, {"huggingface_hub": types.SimpleNamespace(hf_hub_download=download)}), \
+             patch.object(vm.time, "sleep") as sleep, self.assertRaises(RuntimeError):
+            vm._fetch("diffusion_models/model.safetensors", "diffusion_models", vm.FASTH3["weights_repo"], vm.FASTH3["weights_rev"])
+        self.assertEqual(download.call_count, 4)
+        self.assertEqual(sleep.call_args_list, [call(30), call(60), call(120)])
+
+    def test_other_errors_and_legacy_downloads_are_not_retried(self):
+        from unittest.mock import Mock
+        for repo, error in [(vm.FASTH3["weights_repo"], RuntimeError("401 Unauthorized")),
+                            (vm.FASTH3["weights_repo"], RuntimeError("404 Not Found")),
+                            (vm.FASTH3["weights_repo"], ValueError("malformed file")),
+                            (vm.WEIGHTS_REPO, RuntimeError("429 Too Many Requests"))]:
+            download = Mock(side_effect=error)
+            with self.subTest(repo=repo, error=error), tempfile.TemporaryDirectory() as tmp, patch.object(vm, "COMFY", tmp), \
+                 patch.dict(sys.modules, {"huggingface_hub": types.SimpleNamespace(hf_hub_download=download)}), \
+                 patch.object(vm.time, "sleep") as sleep, self.assertRaises(type(error)):
+                vm._fetch("diffusion_models/model.safetensors", "diffusion_models", repo, "pinned")
+            self.assertEqual(download.call_count, 1)
+            sleep.assert_not_called()
 
     def test_job_uses_boot_provenance_and_never_loads_legacy_reference_weights(self):
         old_boot = vm.STATE.get("boot")

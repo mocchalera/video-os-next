@@ -215,6 +215,8 @@ FFmpeg は解析・抽出・検査・後処理に使う。
   元レシピは [公式 ComfyUI template](https://github.com/Comfy-Org/workflow_templates/blob/main/templates/video_fasth3_ominiref_r2v.json)、
   重みは [FastVideo/FastH3-Omni-Comfy](https://huggingface.co/FastVideo/FastH3-Omni-Comfy)。
   Colab A100 40GB のメモリ適合・速度・画質・同期は未検証。標準採用は人間が決めた予算で旧経路と比較した後に判断する。
+  FastH3 の取得は同時2ファイル、Xetの高並列モードを無効にし、concurrency 4を要求する。
+  Xetが返した429だけ同じ固定版を30・60・120秒待って再試行する（最大4回）。この緩和策の実機効果は未検証。
 - **生成物は普通の素材。** `generated/<request-id>.mp4` を ingest し、横に `vos.gen/1` の来歴
   （プロンプト・seed・解像度・モデルと重みのリビジョン・実際に使ったカーネル/GPU・所要秒・推定 CU）を置く。
   絶対パスは持たない。
