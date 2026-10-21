@@ -216,9 +216,11 @@ FFmpeg は解析・抽出・検査・後処理に使う。
   `--dense`、`--quality` は未検証なので拒否する。テキストのみの生成も旧経路を使う。
   元レシピは [公式 ComfyUI template](https://github.com/Comfy-Org/workflow_templates/blob/main/templates/video_fasth3_ominiref_r2v.json)、
   重みは [FastVideo/FastH3-Omni-Comfy](https://huggingface.co/FastVideo/FastH3-Omni-Comfy)。
-  Colab A100 40GBでは参照画像から新旧各2本の音声付き生成を確認済み
-  （`experiments/fasth3-omni-20261021/RESULTS.md`）。2本目のジョブは旧242.4秒、新98.4秒。
-  1素材の限定比較であり、人物・アニメ・聴感・動作と音の同期に一般化しない。
+  Colab A100 40GBでは航空機とアニメのベース演奏を、それぞれ新旧各2本の音声付き生成で比較済み
+  （`experiments/fasth3-omni-20261021/RESULTS.md`、`experiments/fasth3-anime-bass-20261021/RESULTS.md`）。
+  2本目のジョブは航空機が旧242.4秒・新98.4秒、アニメが旧244.5秒・新103.3秒。
+  利用者はアニメ比較の品質を許容し、「機能が足りればファストの方を第一候補」とする判断を確定した。
+  検証は2題材に限定され、聴感・動作と音の厳密な同期についてのエージェント側の評価は未実施。
   FastH3 の取得は同時2ファイル、Xetの高並列モードを無効にし、concurrency 4を要求する。
   Xetが返した429だけ同じ固定版を30・60・120秒待って再試行する（最大4回）。対策後の2回は全4ファイルを各1回で取得したが、
   429の根本原因が並列数だったとは確定していない。FastH3はV1/V3のノード形式を検査してからモデルを取得する。
