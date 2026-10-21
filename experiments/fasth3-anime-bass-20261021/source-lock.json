@@ -1,0 +1,21 @@
+{
+  "reference": {
+    "file": "inputs/reference.png",
+    "source": "built-in image_gen",
+    "prompt_file": "reference-prompt.txt",
+    "sha256": "e80c8f36ba8e65bafb9e54c9335f53b4fabfbd811e361850dc1d618f66ae0ee9",
+    "bytes": 1845130,
+    "width": 1672,
+    "height": 940
+  },
+  "legacy": {
+    "comfy_rev": "1568e6cf",
+    "weights_repo": "Comfy-Org/MiniMax-H3",
+    "weights_rev": "1c41cfca8ebba91d0af792a05c5761fb2c3a7975"
+  },
+  "fasth3_omni": {
+    "comfy_rev": "b1a247c9cf9dbfda4b2c0a0c1d50950667eeaa0c",
+    "weights_repo": "FastVideo/FastH3-Omni-Comfy",
+    "weights_rev": "82eff2a6eee6c962846879f4bab52610a4df24d3"
+  }
+}

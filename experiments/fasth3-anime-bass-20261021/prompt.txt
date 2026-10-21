@@ -1,0 +1,22 @@
+subject_definitions:
+<Subject 1> is the seated female anime bassist in <Picture 1>: short dark-brown bob, a small pale-yellow flower hair clip, amber eyes, dark teal cardigan, cream blouse with a small dark ribbon, charcoal pleated skirt and opaque black tights. Preserve her face, hairstyle, clothing and seated posture.
+<Subject 2> is the right-handed four-string electric bass in <Picture 1>: sunburst body, cream pickguard, two dark pickups, long dark fingerboard, four strings and four tuning pegs in one row. Preserve its proportions, orientation, hardware and dark shoulder strap.
+<Subject 3> is the sunlit music club room in <Picture 1>: windows at screen left, warm wooden floor and wall panels, a bass amplifier behind the player, a dark instrument case, bookshelves and a spare chair.
+
+summary:
+[reference generation] A five-second, single-shot 2D anime scene of <Subject 1> practicing a short electric-bass riff on <Subject 2> in <Subject 3>. Preserve the reference character, instrument and warm after-school atmosphere while making both hands visibly play and generating the corresponding bass sound.
+
+retention_analysis:
+<Picture 1> (appears in [Shot 1]): fully_preserved - preserve its character, bass, room and 2D anime visual treatment while animating the described performance.
+<Subject 1> (appears in [Shot 1]): fully_preserved - retain her facial identity, bob haircut, yellow flower clip, outfit, seated posture and relaxed concentration; add natural finger, wrist, head and shoulder motion.
+<Subject 2> (appears in [Shot 1]): fully_preserved - retain the sunburst four-string bass, cream pickguard, four tuning pegs, pickups, controls and continuous neck; both hands remain attached to their correct playing positions.
+<Subject 3> (appears in [Shot 1]): fully_preserved - retain the room layout, fixed objects and direction of the afternoon light.
+
+detailed_description:
+Hand-drawn 2D TV anime with delicate stable linework, readable cel shading, expressive eyes, soft warm colors and an inviting after-school music-club atmosphere. Preserve the visual style of <Picture 1>. [Shot 1] The camera holds a static medium-long, three-quarter frontal shot, showing <Subject 1>'s face, both playing hands and the entire bass including its headstock. <Subject 1> sits on the chair and holds <Subject 2> as in the reference, with her left hand fretting the neck and her right hand plucking beside the pickups. From the beginning she plays a short, original fingerstyle bass riff at a steady 120 BPM, alternating her right index and middle fingers with clearly visible strokes and audible note attacks. Each finger moves toward a string, makes contact, plucks it and releases before the next stroke. Her left fingertips press and release the strings against the frets as the notes change. Around two seconds, her left hand slides a few frets toward the bass body while maintaining contact with the neck, and the riff moves to higher notes. She sways her shoulders gently and gives a small rhythmic nod, with a subtle secondary movement of her bangs. Around four seconds she plucks one final note and lets it ring to the end, keeping her fretting hand in place and her right hand relaxed above the strings. Her smile stays subtle and her gaze follows her fretting hand. Keep the instrument rigid and its strings continuous; preserve four strings, four tuning pegs and plausible fingers throughout. Keep the room, chair and amplifier fixed. No camera movement, cuts, extra people, speech, singing, titles or subtitles.
+
+overall_soundscape:
+A clean, warm electric bass amplified in the room, with clear rounded attacks at the visible finger plucks, a steady 120 BPM pulse through the first four seconds and a final sustained note near four seconds. The pitches rise with the fretting-hand shift around two seconds. Quiet room ambience and subtle string/fret noise remain underneath, with no voice, drum kit or additional guitar.
+
+non_diegetic_music:
+N/A

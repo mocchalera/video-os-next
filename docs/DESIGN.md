@@ -205,8 +205,10 @@ FFmpeg は解析・抽出・検査・後処理に使う。
 - **課金は必ずガード越し。** `scripts/colab/vos-colab` が VM を lease（dead-man switch）で持ち、更新が途絶えたら止める。
   予算・期限・VM 消失でも止め、`colab stop` が効かなければ割り当てを直接解除し、解除を確認する。
   vos は `colab new/stop` を直接呼ばない。
-- **FastH3 Omni は選択式。** `vos gen up --model fasth3-omni --budget-cu N` で専用セッションを起動し、
-  `vos gen clip --model fasth3-omni --refs a,b --prompt-file shot.txt --as take` で使う。既定の `minimax-h3` は変更しない。
+- **参照画像のみの新規生成は FastH3 Omni を第一候補にする。** `vos gen up --model fasth3-omni --budget-cu N` で専用セッションを起動し、
+  `vos gen clip --model fasth3-omni --refs a,b --prompt-file shot.txt --as take` で使う。
+  2026-10-21の利用者選択による運用方針。汎用CLIの互換性維持のため、暗黙の既定は `minimax-h3` のままとし、
+  エージェントはモデルを明示して選ぶ。未対応機能は旧H3を使い、実行失敗時の自動切替はしない。
   ComfyUI INT8 ConvRot 版を使い、8 steps / Euler / VSA keep 10% / video shift 12・audio shift 3 を固定する。
   旧 turbo LoRA・sol-attn は併用しない。モデル、重みの取得元と版、ComfyUI 版、生成設定を request ID と来歴に含め、
   セッションのモデル・版が異なれば生成前に止める（自動切替や旧モデルへの fallback はしない）。
@@ -214,9 +216,12 @@ FFmpeg は解析・抽出・検査・後処理に使う。
   `--dense`、`--quality` は未検証なので拒否する。テキストのみの生成も旧経路を使う。
   元レシピは [公式 ComfyUI template](https://github.com/Comfy-Org/workflow_templates/blob/main/templates/video_fasth3_ominiref_r2v.json)、
   重みは [FastVideo/FastH3-Omni-Comfy](https://huggingface.co/FastVideo/FastH3-Omni-Comfy)。
-  Colab A100 40GB のメモリ適合・速度・画質・同期は未検証。標準採用は人間が決めた予算で旧経路と比較した後に判断する。
+  Colab A100 40GBでは参照画像から新旧各2本の音声付き生成を確認済み
+  （`experiments/fasth3-omni-20261021/RESULTS.md`）。2本目のジョブは旧242.4秒、新98.4秒。
+  1素材の限定比較であり、人物・アニメ・聴感・動作と音の同期に一般化しない。
   FastH3 の取得は同時2ファイル、Xetの高並列モードを無効にし、concurrency 4を要求する。
-  Xetが返した429だけ同じ固定版を30・60・120秒待って再試行する（最大4回）。この緩和策の実機効果は未検証。
+  Xetが返した429だけ同じ固定版を30・60・120秒待って再試行する（最大4回）。対策後の2回は全4ファイルを各1回で取得したが、
+  429の根本原因が並列数だったとは確定していない。FastH3はV1/V3のノード形式を検査してからモデルを取得する。
 - **生成物は普通の素材。** `generated/<request-id>.mp4` を ingest し、横に `vos.gen/1` の来歴
   （プロンプト・seed・解像度・モデルと重みのリビジョン・実際に使ったカーネル/GPU・所要秒・推定 CU）を置く。
   絶対パスは持たない。
