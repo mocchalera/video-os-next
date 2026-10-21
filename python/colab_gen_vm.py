@@ -127,21 +127,32 @@ def _bootstrap(light=False, model="minimax-h3"):
         if not os.path.isdir(COMFY):
             _sh(f"git clone -q https://github.com/comfyanonymous/ComfyUI.git {COMFY}")
         _sh(f"cd {COMFY} && git fetch -q && git checkout -q {rev} && pip install -q -r requirements.txt")
-        if not light:
-            with cf.ThreadPoolExecutor(2 if fast else 8) as ex:
+        if fast:
+            # Validate runtime capability before downloading 55 GB of model weights.
+            rep["torch_pip"] = _sh(TORCH_CU130 + " 2>&1 | tail -3", False)[-500:]
+            rep["torch"] = STATE["torch"] = _torch_info()
+            if not re.search(r"\s1[3-9]\.", " " + rep["torch"]):
+                raise RuntimeError("FastH3 requires the pinned CUDA 13 torch runtime")
+            STATE["flags"] = []
+            rep["server"] = _start_server([])
+            rep["schema"] = _check_fasth3_schema()
+            with cf.ThreadPoolExecutor(2) as ex:
+                dl = [ex.submit(_fetch, p, d, repo, weights_rev) for p, d in FASTH3_WEIGHTS]
+                rep["weights"] = [f.result() for f in dl]
+        elif not light:
+            with cf.ThreadPoolExecutor(8) as ex:
                 tf = ex.submit(_sh, TORCH_CU130 + " 2>&1 | tail -3", False)
                 dl = [ex.submit(_fetch, p, d, repo, weights_rev) for p, d in (FASTH3_WEIGHTS if fast else WEIGHTS)]
                 rep["weights"] = [f.result() for f in dl]
                 rep["torch_pip"] = tf.result()[-500:]
-        rep["torch"] = STATE["torch"] = _torch_info()
-        # kitchen CUDA kernels need CUDA >= 13; otherwise the Triton backend is the measured next best
-        cuda_ok = bool(re.search(r"\s1[3-9]\.", " " + rep["torch"]))
-        STATE["flags"] = [] if cuda_ok else ["--enable-triton-backend"]
-        if not _sh("nvidia-smi -L 2>/dev/null", False).strip():
-            STATE["flags"] = ["--cpu"]
-        rep["server"] = _start_server(STATE["flags"])
-        if fast:
-            rep["schema"] = _check_fasth3_schema()
+        if not fast:
+            rep["torch"] = STATE["torch"] = _torch_info()
+            # kitchen CUDA kernels need CUDA >= 13; otherwise the Triton backend is the measured next best
+            cuda_ok = bool(re.search(r"\s1[3-9]\.", " " + rep["torch"]))
+            STATE["flags"] = [] if cuda_ok else ["--enable-triton-backend"]
+            if not _sh("nvidia-smi -L 2>/dev/null", False).strip():
+                STATE["flags"] = ["--cpu"]
+            rep["server"] = _start_server(STATE["flags"])
         rep["state"] = "ready"
     except Exception:
         rep["state"] = "error"
@@ -205,6 +216,8 @@ def _post(path, body):
 def _check_fasth3_schema():
     """Fail before generation if this runtime cannot provide the selected native recipe."""
     info = json.load(urllib.request.urlopen(f"{URL}/object_info"))
+    _write(f"{ROOT}/native-schema.json", {k: info.get(k) for k in (
+        "MiniMaxH3SigmaShift", "MiniMaxH3ReferenceToVideo", "BlockSparseAttention", "ModelAttentionBackend")})
     for cls, names in {
         "MiniMaxH3SigmaShift": ("model", "shift_video", "shift_audio"),
         "MiniMaxH3ReferenceToVideo": ("clip", "prompt", "width", "height", "length"),
@@ -214,8 +227,11 @@ def _check_fasth3_schema():
         fields = info.get(cls, {}).get("input", {}).get("required", {})
         if not all(n in fields for n in names):
             raise RuntimeError("FastH3 native node schema is unavailable: " + cls)
-    choices = info["ModelAttentionBackend"]["input"]["required"]["attention"][0]
-    if FASTH3["attention_backend"] not in choices:
+    field = info["ModelAttentionBackend"]["input"]["required"]["attention"]
+    # V1 encodes a combo as [choices, metadata]; V3 uses ["COMBO", {"options": choices}].
+    choices = field[0] if isinstance(field[0], list) else (
+        field[1].get("options") if field[0] == "COMBO" and len(field) > 1 and isinstance(field[1], dict) else None)
+    if not isinstance(choices, list) or FASTH3["attention_backend"] not in choices:
         raise RuntimeError("FastH3 requires the Comfy Kitchen attention backend; no fallback is selected")
     return {"native_nodes": True, "attention_backend": FASTH3["attention_backend"]}
 
