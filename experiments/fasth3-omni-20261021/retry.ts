@@ -170,4 +170,10 @@ function main() {
 }
 
 try { main(); }
-catch (e) { record.state = "error"; record.error = String(e); record.ended_at = Date.now(); save(); console.error(e); process.exitCode = 1; }
+catch (e) {
+  // Preflight refusal (including an existing marker) must preserve the prior execution evidence.
+  if (record.started_at) {
+    record.state = "error"; record.error = String(e); record.ended_at = Date.now(); save();
+  }
+  console.error(e); process.exitCode = 1;
+}
