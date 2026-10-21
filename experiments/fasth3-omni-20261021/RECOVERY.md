@@ -42,3 +42,10 @@ FastH3のみ、torch/server/ネイティブ機能の検査をモデル取得よ�
 続行指示と当初の合計6 CU上限の範囲で、既使用分を3.35 CUとして留保し、残りから最大2.5 CUで再開する。
 記録を分けるためrunnerに `--run-label schema` を指定し、`outputs/schema-*.json` に保存する。
 モデル・精度・GPU・入力・request IDは変更しない。
+
+## 修正後の実機結果
+
+`ce1c69b` の分離版で成功した。実機のV3 schemaで修正前のworkerは失敗、修正後は成功することを同一harnessで確認。
+実機の選択肢にもKitchenがあり、小規模なINT8 attentionのCUDA実行も成功した。
+その後、同じ2つのrequest IDで音声付きMP4を生成し、元出力とハッシュ照合、履歴の8 steps/Euler/VSA設定も確認した。
+ジョブ時間182.4秒・98.4秒、全VM解除済み。費用と品質の限界は [RESULTS.md](RESULTS.md) を参照。

@@ -37,7 +37,7 @@ export const H3 = {
   weights_rev: "1c41cfca8ebba91d0af792a05c5761fb2c3a7975",
 } as const;
 
-/** Opt-in ComfyUI INT8 recipe; GPU quality/speed on Colab are not yet measured.
+/** Opt-in ComfyUI INT8 recipe; A100 reference-image pilot: experiments/fasth3-omni-20261021/RESULTS.md.
  * https://github.com/Comfy-Org/workflow_templates/blob/main/templates/video_fasth3_ominiref_r2v.json */
 export const FASTH3 = {
   model: "fasth3-omni",

@@ -1,9 +1,9 @@
 # FastH3 Omni と既存 H3 の比較
 
-状態: **旧2本は生成済み。新側は初回のHTTP 429、承認後の再試行はGPU情報確認で停止。比較は未成立。全VMは解除済み。**
-2026-10-21、Ask `ask_218f72ffc7cb` で合計上限6 CUの1回比較を承認済み。詳細は [RESULTS.md](RESULTS.md)。
-Ask `ask_4ee6826f9e79` の新側のみ追加上限2.5 CU・1回の再試行も実施した。
-費用は初回残高差1.69 CU、再試行は料金率と時間から約0.30 CUの概算（停止直後の残高差は0.00 CU、課金確定額は不明）。
+状態: **新旧各2本の音声付き動画を生成・照合済み。FastH3の参照画像経路はA100 40GBで動作した。全VM解除済み。**
+当初の合計上限6 CUを維持。表示残高差4.44 CU、料金率と稼働時間等からの概算5.09 CU（課金確定額とは区別）。
+2本目のVMジョブは旧242.4秒→新98.4秒。取得を含む全体時間の差は小さい。詳細は [RESULTS.md](RESULTS.md)。
+失敗原因と修正は [RECOVERY.md](RECOVERY.md)。新形式の互換チェックを修正した成功版は `ce1c69b`。
 
 参照画像を使う経路の限定比較。テキストのみ、開始・終了フレーム固定、音声ガイド、ControlNet、
 人物の口の動きと声の同期は対象外。結果を見る前に既定モデルを変更しない。
@@ -56,3 +56,7 @@ shasum -a 256 experiments/fasth3-omni-20261021/inputs/reference.png
 再度レンタルしない。記録は初回と別の `outputs/retry-*.json` に保存する。
 `python3 experiments/fasth3-omni-20261021/analyze.py --include-retry` は両実行の成功した動画だけを再測定し、
 元の測定を保持して `outputs/measurements-comparison.json` に出力する。
+
+続行後の成功した実行は `recover.ts --run-label schema`。`outputs/schema-*.json` に来歴・設定・停止確認を保存した。
+`analyze.py --include-schema` は過去の実行記録を保持して全4本を `outputs/measurements-schema.json` に再測定する。
+現在の `schema-execution.started` は保持しており、この記録で再度レンタルしない。

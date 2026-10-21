@@ -36,10 +36,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--include-retry", action="store_true", help="Combine the original run and the separately approved FastH3 retry")
     parser.add_argument("--include-recovery", action="store_true", help="Also include the user-directed recovery after GPU verification was fixed")
+    parser.add_argument("--include-schema", action="store_true", help="Include the retry after fixing V3 combo schema parsing")
     args = parser.parse_args()
     results = []
-    compare = args.include_retry or args.include_recovery
-    sources = ["run.json"] + (["retry-run.json"] if compare else []) + (["recovery-run.json"] if args.include_recovery else [])
+    compare = args.include_retry or args.include_recovery or args.include_schema
+    sources = ["run.json"] + (["retry-run.json"] if compare else []) + (["recovery-run.json"] if args.include_recovery or args.include_schema else []) + (["schema-run.json"] if args.include_schema else [])
     for source in sources:
         record = json.loads((OUT / source).read_text())
         for phase in record.get("phases", []):
@@ -51,6 +52,6 @@ if __name__ == "__main__":
                 if compare:
                     result["source_run"] = source
                 results.append(result)
-    target = "measurements-recovery.json" if args.include_recovery else "measurements-comparison.json" if compare else "measurements.json"
+    target = "measurements-schema.json" if args.include_schema else "measurements-recovery.json" if args.include_recovery else "measurements-comparison.json" if compare else "measurements.json"
     (OUT / target).write_text(json.dumps(results, indent=2) + "\n")
     print(json.dumps(results, indent=2))
