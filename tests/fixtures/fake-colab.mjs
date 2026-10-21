@@ -118,8 +118,13 @@ switch (cmd) {
       state.drops = (state.drops ?? 0) + 1; save(); console.error("RuntimeError: Connection was lost."); process.exit(124);
     }
     if (/^bootstrap\(.*\)$/.test(code.trim())) {
+      const fast = code.includes('model="fasth3-omni"');
+      state.genBoot = { model: fast ? "fasth3-omni" : "minimax-h3", light: code.includes("light=True"),
+        comfy_rev: fast ? "b1a247c9cf9dbfda4b2c0a0c1d50950667eeaa0c" : "1568e6cf",
+        weights_repo: fast ? "FastVideo/FastH3-Omni-Comfy" : "Comfy-Org/MiniMax-H3",
+        weights_rev: fast ? "82eff2a6eee6c962846879f4bab52610a4df24d3" : "1c41cfca" };
       if (!process.env.FAKE_BOOT_NEVER) put("/content/vosgen/boot.started", "");
-      if (!process.env.FAKE_BOOT_NEVER) put("/content/vosgen/boot.json", JSON.stringify({ state: process.env.FAKE_BOOT_FAIL ? "error" : "ready", error: "boom", torch: "2.11.0+cu130 13.0", sec: 1 }));
+      if (!process.env.FAKE_BOOT_NEVER) put("/content/vosgen/boot.json", JSON.stringify({ state: process.env.FAKE_BOOT_FAIL ? "error" : "ready", error: "boom", torch: "2.11.0+cu130 13.0", sec: 1, ...state.genBoot }));
       if (!process.env.FAKE_BOOT_NEVER) put("/content/vosgen/boot.done", "");
     }
     const m = /^submit\(__import__\("json"\)\.loads\((.*)\)\)\s*$/s.exec(code.trim());
@@ -133,7 +138,7 @@ switch (cmd) {
         put(`/content/vosgen/jobs/${r.id}.json`, JSON.stringify({ id: r.id, state: "error", error: "CUDA OOM", log_tail: "..." }));
       } else {
         put(`/content/vosgen/out/${r.id}.mp4`, Buffer.concat([fs.readFileSync(FIXTURE), Buffer.from(`${r.kind ?? "gen"}:${r.id}`)]));
-        put(`/content/vosgen/jobs/${r.id}.json`, JSON.stringify({ id: r.id, state: "ok", output: `/content/vosgen/out/${r.id}.mp4`, sec: 81.2, s_per_it: 10.03, gpu: "NVIDIA A100-SXM4-40GB", torch: "2.11.0+cu130 13.0", flags: [], comfy_rev: "1568e6cf", weights_rev: "1c41cfca" }));
+        put(`/content/vosgen/jobs/${r.id}.json`, JSON.stringify({ id: r.id, state: "ok", output: `/content/vosgen/out/${r.id}.mp4`, sec: 81.2, s_per_it: 10.03, gpu: "NVIDIA A100-SXM4-40GB", torch: "2.11.0+cu130 13.0", flags: [], ...state.genBoot, ...(process.env.FAKE_GEN_BAD_PROVENANCE ? { weights_rev: "stale" } : {}) }));
       }
       put(`/content/vosgen/jobs/${r.id}.done`, "");
     }

@@ -37,6 +37,35 @@ export const H3 = {
   weights_rev: "1c41cfca8ebba91d0af792a05c5761fb2c3a7975",
 } as const;
 
+/** Opt-in ComfyUI INT8 recipe; GPU quality/speed on Colab are not yet measured.
+ * https://github.com/Comfy-Org/workflow_templates/blob/main/templates/video_fasth3_ominiref_r2v.json */
+export const FASTH3 = {
+  model: "fasth3-omni",
+  unet: "fasth3_omniref_8step_pruned_int8_convrot.safetensors",
+  text_encoder: H3.text_encoder,
+  video_vae: H3.video_vae,
+  audio_vae: H3.audio_vae,
+  weights_repo: "FastVideo/FastH3-Omni-Comfy",
+  weights_rev: "82eff2a6eee6c962846879f4bab52610a4df24d3",
+  comfy_rev: "b1a247c9cf9dbfda4b2c0a0c1d50950667eeaa0c",
+  steps: 8,
+  lora: "",
+  sol_tau: null,
+  sampler: "euler",
+  shift_video: 12,
+  shift_audio: 3,
+  attention: "vsa",
+  vsa_keep_percent: 10,
+  attention_backend: "comfy kitchen attention",
+  graph_revision: "fasth3-omni-v1",
+} as const;
+
+function modelName(model?: string): string {
+  const name = model ?? H3.model;
+  if (name !== H3.model && name !== FASTH3.model) throw new VosError("usage", `unknown generation model "${name}"`, "use minimax-h3 (default) or fasth3-omni");
+  return name;
+}
+
 /** Revision of the ControlNet part of the worker graph; part of the request id of controlled clips only.
  * 2: ControlNet applied after BlockSparseAttention — before it (1) the control hooks were dropped (2026-10-01). */
 export const CONTROL_GRAPH = 2;
@@ -65,6 +94,14 @@ export interface GenRequest {
   audio_vae: string;
   comfy_rev: string;
   weights_rev: string;
+  weights_repo?: string;
+  sampler?: string;
+  shift_video?: number;
+  shift_audio?: number;
+  attention?: string;
+  vsa_keep_percent?: number;
+  attention_backend?: string;
+  graph_revision?: string;
   first_frame?: FrameRef; // image→video: absent for text→video (keeps t2v ids unchanged)
   last_frame?: FrameRef;
   mode?: "ref2va"; // reference-to-video (characters / styles / keyframes); absent otherwise
@@ -93,6 +130,7 @@ export interface FrameRef {
 
 export interface ClipOptions {
   prompt: string;
+  model?: string; // defaults to the existing MiniMax-H3 recipe
   seconds?: number;
   size?: string; // key of SIZES or "WxH"
   seed?: number;
@@ -183,6 +221,23 @@ export function buildRequest(o: ClipOptions): GenRequest {
   const seconds = o.seconds ?? 5;
   if (!(seconds > 0 && seconds <= 15)) throw new VosError("usage", "--seconds must be in (0, 15]", "the model's trained range is ~5-15 s");
   const [width, height] = parseSize(o.size);
+  if (modelName(o.model) === FASTH3.model) {
+    // Start with ordinary image references only; do not silently reinterpret anchored guides as references.
+    if (["firstFrame", "lastFrame", "guides", "audioGuides", "control"].some((key) => {
+      const value = (o as any)[key];
+      return Array.isArray(value) ? value.length > 0 : !!value;
+    })) {
+      throw new VosError("usage", "fasth3-omni currently supports --refs only; frame/audio guides and ControlNet are not validated", "use --model minimax-h3 for --from/--to, --guides, --audio-guides or --control");
+    }
+    if (!o.refs?.length || o.refs.length > H3_REF.max_images) throw new VosError("usage", "fasth3-omni needs 1–9 reference images via --refs");
+    if (o.refSize !== undefined && o.refSize !== "match" && o.refSize !== "max") throw new VosError("usage", "--ref-size must be match or max");
+    if (o.dense || o.quality !== undefined || (o.steps !== undefined && o.steps !== FASTH3.steps)) {
+      throw new VosError("usage", "fasth3-omni uses its fixed 8-step VSA recipe; --dense and --quality are not supported");
+    }
+    const body = { ...FASTH3, mode: "ref2va" as const, prompt: o.prompt.trim(), seconds, width, height,
+      seed: o.seed ?? 1, refs: o.refs, guides: [], ref_image_size: o.refSize ?? "match" };
+    return { id: sha256(stableStringify(body)).slice(0, 16), ...body };
+  }
   const ref = !!(o.refs?.length || o.guides?.length);
   if (ref) {
     if (o.firstFrame || o.lastFrame) throw new VosError("usage", "--from/--to cannot be combined with --refs/--guides", "in reference mode pin the opening frame with a guide at 0: --guides shot@2=0");
@@ -232,6 +287,7 @@ const requireSession = () => rc.requireRunning(GEN);
 
 export interface UpOptions {
   budgetCu: number;
+  model?: string;
   maxHours?: number;
   leaseMin?: number;
   gpu?: string;
@@ -241,13 +297,19 @@ export interface UpOptions {
 
 export function up(o: UpOptions) {
   if (!(o.budgetCu > 0)) throw new VosError("usage", "vos gen up needs --budget-cu <N>", "compute units cost money: get the number from the human");
-  if (session()) return { ok: true, session: SESSION, status: "already_up" };
+  const model = modelName(o.model);
+  if (o.light && model === FASTH3.model) throw new VosError("usage", "--light cannot be combined with --model fasth3-omni");
+  if (session()) {
+    const boot = waitBoot();
+    if ((boot.model ?? H3.model) !== model) throw new VosError("gen_model_mismatch", `the running session uses ${boot.model ?? H3.model}, not ${model}`, "stop it with `vos gen down`, then start the selected model with a budget");
+    return { ok: true, session: SESSION, status: "already_up", model };
+  }
   const s = rc.start(GEN, { gpu: o.gpu ?? "A100", budgetCu: o.budgetCu, maxHours: o.maxHours ?? 2, leaseMin: o.leaseMin ?? 20 });
   try {
     guardExec(fs.readFileSync(VM_WORKER, "utf8"));
-    guardExec(o.light ? "bootstrap(light=True)" : "bootstrap()");
+    guardExec(model === FASTH3.model ? 'bootstrap(model="fasth3-omni")' : o.light ? "bootstrap(light=True)" : "bootstrap()");
     waitRemote(`${REMOTE}/boot.started`, 90, "the bootstrap to start");
-    const res: any = { ok: true, session: SESSION, endpoint: s.endpoint, budget_cu: o.budgetCu, bootstrap: "started", light: !!o.light };
+    const res: any = { ok: true, session: SESSION, endpoint: s.endpoint, budget_cu: o.budgetCu, bootstrap: "started", light: !!o.light, model };
     if (o.wait) res.boot = waitBoot();
     return res;
   } catch (e) {
@@ -375,6 +437,10 @@ export function clip(p: Project, o: ClipCall): ClipResult {
 
   const sess = requireSession();
   const boot = waitBoot();
+  if ((boot.model ?? H3.model) !== req.model) throw new VosError("gen_model_mismatch", `the running session uses ${boot.model ?? H3.model}, not ${req.model}`, `start a matching session with vos gen up --model ${req.model} --budget-cu <N>`);
+  if (req.model === FASTH3.model && (boot.comfy_rev !== req.comfy_rev || boot.weights_rev !== req.weights_rev || boot.weights_repo !== req.weights_repo)) {
+    throw new VosError("gen_model_mismatch", "FastH3 session revisions do not match this request", "stop the session and start it again with the current worker");
+  }
   const remoteReq: any = { ...req };
   const frames: Record<string, { sha256: string }> = {};
   for (const [key, f] of [["first", first], ["last", last]] as const) {
@@ -406,6 +472,9 @@ export function clip(p: Project, o: ClipCall): ClipResult {
     remoteReq.control_video = name;
   }
   const job = runRemote(remoteReq, o.timeoutSec ?? 1800);
+  if (req.model === FASTH3.model && (job.id !== req.id || ["model", "comfy_rev", "weights_repo", "weights_rev"].some((k) => job[k] !== (req as any)[k]))) {
+    throw new VosError("gen_provenance_mismatch", "the VM result does not match the FastH3 request", "no take was ingested; inspect the session before retrying");
+  }
   download(job.output, media);
   const rate = Number(status().rate_cu_h) || null;
   writeJson(sidecar, {
@@ -414,6 +483,7 @@ export function clip(p: Project, o: ClipCall): ClipResult {
     ...(Object.keys(frames).length ? { frames } : {}),
     file: { bytes: fs.statSync(media).size, content_id: contentId(media) },
     ran: { gpu: job.gpu, torch: job.torch, flags: job.flags, comfy_rev: job.comfy_rev, weights_rev: job.weights_rev,
+      ...(req.model === FASTH3.model ? { model: job.model, weights_repo: job.weights_repo } : {}),
       boot_torch: boot.torch, sec: job.sec, s_per_it: job.s_per_it, est_cu: rate ? Math.round((job.sec * rate) / 36) / 100 : null },
     at: new Date().toISOString(),
     session: { name: SESSION, endpoint: sess.endpoint },

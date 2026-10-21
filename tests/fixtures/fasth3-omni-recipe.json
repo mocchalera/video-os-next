@@ -1,0 +1,53 @@
+{
+  "source": "https://raw.githubusercontent.com/Comfy-Org/workflow_templates/1524172f454aff9c87b7e5ebc143af95542bf8f0/templates/video_fasth3_ominiref_r2v.json",
+  "nodes": [
+    {
+      "type": "KSamplerSelect",
+      "values": [
+        "euler"
+      ]
+    },
+    {
+      "type": "BasicScheduler",
+      "values": [
+        "simple",
+        8,
+        1
+      ]
+    },
+    {
+      "type": "UNETLoader",
+      "values": [
+        "fasth3_omniref_8step_pruned_int8_convrot.safetensors",
+        "default"
+      ]
+    },
+    {
+      "type": "MiniMaxH3SigmaShift",
+      "values": [
+        12,
+        3
+      ]
+    },
+    {
+      "type": "ModelAttentionBackend",
+      "values": [
+        "comfy kitchen attention"
+      ]
+    },
+    {
+      "type": "BlockSparseAttention",
+      "values": [
+        "vsa",
+        10,
+        0,
+        1,
+        "",
+        12288,
+        256,
+        "exact_kv_and_rows",
+        false
+      ]
+    }
+  ]
+}
