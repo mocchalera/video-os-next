@@ -144,3 +144,9 @@ clay-to-material look would pull the generation toward CG.
   the low camera made the driver's bounding-box near ≈ 0.06 m — keep unseen geometry away from the camera or the depth
   range collapses), and moving the wall closer blew out the material pass (lights rescaled to 135/45/150 W by
   measuring the wall colour against the reference with ffmpeg).
+- 2026-10-12, the same cut with people: `examples/previz/stepwise_band_performance.py` copies the kit set and adds an
+  anonymous clay bassist (left) and a seated drummer (crouch) playing a demo phrase (not synced to music) with
+  instruments as props on contact targets; the scene's STEPWISE_META carries a performance audit (wrist-to-target
+  error, stick tip on head at hits, pluck on the string plane, feet on the platform, seat, bass-body gap, image
+  positions of heads/hands/props at start/mid/end and contact frames). The camera had to move 0.35 m back and tilt
+  up for both heads to read, so the kit is smaller than in the kit pass.

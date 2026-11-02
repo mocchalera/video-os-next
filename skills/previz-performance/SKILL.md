@@ -117,3 +117,24 @@ the same armature).
 ## Field notes (record results here)
 
 - (none yet) — technique · control (depth / pose, strength, end) · size · what held and what broke.
+- 2026-10-12, previz only (no generation), `examples/previz/stepwise_band_performance.py` (bassist + seated drummer,
+  48 f): (1) actors stand on z = 0 — a z in `at` is ignored by the feet and the pelvis, so actors placed on a raised
+  platform sink into it (move the world so the floor they stand on is z = 0); (2) an event blends from 0 on its own
+  frame, so state that must already hold on frame 1 goes at frame 0; (3) instruments as props on animated targets
+  held contact within ≤ 6 mm (wrist), stick tips landed within 3 mm of the heads; (4) the pose pass draws a seated
+  drummer's legs straight and through the kit (no occlusion, knees foreshortened) — a pose control would push toward
+  standing legs; prefer the depth control for seated players.
+- 2026-10-12, same scene, hands repair after a human said "the hands move wrong": a 0 m wrist-to-target error said
+  nothing about the hands. A contact puts the WRIST on the target while the 17 cm hand clay continues straight along
+  the forearm, so a stick tied to the target came out of the forearm and a fretting hand ran through the neck; a
+  pluck path that ended away from its start snapped back in one frame; gaze changes turned the chest (eyes lead) and
+  threw the elbows up. What worked, scene-locally: aim the PALM (wrist + 0.08 m along the hand) by correcting the
+  target over a few perform passes, re-key the hand bone afterwards to bend the wrist toward the tool, place props
+  from the actual palm, keep the gaze/twist still while hands play, use closed continuous hand paths. Judge it on
+  every frame of fixed hand crops, not on contact numbers.
+- 2026-10-12, round 2 (contact on the visible clay): drive the point of the hand CLAY nearest the instrument (the
+  ellipsoid's extreme point toward the string plane, from its matrix_world) onto the strings by correcting the IK
+  target over a few passes — wrist/palm numbers say nothing about what the camera sees. Re-key upper arm + forearm
+  with a downward elbow for a fretting hand (the rig points every elbow back/out, so the forearm crossed the neck).
+  From a camera below the hands, a hand tilted toward the camera projects UPWARD: a hand tipped into the fretboard
+  read as a raised thumb; lay it flat on the board instead.
